@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
 using Triply.Api.Entities;
+using Microsoft.AspNetCore.Identity;
 
 namespace Triply.Api.Data;
 
