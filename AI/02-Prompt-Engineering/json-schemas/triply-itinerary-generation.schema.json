@@ -1,0 +1,119 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://triply.internal/schemas/itinerary-generation/1.0.0.json",
+  "title": "Triply AI Itinerary Generation Response",
+  "description": "Structured output contract for Gemini's day-by-day itinerary generation (FR-AI-001). Enforced by the Backend AI-Orchestration module before any ItineraryDay/ItineraryItem rows are written. See TRIPLY_AI_JSON_Schema_Contract_v1.0.0.md for full rationale and the validation pipeline.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "trip_id", "destination_id", "days", "cost_summary"],
+  "properties": {
+    "schema_version": {
+      "type": "string",
+      "const": "1.0.0",
+      "description": "Must match the version Backend is configured to accept for this generation request."
+    },
+    "trip_id": {
+      "type": "string",
+      "format": "uuid",
+      "description": "Must match the Trip.id of the request that triggered this generation."
+    },
+    "destination_id": {
+      "type": "integer",
+      "minimum": 1,
+      "description": "Must match Trip.destination_id for the request."
+    },
+    "days": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "$ref": "#/$defs/ItineraryDay" },
+      "description": "Length must equal the trip's day count (end_date - start_date + 1). day_number values must be unique and contiguous starting at 1."
+    },
+    "cost_summary": { "$ref": "#/$defs/CostSummary" }
+  },
+  "$defs": {
+    "ItineraryDay": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["day_number", "date", "items"],
+      "properties": {
+        "day_number": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "1-indexed day number, matches ItineraryDay.day_number CHECK > 0."
+        },
+        "date": {
+          "type": "string",
+          "format": "date",
+          "description": "Must fall within [Trip.start_date, Trip.end_date] and equal start_date + day_number - 1."
+        },
+        "items": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "$ref": "#/$defs/ItineraryItem" }
+        }
+      }
+    },
+    "ItineraryItem": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["time_slot", "order_index", "place_name", "place_category", "estimated_cost"],
+      "properties": {
+        "time_slot": {
+          "type": "string",
+          "enum": ["MORNING", "AFTERNOON", "EVENING"],
+          "description": "Matches ItineraryItem.time_slot CHECK constraint."
+        },
+        "order_index": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "Ordering within (day_number, time_slot). Must be unique per that pair."
+        },
+        "place_name": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200,
+          "description": "Must exactly match an active Place.name scoped to destination_id. This is the FR-AI-002 enforcement field — 0% tolerance for unresolved names."
+        },
+        "place_category": {
+          "type": "string",
+          "enum": ["ATTRACTION", "RESTAURANT", "ACTIVITY", "ACCOMMODATION", "TRANSPORT"],
+          "description": "Must match PlaceCategory.code of the resolved Place row."
+        },
+        "estimated_cost": {
+          "type": "number",
+          "minimum": 0,
+          "multipleOf": 0.01,
+          "description": "Checked against the resolved Place.reference_price within the agreed cost-tolerance band (SRS D1, proposed +/-15%, pending sign-off)."
+        },
+        "notes": {
+          "type": ["string", "null"],
+          "maxLength": 500,
+          "description": "Optional free-text rationale/tip. Must not contain invented pricing or confidence claims."
+        }
+      }
+    },
+    "CostSummary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["currency", "accommodation", "transportation", "food", "activities", "other", "total"],
+      "properties": {
+        "currency": {
+          "type": "string",
+          "pattern": "^[A-Z]{3}$",
+          "description": "ISO 4217 currency code, matches Trip.budget_currency_id's ISO code when set."
+        },
+        "accommodation": { "type": "number", "minimum": 0, "multipleOf": 0.01 },
+        "transportation": { "type": "number", "minimum": 0, "multipleOf": 0.01 },
+        "food": { "type": "number", "minimum": 0, "multipleOf": 0.01 },
+        "activities": { "type": "number", "minimum": 0, "multipleOf": 0.01 },
+        "other": { "type": "number", "minimum": 0, "multipleOf": 0.01 },
+        "total": {
+          "type": "number",
+          "minimum": 0,
+          "multipleOf": 0.01,
+          "description": "Must equal the sum of accommodation + transportation + food + activities + other (2dp rounding). Used only as a model coherence check — the authoritative CostEstimate rows are computed deterministically by Backend from persisted ItineraryItem data, not copied from this field."
+        }
+      }
+    }
+  }
+}
