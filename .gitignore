@@ -23,3 +23,6 @@ Backend/Triply.Api/appsettings.*.json
 # Logs
 *.log
 Backend/Triply.Api/Properties/
+.env
+.env.*
+!.env.example
