@@ -1,0 +1,197 @@
+openapi: 3.0.3
+info:
+  title: Triply API
+  description: >
+    Placeholder OpenAPI spec — Sprint 0. This is a hand-written snapshot to
+    agree the contract shape before real endpoints exist. Once the backend
+    is running, regenerate this file from the live spec:
+      curl http://localhost:5000/swagger/v1/swagger.json -o docs/openapi.yaml
+  version: "0.1.0-placeholder"
+
+servers:
+  - url: /api
+
+paths:
+  /auth/register:
+    post:
+      summary: Register a new user (FR-AUTH-001)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RegisterRequest'
+      responses:
+        '200':
+          description: Account created, JWT issued
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthResponse'
+        '400':
+          description: Validation error / duplicate email
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetails'
+
+  /auth/login:
+    post:
+      summary: Log in (FR-AUTH-002)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoginRequest'
+      responses:
+        '200':
+          description: JWT issued
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthResponse'
+        '401':
+          description: Invalid credentials (generic message, no leakage)
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetails'
+
+  /trips:
+    get:
+      summary: List the authenticated user's trips
+      security: [{ bearerAuth: [] }]
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/TripSummary'
+        '401':
+          description: Missing/invalid JWT
+    post:
+      summary: Create a trip (destination-first or budget-first) — FR-TRIP-001/002
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateTripRequest'
+      responses:
+        '201':
+          description: Trip created (status DRAFT)
+        '400':
+          description: Validation error
+
+  /trips/{id}:
+    get:
+      summary: Get a trip by id (owner only) — NFR-PRIV-001
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - $ref: '#/components/parameters/TripId'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TripDetail'
+        '403':
+          description: Not the trip owner
+        '404':
+          description: Trip not found
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  parameters:
+    TripId:
+      name: id
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+
+  schemas:
+    RegisterRequest:
+      type: object
+      required: [email, password]
+      properties:
+        email: { type: string, format: email }
+        password: { type: string, minLength: 8 }
+        displayName: { type: string }
+
+    LoginRequest:
+      type: object
+      required: [email, password]
+      properties:
+        email: { type: string, format: email }
+        password: { type: string }
+
+    AuthResponse:
+      type: object
+      properties:
+        token: { type: string }
+        expiresAtUtc: { type: string, format: date-time }
+        userId: { type: string, format: uuid }
+        email: { type: string }
+
+    Money:
+      type: object
+      properties:
+        amount: { type: number, format: decimal }
+        currency: { type: string, example: USD }
+
+    TripSummary:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        status: { type: string, enum: [DRAFT, GENERATING, GENERATED, MODIFIED, SAVED, ARCHIVED] }
+        destinationName: { type: string, nullable: true }
+        startDate: { type: string, format: date, nullable: true }
+        endDate: { type: string, format: date, nullable: true }
+        totalEstimatedCost: { $ref: '#/components/schemas/Money' }
+
+    TripDetail:
+      allOf:
+        - $ref: '#/components/schemas/TripSummary'
+        - type: object
+          properties:
+            travelerCount: { type: integer }
+            planningMode: { type: string, enum: [DESTINATION_FIRST, BUDGET_FIRST] }
+            isEstimated: { type: boolean, example: true }
+
+    CreateTripRequest:
+      type: object
+      required: [planningMode, interestCategoryCodes]
+      properties:
+        planningMode: { type: string, enum: [DESTINATION_FIRST, BUDGET_FIRST] }
+        destinationId: { type: integer, nullable: true }
+        budgetAmount: { type: number, nullable: true }
+        budgetCurrency: { type: string, nullable: true }
+        travelerCount: { type: integer, minimum: 1 }
+        interestCategoryCodes:
+          type: array
+          items: { type: string }
+
+    ProblemDetails:
+      type: object
+      properties:
+        title: { type: string }
+        status: { type: integer }
+        instance: { type: string, nullable: true }
+        errors:
+          type: object
+          additionalProperties:
+            type: array
+            items: { type: string }
