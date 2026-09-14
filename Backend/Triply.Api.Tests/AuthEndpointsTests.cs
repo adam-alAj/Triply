@@ -37,8 +37,10 @@ public class AuthEndpointsTests : IClassFixture<CustomWebApplicationFactory>
             new RegisterRequest(email, "AnotherP@ss1", "Second"));
 
         Assert.Equal(HttpStatusCode.BadRequest, second.StatusCode);
-        var problem = await second.Content.ReadFromJsonAsync<Dictionary<string, object>>();
-        Assert.True(problem!.ContainsKey("errors")); // ValidationProblem shape includes field-keyed errors
+      var body = await second.Content.ReadAsStringAsync();
+
+Assert.Contains("\"errors\"", body);
+Assert.Contains("Email", body);
     }
 
     [Theory]
