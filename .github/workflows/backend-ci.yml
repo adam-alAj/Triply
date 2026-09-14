@@ -1,0 +1,34 @@
+name: Backend CI
+
+on:
+  pull_request:
+    branches: [ main ]
+
+  push:
+    branches: [ main ]
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup .NET 9
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '9.0.x'
+
+      - name: Restore
+        run: dotnet restore Backend/Triply.Api/Triply.Api.csproj
+
+      - name: Build
+        run: dotnet build Backend/Triply.Api/Triply.Api.csproj --no-restore --configuration Release
+
+      # Placeholder — enable once the xUnit/Moq test project exists
+      # - name: Test
+      #   run: dotnet test Backend/Triply.Api.Tests --no-build --configuration Release
+
+      # Placeholder — deploy step, pending hosting decision
+      # - name: Deploy
+      #   run: echo "Deployment target not yet decided (D3)"
