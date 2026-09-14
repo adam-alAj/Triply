@@ -22,5 +22,9 @@
   <ItemGroup>
     <ProjectReference Include="..\Triply.Api\Triply.Api.csproj" />
   </ItemGroup>
-
+<ItemGroup>
+  <None Update="xunit.runner.json">
+    <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+  </None>
+</ItemGroup>
 </Project>
