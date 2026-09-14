@@ -2,7 +2,6 @@ using Microsoft.AspNetCore.Mvc;
 
 namespace Triply.Api.Common.Middleware;
 
-// SRS §11: unhandled exceptions return ProblemDetails, never a stack trace.
 public class ExceptionHandlingMiddleware
 {
     private readonly RequestDelegate _next;
@@ -30,11 +29,11 @@ public class ExceptionHandlingMiddleware
                 Status = StatusCodes.Status500InternalServerError,
                 Instance = context.Request.Path
             };
-
-         context.Response.StatusCode = problem.Status.Value;
-await context.Response.WriteAsJsonAsync(problem);
-context.Response.ContentType = "application/problem+json";
-      }
+            context.Response.StatusCode = problem.Status.Value;
+            await context.Response.WriteAsJsonAsync(
+                problem,
+                options: null,
+                contentType: "application/problem+json");
+        }
     }
-
 }

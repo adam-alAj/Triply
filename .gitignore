@@ -1,3 +1,14 @@
+.dart_tool/
+build/
+.idea/
+*.iml
+.flutter-plugins
+.flutter-plugins-dependencies
+.packages
+
+android/.gradle/
+android/.kotlin/
+android/local.properties
 # Visual Studio
 .vs/
 *.user
