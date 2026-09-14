@@ -76,6 +76,7 @@ builder.Services.AddValidatorsFromAssemblyContaining<Program>();
 builder.Services.AddRateLimiter(options =>
 {
     options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
+
     options.AddFixedWindowLimiter("fixed", opt =>
     {
         opt.PermitLimit = 100;
@@ -83,8 +84,15 @@ builder.Services.AddRateLimiter(options =>
         opt.QueueProcessingOrder = QueueProcessingOrder.OldestFirst;
         opt.QueueLimit = 0;
     });
-});
 
+    options.AddFixedWindowLimiter("login", opt =>
+    {
+        opt.PermitLimit = 5;
+        opt.Window = TimeSpan.FromMinutes(1);
+        opt.QueueProcessingOrder = QueueProcessingOrder.OldestFirst;
+        opt.QueueLimit = 0;
+    });
+});
 var flutterOrigins = builder.Configuration.GetSection("Cors:AllowedOrigins").Get<string[]>()
     ?? new[] { "http://localhost:5173" }; // placeholder for local Flutter Web dev
 builder.Services.AddCors(options =>
@@ -125,11 +133,10 @@ app.UseCors("FlutterClients");
 app.UseRateLimiter();
 app.UseAuthentication();
 app.UseAuthorization();
+app.MapControllers();
 
-app.MapControllers().RequireRateLimiting("fixed");
-
-app.MapGet("/health", () => Results.Ok(new { status = "ok" }));
-
+app.MapGet("/health", () =>
+    Results.Ok(new { status = "ok" }));
 if (app.Environment.IsDevelopment())
 {
     using var scope = app.Services.CreateScope();
@@ -138,3 +145,6 @@ if (app.Environment.IsDevelopment())
 }
 
 app.Run();
+
+public partial class Program { }
+
