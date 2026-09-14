@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:triply_project/presentation/screens/onboarding/onboarding_flow.dart';
+import 'package:triply_project/presentation/screens/splash_screen.dart';
 import 'package:triply_project/presentation/widgets/auth/login_screen.dart';
 import 'package:triply_project/presentation/widgets/auth/register_screen.dart';
 
@@ -40,8 +42,10 @@ class MyApp extends StatelessWidget {
           ),
           scaffoldBackgroundColor: const Color(0xFFFAF8FF),
         ),
-        initialRoute: '/login',
+        initialRoute: '/splash',
         routes: {
+          '/splash': (_) => const SplashScreen(),
+          '/onboarding': (_) => const OnboardingFlow(),
           '/login': (_) => const LoginScreen(),
           '/register': (_) => const RegisterScreen(),
         },
