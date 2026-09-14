@@ -3,6 +3,7 @@ using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Triply.Api.Data;
 
@@ -11,9 +12,11 @@ using Triply.Api.Data;
 namespace Triply.Api.Migrations
 {
     [DbContext(typeof(ApplicationDbContext))]
-    partial class ApplicationDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260914002806_AddUserEmailUniqueAndDisplayNameMaxLength")]
+    partial class AddUserEmailUniqueAndDisplayNameMaxLength
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -271,10 +274,7 @@ namespace Triply.Api.Migrations
 
                     b.HasIndex("TripId");
 
-                    b.ToTable("AIGenerations", t =>
-                        {
-                            t.HasCheckConstraint("CK_AIGeneration_Status", "[Status] IN ('PENDING','SUCCEEDED','FAILED_VALIDATION','FAILED_ERROR')");
-                        });
+                    b.ToTable("AIGenerations");
                 });
 
             modelBuilder.Entity("Triply.Api.Entities.CostCategory", b =>
@@ -367,10 +367,7 @@ namespace Triply.Api.Migrations
                     b.HasIndex("TripId", "CostCategoryId")
                         .IsUnique();
 
-                    b.ToTable("CostEstimates", t =>
-                        {
-                            t.HasCheckConstraint("CK_CostEstimate_Amount", "[Amount] >= 0");
-                        });
+                    b.ToTable("CostEstimates");
                 });
 
             modelBuilder.Entity("Triply.Api.Entities.Country", b =>
@@ -578,10 +575,7 @@ namespace Triply.Api.Migrations
                     b.HasIndex("ItineraryId", "DayNumber")
                         .IsUnique();
 
-                    b.ToTable("ItineraryDays", t =>
-                        {
-                            t.HasCheckConstraint("CK_ItineraryDay_DayNumber", "[DayNumber] > 0");
-                        });
+                    b.ToTable("ItineraryDays");
                 });
 
             modelBuilder.Entity("Triply.Api.Entities.ItineraryItem", b =>
@@ -622,10 +616,7 @@ namespace Triply.Api.Migrations
 
                     b.HasIndex("PlaceId");
 
-                    b.ToTable("ItineraryItems", t =>
-                        {
-                            t.HasCheckConstraint("CK_ItineraryItem_TimeSlot", "[TimeSlot] IN ('MORNING','AFTERNOON','EVENING')");
-                        });
+                    b.ToTable("ItineraryItems");
                 });
 
             modelBuilder.Entity("Triply.Api.Entities.Place", b =>
@@ -795,14 +786,7 @@ namespace Triply.Api.Migrations
 
                     b.HasIndex("UserId");
 
-                    b.ToTable("Trips", t =>
-                        {
-                            t.HasCheckConstraint("CK_Trip_PlanningMode", "[PlanningMode] IN ('DESTINATION_FIRST','BUDGET_FIRST')");
-
-                            t.HasCheckConstraint("CK_Trip_Status", "[Status] IN ('DRAFT','GENERATING','GENERATED','MODIFIED','SAVED','ARCHIVED')");
-
-                            t.HasCheckConstraint("CK_Trip_TravelerCount", "[TravelerCount] > 0");
-                        });
+                    b.ToTable("Trips");
                 });
 
             modelBuilder.Entity("Triply.Api.Entities.TripInterest", b =>
