@@ -1,8 +1,8 @@
 # Triply Backend — API Contract Conventions
-
 **Status:** Agreed — Sprint 0
-**Owner:** Leen Sharbati (Backend)
-**Referenced by:** Backend track, Flutter track (Dana)
+**Owner:** Backend Team
+**Referenced by:** Backend and Flutter tracks
+ 
 **Source:** SRS §9, §11 · System Architecture §10, §14 · Tech Stack (Swashbuckle row)
 
 This document is the single source of truth for how the Flutter client and the ASP.NET Core backend communicate. Any change here must be communicated to Dana (Flutter) before merging, according to the Project Rules communication clause.
@@ -217,18 +217,18 @@ Swagger is the main source for the currently implemented API endpoints.
 ### Swagger UI
 
 ```text
-https://localhost:65147/swagger
+https://localhost:8080/swagger
 ```
 
 ### OpenAPI JSON
 
 ```text
-https://localhost:65147/swagger/v1/swagger.json
+https://localhost:8080/swagger/v1/swagger.json
 ```
 
 Swagger is generated directly from the ASP.NET Core controllers and DTOs.
 
-Dana can use Swagger UI to:
+The API consumers can use Swagger UI to:
 
 * View available endpoints
 * Check request models
