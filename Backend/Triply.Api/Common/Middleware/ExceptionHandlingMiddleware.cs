@@ -31,9 +31,10 @@ public class ExceptionHandlingMiddleware
                 Instance = context.Request.Path
             };
 
-            context.Response.ContentType = "application/problem+json";
-            context.Response.StatusCode = problem.Status.Value;
-            await context.Response.WriteAsJsonAsync(problem);
-        }
+         context.Response.StatusCode = problem.Status.Value;
+await context.Response.WriteAsJsonAsync(problem);
+context.Response.ContentType = "application/problem+json";
+      }
     }
+
 }

@@ -20,15 +20,10 @@ jobs:
           dotnet-version: '9.0.x'
 
       - name: Restore
-        run: dotnet restore Backend/Triply.Api/Triply.Api.csproj
+        run: dotnet restore Backend/Triply.Api.Tests/Triply.Api.Tests.csproj
 
       - name: Build
-        run: dotnet build Backend/Triply.Api/Triply.Api.csproj --no-restore --configuration Release
+        run: dotnet build Backend/Triply.Api.Tests/Triply.Api.Tests.csproj --no-restore --configuration Release
 
-      # Placeholder — enable once the xUnit/Moq test project exists
-      # - name: Test
-      #   run: dotnet test Backend/Triply.Api.Tests --no-build --configuration Release
-
-      # Placeholder — deploy step, pending hosting decision
-      # - name: Deploy
-      #   run: echo "Deployment target not yet decided (D3)"
+      - name: Test
+        run: dotnet test Backend/Triply.Api.Tests/Triply.Api.Tests.csproj --no-build --configuration Release
