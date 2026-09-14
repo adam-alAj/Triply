@@ -110,7 +110,29 @@ public class ApplicationDbContext : IdentityDbContext<ApplicationUser, IdentityR
 
         // email UNIQUE enforced at DB level, not just app-level RequireUniqueEmail
 b.Entity<ApplicationUser>().HasIndex(x => x.NormalizedEmail).IsUnique();
+        // ---- CHECK constraints (§16 Data Integrity Rules) ----
+        b.Entity<Trip>().ToTable(t => t.HasCheckConstraint(
+            "CK_Trip_TravelerCount", "[TravelerCount] > 0"));
+        b.Entity<Trip>().ToTable(t => t.HasCheckConstraint(
+            "CK_Trip_PlanningMode",
+            "[PlanningMode] IN ('DESTINATION_FIRST','BUDGET_FIRST')"));
+        b.Entity<Trip>().ToTable(t => t.HasCheckConstraint(
+            "CK_Trip_Status",
+            "[Status] IN ('DRAFT','GENERATING','GENERATED','MODIFIED','SAVED','ARCHIVED')"));
 
+        b.Entity<ItineraryDay>().ToTable(t => t.HasCheckConstraint(
+            "CK_ItineraryDay_DayNumber", "[DayNumber] > 0"));
+
+        b.Entity<ItineraryItem>().ToTable(t => t.HasCheckConstraint(
+            "CK_ItineraryItem_TimeSlot",
+            "[TimeSlot] IN ('MORNING','AFTERNOON','EVENING')"));
+
+        b.Entity<CostEstimate>().ToTable(t => t.HasCheckConstraint(
+            "CK_CostEstimate_Amount", "[Amount] >= 0"));
+
+        b.Entity<AIGeneration>().ToTable(t => t.HasCheckConstraint(
+            "CK_AIGeneration_Status",
+            "[Status] IN ('PENDING','SUCCEEDED','FAILED_VALIDATION','FAILED_ERROR')"));
                 // ---- Reference data seed (Database Design §26) ----
     
         b.Entity<InterestCategory>().HasData(
