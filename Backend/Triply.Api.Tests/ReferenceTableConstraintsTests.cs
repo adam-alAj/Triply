@@ -15,15 +15,19 @@ public class ReferenceTableConstraintsTests : IDisposable
     private readonly ApplicationDbContext _db;
 
     public ReferenceTableConstraintsTests()
-    {
-        var options = new DbContextOptionsBuilder<ApplicationDbContext>()
-            .UseSqlServer("Server=(localdb)\\mssqllocaldb;Database=TriplyDb_ConstraintTests;Trusted_Connection=True;")
-            .Options;
+{
+    var connectionString =
+        Environment.GetEnvironmentVariable("TRIPLY_TEST_DB_CONNECTION")
+        ?? "Server=(localdb)\\mssqllocaldb;Database=TriplyDb_ConstraintTests;Trusted_Connection=True;TrustServerCertificate=True;";
 
-        _db = new ApplicationDbContext(options);
-        _db.Database.EnsureDeleted(); // clean slate per test class run
-        _db.Database.Migrate();       // applies schema + HasData seed
-    }
+    var options = new DbContextOptionsBuilder<ApplicationDbContext>()
+        .UseSqlServer(connectionString)
+        .Options;
+
+    _db = new ApplicationDbContext(options);
+    _db.Database.EnsureDeleted(); // clean slate per test class run
+    _db.Database.Migrate();       // applies schema + HasData seed
+}
 
     [Fact]
     public void InterestCategory_DuplicateCode_ThrowsOnSave()

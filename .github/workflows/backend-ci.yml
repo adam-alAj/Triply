@@ -11,6 +11,26 @@ jobs:
   build-and-test:
     runs-on: ubuntu-latest
 
+    services:
+      sqlserver:
+        image: mcr.microsoft.com/mssql/server:2022-latest
+        env:
+          ACCEPT_EULA: Y
+          MSSQL_SA_PASSWORD: "Triply_CI_SqlServer_2026!Strong"
+        ports:
+          - 1433:1433
+        options: >-
+          --health-cmd "/opt/mssql-tools18/bin/sqlcmd
+          -S localhost -U sa
+          -P 'Triply_CI_SqlServer_2026!Strong'
+          -C -Q 'SELECT 1'"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 20
+
+    env:
+      TRIPLY_TEST_DB_CONNECTION: "Server=localhost,1433;Database=TriplyDb_Tests;User Id=sa;Password=Triply_CI_SqlServer_2026!Strong;TrustServerCertificate=True;"
+
     steps:
       - uses: actions/checkout@v4
 
@@ -20,15 +40,20 @@ jobs:
           dotnet-version: '9.0.x'
 
       - name: Restore
-        run: dotnet restore Backend/Triply.Api/Triply.Api.csproj
-
+        run: dotnet restore Backend/Triply.Api.Tests/Triply.Api.Tests.csproj
       - name: Build
-        run: dotnet build Backend/Triply.Api/Triply.Api.csproj --no-restore --configuration Release
+        run: dotnet build Backend/Triply.Api.Tests/Triply.Api.Tests.csproj --no-restore --configuration Release
 
-      # Placeholder — enable once the xUnit/Moq test project exists
-      # - name: Test
-      #   run: dotnet test Backend/Triply.Api.Tests --no-build --configuration Release
+      - name: Create test database
+        run: |
+          SQL_CONTAINER=$(docker ps --filter "ancestor=mcr.microsoft.com/mssql/server:2022-latest" -q | head -n 1)
 
-      # Placeholder — deploy step, pending hosting decision
-      # - name: Deploy
-      #   run: echo "Deployment target not yet decided (D3)"
+          docker exec "$SQL_CONTAINER" /opt/mssql-tools18/bin/sqlcmd \
+            -S localhost \
+            -U sa \
+            -P 'Triply_CI_SqlServer_2026!Strong' \
+            -C \
+            -Q "IF DB_ID('TriplyDb_Tests') IS NULL CREATE DATABASE [TriplyDb_Tests];"
+
+      - name: Test
+        run: dotnet test Backend/Triply.Api.Tests/Triply.Api.Tests.csproj --no-build --configuration Release

@@ -1,11 +1,11 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
-
-  <PropertyGroup>
-    <TargetFramework>net11.0</TargetFramework>
+<PropertyGroup>
+    <TargetFramework>net9.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <IsPackable>false</IsPackable>
-  </PropertyGroup>
+    <IsTestProject>true</IsTestProject>
+</PropertyGroup>
 
   <ItemGroup>
     <PackageReference Include="coverlet.collector" Version="6.0.4" />
@@ -22,5 +22,9 @@
   <ItemGroup>
     <ProjectReference Include="..\Triply.Api\Triply.Api.csproj" />
   </ItemGroup>
-
+<ItemGroup>
+  <None Update="xunit.runner.json">
+    <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+  </None>
+</ItemGroup>
 </Project>

@@ -96,18 +96,17 @@ builder.Services.AddValidatorsFromAssemblyContaining<Program>();
 
 builder.Services.AddRateLimiter(options =>
 {
-    options.RejectionStatusCode =
-        StatusCodes.Status429TooManyRequests;
+    options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
 
     options.AddFixedWindowLimiter("fixed", opt =>
     {
-        opt.PermitLimit = 100;
+        opt.PermitLimit = 10;
         opt.Window = TimeSpan.FromMinutes(1);
-        opt.QueueProcessingOrder =
-            QueueProcessingOrder.OldestFirst;
+        opt.QueueProcessingOrder = QueueProcessingOrder.OldestFirst;
         opt.QueueLimit = 0;
     });
-        options.AddFixedWindowLimiter("login", opt =>
+
+    options.AddFixedWindowLimiter("login", opt =>
     {
         opt.PermitLimit = 5;
         opt.Window = TimeSpan.FromMinutes(1);
@@ -187,8 +186,8 @@ app.UseAuthentication();
 
 app.UseAuthorization();
 
-// ---------- Controllers ----------
 app.MapControllers();
+
 // ---------- Health ----------
 
 app.MapGet("/health", () =>

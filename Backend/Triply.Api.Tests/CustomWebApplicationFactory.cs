@@ -17,10 +17,14 @@ public class CustomWebApplicationFactory : WebApplicationFactory<Program>
     {
         builder.UseEnvironment(Environments.Development);
 
+       var connectionString =
+    Environment.GetEnvironmentVariable("TRIPLY_TEST_DB_CONNECTION")
+    ?? $"Server=(localdb)\\mssqllocaldb;Database={_dbName};Trusted_Connection=True;TrustServerCertificate=True;";
         // Force the test configuration values into the application
         // configuration used by Program.cs.
-        builder.UseSetting("ConnectionStrings:Default",
-            $"Server=(localdb)\\mssqllocaldb;Database={_dbName};Trusted_Connection=True;TrustServerCertificate=True;");
+        builder.UseSetting(
+            "ConnectionStrings:Default",
+            connectionString);
 
         builder.UseSetting("Jwt:Key", TestJwtKey);
         builder.UseSetting("Jwt:Issuer", "Triply");
@@ -32,7 +36,7 @@ public class CustomWebApplicationFactory : WebApplicationFactory<Program>
             config.AddInMemoryCollection(new Dictionary<string, string?>
             {
                 ["ConnectionStrings:Default"] =
-                    $"Server=(localdb)\\mssqllocaldb;Database={_dbName};Trusted_Connection=True;TrustServerCertificate=True;",
+                    connectionString,
 
                 ["Jwt:Key"] = TestJwtKey,
 

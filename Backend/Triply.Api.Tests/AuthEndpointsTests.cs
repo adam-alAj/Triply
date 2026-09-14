@@ -4,6 +4,7 @@ using Triply.Api.Modules.Auth.Dtos;
 using Xunit;
 
 namespace Triply.Api.Tests;
+
 public class AuthEndpointsTests : IClassFixture<CustomWebApplicationFactory>
 {
     private readonly HttpClient _client;
@@ -37,10 +38,10 @@ public class AuthEndpointsTests : IClassFixture<CustomWebApplicationFactory>
             new RegisterRequest(email, "AnotherP@ss1", "Second"));
 
         Assert.Equal(HttpStatusCode.BadRequest, second.StatusCode);
-      var body = await second.Content.ReadAsStringAsync();
+        var body = await second.Content.ReadAsStringAsync();
 
-Assert.Contains("\"errors\"", body);
-Assert.Contains("Email", body);
+        Assert.Contains("\"errors\"", body);
+        Assert.Contains("Email", body);
     }
 
     [Theory]
@@ -86,7 +87,6 @@ Assert.Contains("Email", body);
     [Fact]
     public async Task Login_NonexistentEmail_ReturnsSameGenericErrorAsWrongPassword()
     {
-       
         var existingEmail = UniqueEmail();
         await _client.PostAsJsonAsync("/api/auth/register",
             new RegisterRequest(existingEmail, "P@ssw0rd123", "Test"));

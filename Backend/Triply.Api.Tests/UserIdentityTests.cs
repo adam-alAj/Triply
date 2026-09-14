@@ -14,9 +14,13 @@ public class UserIdentityTests : IDisposable
 
     public UserIdentityTests()
     {
-        var options = new DbContextOptionsBuilder<ApplicationDbContext>()
-            .UseSqlServer("Server=(localdb)\\mssqllocaldb;Database=TriplyDb_UserTests;Trusted_Connection=True;")
-            .Options;
+      var connectionString =
+    Environment.GetEnvironmentVariable("TRIPLY_TEST_DB_CONNECTION")
+    ?? "Server=(localdb)\\mssqllocaldb;Database=TriplyDb_UserTests;Trusted_Connection=True;TrustServerCertificate=True;";
+
+var options = new DbContextOptionsBuilder<ApplicationDbContext>()
+    .UseSqlServer(connectionString)
+    .Options;
 
         _db = new ApplicationDbContext(options);
         _db.Database.EnsureDeleted();
