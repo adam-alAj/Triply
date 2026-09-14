@@ -107,6 +107,13 @@ builder.Services.AddRateLimiter(options =>
             QueueProcessingOrder.OldestFirst;
         opt.QueueLimit = 0;
     });
+        options.AddFixedWindowLimiter("login", opt =>
+    {
+        opt.PermitLimit = 5;
+        opt.Window = TimeSpan.FromMinutes(1);
+        opt.QueueProcessingOrder = QueueProcessingOrder.OldestFirst;
+        opt.QueueLimit = 0;
+    });
 });
 
 // ---------- CORS ----------
@@ -181,10 +188,7 @@ app.UseAuthentication();
 app.UseAuthorization();
 
 // ---------- Controllers ----------
-
-app.MapControllers()
-   .RequireRateLimiting("fixed");
-
+app.MapControllers();
 // ---------- Health ----------
 
 app.MapGet("/health", () =>

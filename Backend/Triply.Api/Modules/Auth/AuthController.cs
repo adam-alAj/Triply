@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 using Triply.Api.Entities;
 using Triply.Api.Modules.Auth.Dtos;
 
@@ -7,6 +8,7 @@ namespace Triply.Api.Modules.Auth;
 
 [ApiController]
 [Route("api/auth")]
+[EnableRateLimiting("fixed")]
 public class AuthController : ControllerBase
 {
     private readonly UserManager<ApplicationUser> _userManager;
@@ -48,7 +50,7 @@ public class AuthController : ControllerBase
         return Ok(new AuthResponse(token, expires, user.Id, user.Email!));
     }
 
-    // FR-AUTH-002 — generic error on invalid credentials, no account-existence leakage
+    [EnableRateLimiting("login")]
     [HttpPost("login")]
     public async Task<IActionResult> Login(LoginRequest request)
     {

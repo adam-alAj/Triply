@@ -2,14 +2,15 @@
 using System.Security.Claims;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.EntityFrameworkCore;
 using Triply.Api.Data;
 
 namespace Triply.Api.Modules.Trip;
-
 [ApiController]
 [Route("api/trips")]
-[Authorize] // NFR-PRIV-001: every action here requires a valid JWT
+[Authorize]
+[EnableRateLimiting("fixed")]  
 public class TripsController : ControllerBase
 {
     private readonly ApplicationDbContext _db;
