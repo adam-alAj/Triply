@@ -1,6 +1,6 @@
 # Triply — Authentication API Contract
 
-**Backend base URL (local dev):** `https://localhost:65147`
+**Backend base URL (local dev):** `https://localhost:8080`
 
 
 All endpoints below are under `/api/auth`.
