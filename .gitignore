@@ -9,3 +9,31 @@ build/
 android/.gradle/
 android/.kotlin/
 android/local.properties
+# Visual Studio
+.vs/
+*.user
+*.suo
+
+# Build output
+[Bb]in/
+[Oo]bj/
+
+# User-specific files
+*.user
+*.rsuser
+*.suo
+
+# ASP.NET local settings
+Backend/Triply.Api/appsettings.json
+Backend/Triply.Api/appsettings.*.json
+!Backend/Triply.Api/appsettings.Example.json
+
+# IDE
+.idea/
+
+# Logs
+*.log
+Backend/Triply.Api/Properties/
+.env
+.env.*
+!.env.example
