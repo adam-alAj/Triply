@@ -1,36 +1,50 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:triply_project/presentation/widgets/auth/login_screen.dart';
+import 'package:triply_project/presentation/widgets/auth/register_screen.dart';
 
-import 'core/network/api_client.dart';
-import 'data/repositories/sample_repository.dart';
-import 'presentation/providers/sample_provider.dart';
-import 'presentation/screens/sample_screen.dart';
+import 'data/repositories/auth_repository.dart';
+import 'data/repositories/mock_auth_repository.dart';
+import 'presentation/providers/auth_provider.dart';
 
 void main() {
-  // Composition root: the one place that knows how the graph is assembled.
-  // ApiClient -> Repository -> Provider, all by constructor injection, so any
-  // layer can be swapped for a fake in tests.
-  final apiClient = ApiClient();
-  final sampleRepository = SampleRepository(apiClient: apiClient);
+  final AuthRepository authRepository = MockAuthRepository();
 
-  runApp(MyApp(sampleRepository: sampleRepository));
+  runApp(
+    MyApp(
+      authRepository: authRepository,
+    ),
+  );
 }
 
 class MyApp extends StatelessWidget {
-  const MyApp({super.key, required this.sampleRepository});
+  const MyApp({
+    super.key,
+    required this.authRepository,
+  });
 
-  final SampleRepository sampleRepository;
+  final AuthRepository authRepository;
 
   @override
   Widget build(BuildContext context) {
     return ChangeNotifierProvider(
-      create: (_) => SampleProvider(repository: sampleRepository),
+      create: (_) => AuthProvider(
+        repository: authRepository,
+      ),
       child: MaterialApp(
         title: 'Triply',
+        debugShowCheckedModeBanner: false,
         theme: ThemeData(
-          colorScheme: ColorScheme.fromSeed(seedColor: Colors.deepPurple),
+          colorScheme: ColorScheme.fromSeed(
+            seedColor: const Color(0xFFA83223),
+          ),
+          scaffoldBackgroundColor: const Color(0xFFFAF8FF),
         ),
-        home: const SampleScreen(),
+        initialRoute: '/login',
+        routes: {
+          '/login': (_) => const LoginScreen(),
+          '/register': (_) => const RegisterScreen(),
+        },
       ),
     );
   }
