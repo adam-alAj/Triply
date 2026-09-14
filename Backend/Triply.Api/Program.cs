@@ -128,17 +128,13 @@ app.UseAuthorization();
 
 app.MapControllers().RequireRateLimiting("fixed");
 
-// Health-check endpoint (Solution Init acceptance criteria)
 app.MapGet("/health", () => Results.Ok(new { status = "ok" }));
 
-// Apply migrations + seed reference data on startup (dev convenience only —
-// production should run migrations via CI/CD pipeline, see Task: CI/CD Foundation).
 if (app.Environment.IsDevelopment())
 {
     using var scope = app.Services.CreateScope();
     var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
     db.Database.Migrate();
-    SeedData.Apply(db);
 }
 
 app.Run();

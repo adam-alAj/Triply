@@ -107,5 +107,37 @@ public class ApplicationDbContext : IdentityDbContext<ApplicationUser, IdentityR
         {
             prop.SetColumnType("decimal(10,2)");
         }
+
+        // email UNIQUE enforced at DB level, not just app-level RequireUniqueEmail
+b.Entity<ApplicationUser>().HasIndex(x => x.NormalizedEmail).IsUnique();
+
+                // ---- Reference data seed (Database Design §26) ----
+    
+        b.Entity<InterestCategory>().HasData(
+            new InterestCategory { Id = 1, Code = "NATURE",     Label = "Nature" },
+            new InterestCategory { Id = 2, Code = "HISTORY",    Label = "History" },
+            new InterestCategory { Id = 3, Code = "FOOD",       Label = "Food" },
+            new InterestCategory { Id = 4, Code = "SHOPPING",   Label = "Shopping" },
+            new InterestCategory { Id = 5, Code = "ADVENTURE",  Label = "Adventure" },
+            new InterestCategory { Id = 6, Code = "CULTURE",    Label = "Culture" },
+            new InterestCategory { Id = 7, Code = "RELAXATION", Label = "Relaxation" },
+            new InterestCategory { Id = 8, Code = "OTHER",      Label = "Other" }
+        );
+
+        b.Entity<CostCategory>().HasData(
+            new CostCategory { Id = 1, Code = "ACCOMMODATION",  Label = "Accommodation" },
+            new CostCategory { Id = 2, Code = "TRANSPORTATION", Label = "Transportation" },
+            new CostCategory { Id = 3, Code = "FOOD",           Label = "Food" },
+            new CostCategory { Id = 4, Code = "ACTIVITIES",     Label = "Activities" },
+            new CostCategory { Id = 5, Code = "OTHER",          Label = "Other" }
+        );
+
+        b.Entity<PlaceCategory>().HasData(
+            new PlaceCategory { Id = 1, Code = "ATTRACTION",    Label = "Attraction" },
+            new PlaceCategory { Id = 2, Code = "RESTAURANT",    Label = "Restaurant" },
+            new PlaceCategory { Id = 3, Code = "ACTIVITY",      Label = "Activity" },
+            new PlaceCategory { Id = 4, Code = "ACCOMMODATION", Label = "Accommodation" },
+            new PlaceCategory { Id = 5, Code = "TRANSPORT",     Label = "Transport" }
+        );
     }
 }
