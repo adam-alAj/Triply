@@ -11,6 +11,26 @@ jobs:
   build-and-test:
     runs-on: ubuntu-latest
 
+    services:
+      sqlserver:
+        image: mcr.microsoft.com/mssql/server:2022-latest
+        env:
+          ACCEPT_EULA: Y
+          MSSQL_SA_PASSWORD: "Triply_CI_SqlServer_2026!Strong"
+        ports:
+          - 1433:1433
+        options: >-
+          --health-cmd "/opt/mssql-tools18/bin/sqlcmd
+          -S localhost -U sa
+          -P 'Triply_CI_SqlServer_2026!Strong'
+          -C -Q 'SELECT 1'"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 20
+
+    env:
+      TRIPLY_TEST_DB_CONNECTION: "Server=localhost,1433;Database=TriplyDb_Tests;User Id=sa;Password=Triply_CI_SqlServer_2026!Strong;TrustServerCertificate=True;"
+
     steps:
       - uses: actions/checkout@v4
 
