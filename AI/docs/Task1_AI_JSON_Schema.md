@@ -1,28 +1,40 @@
-# TRIPLY — AI JSON SCHEMA CONTRACT (Gemini Itinerary Output)
+# TRIPLY — AI JSON SCHEMA CONTRACT (Gemini Trip Plan Output)
 
-**Document status:** DRAFT — pending sign-off
-**Schema version:** `1.0.0`
-**Applies to requirement:** FR-AI-001 (itinerary generation), FR-AI-002 (output validation)
-**References:** Architecture ADR-01 (§4), Architecture §9 (AI Generation Lifecycle), Database Design §6.15 (`AIGeneration`), §6.13 (`ItineraryItem`), §11 (Itinerary Data Model)
+**Document status:** DRAFT — pending sign-off (re-opened for v2.0.0)
+**Schema version:** `2.0.0` (supersedes `1.0.0`)
+**Applies to requirement:** FR-AI-001 (itinerary generation), FR-AI-002 (output validation), FR-TRIP-002 (budget-first destination suggestion — now merged into this contract, see §1a)
+**References:** Architecture ADR-01 (§4), Architecture §9 (AI Generation Lifecycle), Database Design §6.15 (`AIGeneration`), §6.13 (`ItineraryItem`), §6.3 (`Destination`), §6.5 (`Place`), §11 (Itinerary Data Model)
 **Owners:** AI track (Aya Maali, Anas Musleh, Adam Alafandi) — schema content · Backend (Lynn Sharbati) — integration/enforcement
-**Sign-off required from:** AI lead + Backend lead (see §7)
+**Sign-off required from:** AI lead + Backend lead (see §7) — **v1.0.0 sign-off does not carry over; this is a major version bump per §8 and needs fresh approval**
+
 ---
 
-This document defines the **exact structured JSON shape** the Gemini API must return for a day-by-day itinerary generation request, and the validation rules Backend applies to that output before any data is written to the database or shown to a user.
+This document defines the **exact structured JSON shape** the Gemini API must return for a trip-plan generation request (covering both planning modes — see §1a), and the validation rules Backend applies to that output before any data is written to the database or shown to a user.
 
 This is a **contract**, not an implementation detail. Per ADR-01, the AI track owns this schema and the validation-rule *definitions*; Backend owns the live Gemini call and *enforces* the rules in code. Schema drift between what AI prompts for and what Backend expects is the named risk this document exists to prevent — any change to this schema requires a version bump and re-agreement from both leads (§7, §8).
 
-This schema governs the **itinerary generation** response (FR-AI-001). It does **not** cover the budget-first destination-suggestion response (FR-TRIP-002), which is a separate, smaller contract — see §9 (Open Items).
+## 1a. Summary of Changes from v1.0.0
+
+| #   | Change                                                                                                                                     | Why                                                                                                                                                                                                                                                                                                                                                                                                                          |
+| --- | ------------------------------------------------------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1   | **`cost_summary` block removed entirely.** The model no longer returns any cost figures.                                                   | Per Database Design §12/§14, `CostEstimate` is deterministic backend-computed data, not AI-generated data. v1.0.0 kept a model-proposed `cost_summary` as a "coherence check," but in practice it added a ±15%-tolerance validation step and a whole field category with no authoritative use — it was never the source of truth and added surface area for `FAILED_VALIDATION` without added safety. Removed for v2.0.0.    |
+| 2   | **`estimated_cost` removed from `ItineraryItem`.**                                                                                         | Same reasoning as #1, at the item level. `ItineraryItem.estimated_cost` is copied from `Place.reference_price` server-side (Database Design §15); the model's number was never written to the DB even in v1.0.0 — v2.0.0 just stops asking for it.                                                                                                                                                                           |
+| 3   | **`place_category` removed from `ItineraryItem`.**                                                                                         | v1.0.0 kept this as a cheap pre-lookup category check. v2.0.0 relies on the exact `place_name` match alone (Backend still resolves the full `Place` row, category included, from the DB — it just no longer cross-checks it against a model-supplied value). See §9 for the case this reopens if name collisions become a real problem.                                                                                      |
+| 4   | **`trip_id` and `destination_id` removed from the root object.** Replaced by `planning_mode` and `destination_options[].destination_name`. | Extends Design Principle 1 (§2): the model never outputs *any* database ID — not `Place.id`, and now not `Destination.id` either. `destination_name` is resolved server-side by exact lookup, the same way `place_name` always was. `trip_id` echo-back is dropped; Backend already knows which request it's matching a response to via the API call itself, so the echo added a validation step without closing a real gap. |
+| 5   | **New: `accommodation` object, one per `destination_option`, separate from `days[]`.**                                                     | A hotel is booked for the whole stay, not a single day/time_slot — modeling it as a per-day `ItineraryItem` was a mismatch. `accommodation.nights × Place.reference_price` is computed by Backend. See §4.3.                                                                                                                                                                                                                 |
+| 6   | **New: root object is now `{ planning_mode, destination_options[] }` instead of a single flat itinerary.**                                 | Merges what v1.0.0 called out as a *separate, smaller contract* for FR-TRIP-002 (§9, v1.0.0) into this one. `destination_options` holds exactly 1 entry for `DESTINATION_FIRST` and 1–3 for `BUDGET_FIRST` — one schema, one validation pipeline, one `AIGeneration` row per attempt regardless of mode. See §3.                                                                                                             |
 
 ---
 
 ## 2. Design Principles
 
-1. **The AI never outputs a database ID.** Gemini has no knowledge of internal `Place.id` values. The model outputs a **place name** (and destination context); Backend resolves that name to a `Place.id` via exact/fuzzy lookup scoped to the trip's `destination_id`. This is the FR-AI-002 enforcement point — see §5.
-2. **No invented fields.** The AI must not return confidence scores, model metadata, or explanatory prose outside the defined fields (matches Design doc Principle 04 — "AI should feel helpful, not magical").
-3. **Cost is a number, not a formatted string.** No currency symbols, no ranges ("$50-70") — a single `estimated_cost` decimal per item, plus a `cost_summary` block for category totals. Currency is stated once, not repeated per item, to avoid drift.
-4. **Everything maps 1:1 to an existing table.** `days[]` → `ItineraryDay`, `days[].items[]` → `ItineraryItem`, `cost_summary` → `CostEstimate` rows. Nothing in this schema requires a new table.
-5. **Fail closed.** If the response doesn't validate against this schema, or any `place_name` doesn't resolve to an active `Place` row in the trip's destination, the entire generation attempt is rejected (`AIGeneration.status = FAILED_VALIDATION`) — never partially written, never fabricated (FR-AI-002, SRS journey 6).
+1. **The AI never outputs a database ID — of any kind.** Gemini has no knowledge of internal `Place.id` or `Destination.id` values. The model outputs a **place name** and a **destination name**; Backend resolves both by exact lookup. This is the FR-AI-002 enforcement point — see §5.
+2. **No invented fields.** The AI must not return confidence scores, model metadata, cost figures, or explanatory prose outside the defined fields (matches Design doc Principle 04 — "AI should feel helpful, not magical").
+3. **Cost is never proposed by the model — not a number, not a string, not a summary.** Every price shown to the user or written to the DB comes from `Place.reference_price`, looked up server-side after grounding. This removes the entire `cost_summary`/tolerance-band validation step that existed in v1.0.0 (see §1a, #1–2).
+4. **Accommodation is trip-scoped, not day-scoped.** Modeled as a single `accommodation` object per `destination_option`, not as a recurring `ItineraryItem`.
+5. **One schema, two planning modes.** `planning_mode` and the `destination_options[]` cardinality (1 vs. 1–3) let Backend build one request/response contract for both `DESTINATION_FIRST` and `BUDGET_FIRST` flows (Trip.planning_mode, Database Design §6.9), instead of maintaining two contracts.
+6. **Everything maps 1:1 to an existing table.** `destination_options[].days[]` → `ItineraryDay`, `days[].items[]` → `ItineraryItem`, `destination_options[].accommodation` → one `ItineraryItem` row (category `ACCOMMODATION`) written once per option. Nothing in this schema requires a new table.
+7. **Fail closed.** If the response doesn't validate against this schema, or any `place_name`/`destination_name` doesn't resolve to an active row in the dataset, the attempt is rejected (`AIGeneration.status = FAILED_VALIDATION`) — never partially written, never fabricated (FR-AI-002, SRS journey 6). Per-option budget failures in `BUDGET_FIRST` mode are handled differently — see §5, step 4.
 
 ---
 
@@ -30,44 +42,46 @@ This schema governs the **itinerary generation** response (FR-AI-001). It does *
 
 ```json
 {
-  "schema_version": "1.0.0",
-  "trip_id": "3fa85f64-5717-4562-b3fc-2c963f66afa6",
-  "destination_id": 42,
-  "days": [
+  "planning_mode": "BUDGET_FIRST",
+  "destination_options": [
     {
-      "day_number": 1,
-      "date": "2026-11-03",
-      "items": [
+      "destination_name": "Amman",
+      "accommodation": {
+        "place_name": "Jordan Tower Hotel",
+        "nights": 3
+      },
+      "days": [
         {
-          "time_slot": "MORNING",
-          "order_index": 1,
-          "place_name": "Petra Visitor Center",
-          "place_category": "ATTRACTION",
-          "estimated_cost": 50.00,
-          "notes": "Start early to avoid midday heat; allow 3-4 hours."
-        },
-        {
-          "time_slot": "AFTERNOON",
-          "order_index": 1,
-          "place_name": "Petra Kitchen",
-          "place_category": "RESTAURANT",
-          "estimated_cost": 25.00,
-          "notes": null
+          "day_number": 1,
+          "date": "2026-11-03",
+          "items": [
+            {
+              "time_slot": "MORNING",
+              "order_index": 1,
+              "place_name": "Roman Theatre",
+              "notes": "Start early to avoid midday heat."
+            },
+            {
+              "time_slot": "AFTERNOON",
+              "order_index": 1,
+              "place_name": "Hashem Restaurant",
+              "notes": null
+            },
+            {
+              "time_slot": "EVENING",
+              "order_index": 1,
+              "place_name": "Airport Transfer – QAIA to city centre",
+              "notes": "Booked for arrival day"
+            }
+          ]
         }
       ]
     }
-  ],
-  "cost_summary": {
-    "currency": "USD",
-    "accommodation": 300.00,
-    "transportation": 120.00,
-    "food": 180.00,
-    "activities": 150.00,
-    "other": 20.00,
-    "total": 770.00
-  }
+  ]
 }
 ```
+
+For `DESTINATION_FIRST` requests, `destination_options` contains exactly one entry, built the same way.
 
 ---
 
@@ -75,103 +89,114 @@ This schema governs the **itinerary generation** response (FR-AI-001). It does *
 
 ### 4.1 Root object
 
-| Field | Type | Required | Notes |
-|---|---|---|---|
-| `schema_version` | string (semver) | Yes | Must match the version Backend is currently configured to accept. Mismatches are rejected before any other validation runs. |
-| `trip_id` | string (GUID) | Yes | Echoed back from the request; Backend cross-checks it matches the request context (defense against a swapped/cached response). |
-| `destination_id` | integer | Yes | Must match `Trip.destination_id` for the request. If the trip was budget-first, this is the destination the user already confirmed *before* itinerary generation ran — itinerary generation always happens after a destination is fixed. |
-| `days` | array of `ItineraryDay` | Yes, min 1 | Length must equal the trip's day count (`end_date - start_date + 1`). A mismatch is a validation failure, not a silent truncation/padding. |
-| `cost_summary` | `CostSummary` | Yes | Category totals; see §4.4. |
+| Field                 | Type                                      | Required          | Notes                                                                                                                                                                                                                                                                    |
+| --------------------- | ----------------------------------------- | ----------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `planning_mode`       | enum: `DESTINATION_FIRST`, `BUDGET_FIRST` | Yes               | Echo of `Trip.planning_mode` as sent in the prompt context. Backend cross-checks it matches the request.                                                                                                                                                                 |
+| `destination_options` | array of `DestinationOption`              | Yes, min 1, max 3 | **`DESTINATION_FIRST`: exactly 1 entry.** **`BUDGET_FIRST`: 1–3 entries**, each a complete, self-contained plan for a different supported destination. Backend sets the schema's `maxItems` per-request based on `planning_mode` before calling Gemini (see §5, step 0). |
 
-### 4.2 `ItineraryDay`
+### 4.2 `DestinationOption`
 
-| Field | Type | Required | Notes |
-|---|---|---|---|
-| `day_number` | integer | Yes | 1-indexed, CHECK > 0 (matches `ItineraryDay.day_number`). Must be unique within `days[]` and contiguous (1, 2, 3…) — no gaps. |
-| `date` | string (`YYYY-MM-DD`) | Yes | Must fall within `[Trip.start_date, Trip.end_date]` and be consistent with `day_number` (`date = start_date + day_number - 1`). |
-| `items` | array of `ItineraryItem` | Yes, min 1 | At least one item per day; empty days are a validation failure, not a valid "rest day" (if rest days become a real requirement, this is a schema v2 change, not a workaround). |
+| Field              | Type                    | Required   | Notes                                                                                                                                                                                          |
+| ------------------ | ----------------------- | ---------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `destination_name` | string                  | Yes        | Must exactly match a `Destination.name` from the supported-destination list given in the prompt context. Resolved server-side to `Destination.id` — never accepted as a raw ID from the model. |
+| `accommodation`    | `Accommodation`         | Yes        | Exactly one hotel for the whole stay in this destination. See §4.3.                                                                                                                            |
+| `days`             | array of `ItineraryDay` | Yes, min 1 | Length must equal the trip's requested day count (`end_date - start_date + 1`). A mismatch is a validation failure, not a silent truncation/padding.                                           |
 
-### 4.3 `ItineraryItem`
+### 4.3 `Accommodation`
 
-| Field | Type | Required | Notes |
-|---|---|---|---|
-| `time_slot` | enum: `MORNING`, `AFTERNOON`, `EVENING` | Yes | Matches `ItineraryItem.time_slot` CHECK constraint exactly (case-sensitive, uppercase). |
-| `order_index` | integer | Yes | Ordering within the time slot, starting at 1. Must be unique per `(day_number, time_slot)` pair. |
-| `place_name` | string | Yes | **The FR-AI-002 enforcement field.** Must exactly match a `Place.name` value for an `is_active = true` place whose `destination_id` equals the response's `destination_id`. No partial/fuzzy match is accepted at the schema level — matching strategy is a Backend implementation detail, but the *contract* is exact-string-against-dataset. |
-| `place_category` | enum: `ATTRACTION`, `RESTAURANT`, `ACTIVITY`, `ACCOMMODATION`, `TRANSPORT` | Yes | Must match `PlaceCategory.code` for the resolved `Place` row. Included so Backend can cheaply reject an obviously wrong category *before* doing the name lookup, and so a name collision across categories can't silently resolve to the wrong place. |
-| `estimated_cost` | number (decimal, 2dp) | Yes | Must be `>= 0`. Checked against `Place.reference_price` for the resolved place within the agreed cost-tolerance band (SRS D1, proposed ±15% — see Technical Notes below). Out-of-band values fail validation; they are not silently clamped. |
-| `notes` | string or `null` | No | Free-text AI rationale/tip. Never used for anything structural — purely user-facing context. Must not contain invented pricing, confidence language, or claims not derivable from the place/category (Design doc Principle 04). |
+| Field        | Type    | Required    | Notes                                                                                                                                                                                                                                                                                                                                                                        |
+| ------------ | ------- | ----------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `place_name` | string  | Yes         | Must exactly match a `Place.name` whose resolved `place_category_id` is `ACCOMMODATION`, scoped to this option's `destination_name`.                                                                                                                                                                                                                                         |
+| `nights`     | integer | Yes, `>= 1` | Backend computes `nights × Place.reference_price` (a per-night rate) as the accommodation's total cost. The model is never asked to do this multiplication. Backend persists this as a single `ItineraryItem` row (category `ACCOMMODATION`), conventionally on `day_number = 1`; the specific slot placement is a Backend implementation detail, not part of this contract. |
 
-### 4.4 `CostSummary`
+### 4.4 `ItineraryDay`
 
-| Field | Type | Required | Notes |
-|---|---|---|---|
-| `currency` | string (ISO 4217, 3 chars) | Yes | Must match `Trip.budget_currency_id`'s ISO code if the trip has a budget currency set; otherwise the destination's dominant/default currency. |
-| `accommodation`, `transportation`, `food`, `activities`, `other` | number (decimal, 2dp) | Yes | Must each be `>= 0`. These five map 1:1 to `CostCategory.code` (§6.6 of Database Design) — no sixth category may be invented, and none may be omitted (all five keys must be present even if `0.00`). |
-| `total` | number (decimal, 2dp) | Yes | Must equal the sum of the five category fields (exact match after rounding to 2dp). A mismatch is a validation failure — Backend does not silently recompute and proceed; it triggers `FAILED_VALIDATION`. |
+| Field        | Type                     | Required   | Notes                                                                                                                                                                                                                                                     |
+| ------------ | ------------------------ | ---------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `day_number` | integer                  | Yes        | 1-indexed, CHECK > 0 (matches `ItineraryDay.day_number`). Must be unique within `days[]` and contiguous (1, 2, 3…) — no gaps.                                                                                                                             |
+| `date`       | string (`YYYY-MM-DD`)    | Yes        | Must fall within `[Trip.start_date, Trip.end_date]` and be consistent with `day_number` (`date = start_date + day_number - 1`).                                                                                                                           |
+| `items`      | array of `ItineraryItem` | Yes, min 1 | Non-accommodation entries only (restaurants, attractions, activities, transport) — the accommodation lives in `DestinationOption.accommodation`, never repeated here. Must include at least one `RESTAURANT`-category place for the day (see §5, step 2). |
 
-**Important:** `cost_summary` totals are what the *model* proposed. Per Database Design §12/§14, the **authoritative** `CostEstimate` rows and `Trip.total_estimated_cost` are written by deterministic backend logic that sums the resolved `Place.reference_price` values of the actually-persisted `ItineraryItem` rows — not copied verbatim from `cost_summary`. `cost_summary` is used only as a coherence check (does the model's own math and category sense agree with what it generated) and is not the source of truth. This distinction is deliberate: it keeps "system-generated/deterministic data" (§12 of the Database Design) strictly separate from AI-generated data, per SRS §8.
+### 4.5 `ItineraryItem`
+
+| Field         | Type                                    | Required | Notes                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
+| ------------- | --------------------------------------- | -------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `time_slot`   | enum: `MORNING`, `AFTERNOON`, `EVENING` | Yes      | Matches `ItineraryItem.time_slot` CHECK constraint exactly (case-sensitive, uppercase).                                                                                                                                                                                                                                                                                                                                                                                    |
+| `order_index` | integer                                 | Yes      | Ordering within the time slot, starting at 1. Must be unique per `(day_number, time_slot)` pair.                                                                                                                                                                                                                                                                                                                                                                           |
+| `place_name`  | string                                  | Yes      | **The FR-AI-002 enforcement field.** Must exactly match a `Place.name` value for an `is_active = true` place whose `destination_id` matches the option's resolved `destination_name` — and must **not** resolve to an `ACCOMMODATION`-category place (that belongs only in `Accommodation.place_name`). No partial/fuzzy match is accepted at the schema level — matching strategy is a Backend implementation detail, but the *contract* is exact-string-against-dataset. |
+| `notes`       | string or `null`                        | No       | Free-text AI rationale/tip. Never used for anything structural — purely user-facing context. Must not contain invented pricing, confidence language, or claims not derivable from the place (Design doc Principle 04).                                                                                                                                                                                                                                                     |
+
+**Removed in v2.0.0** (see §1a): `place_category`, `estimated_cost`. **Removed section:** the v1.0.0 `CostSummary` object (root-level `cost_summary`) no longer exists in this schema — cost is never proposed by the model (Design Principle 3, §2).
 
 ---
 
 ## 5. Validation Pipeline (maps to Architecture §9 sequence diagram)
 
-1. **Schema-shape validation** — JSON parses; required fields present; types/enums correct; `schema_version` matches. Failure → `FAILED_VALIDATION`, no dataset lookups performed.
-2. **Structural consistency** — day count matches trip duration; `day_number`/`date` alignment; no gaps or duplicate `(day_number, time_slot, order_index)` tuples; `cost_summary.total` equals the sum of its five categories.
-3. **Dataset grounding (FR-AI-002, the non-negotiable rule)** — every `place_name` resolves to exactly one active `Place` row scoped to `destination_id`; the `Place.place_category_id` matches `place_category`. **0% tolerance** — a single unresolved place name fails the *entire* attempt, not just that item.
-4. **Cost tolerance check** — each item's `estimated_cost` is compared to the resolved `Place.reference_price` within the agreed band (D1, proposed ±15%, pending sign-off — Database Design §29 DB-D5 / SRS §17 D1).
-5. **Persist** — only on full success: `Itinerary`, `ItineraryDay`, `ItineraryItem` rows are written in one transaction, `estimated_cost` is copied from `Place.reference_price` (not from the AI's number) per Database Design §15, and `CostEstimate` rows are computed deterministically from those persisted items.
+0. **Request construction (pre-call)** — Backend reads `Trip.planning_mode` and sets the JSON Schema's `destination_options.maxItems` to `1` (`DESTINATION_FIRST`) or `3` (`BUDGET_FIRST`) before calling Gemini. This is request-building, not response validation, but is listed here because a mismatched `maxItems` is what step 1 below would otherwise catch late.
+1. **Schema-shape validation** — JSON parses; required fields present; types/enums correct. Failure → `FAILED_VALIDATION`, no dataset lookups performed.
+2. **Structural consistency** — for each `destination_option`: day count matches trip duration; `day_number`/`date` alignment; no gaps or duplicate `(day_number, time_slot, order_index)` tuples; at least one `RESTAURANT`-category item per day (checked after resolution in step 3); at least one `TRANSPORT`-category item somewhere across the option's `days[]` (checked after resolution in step 3).
+3. **Dataset grounding (FR-AI-002, the non-negotiable rule)** — for each `destination_option`: `destination_name` resolves to exactly one supported `Destination`; every `place_name` (accommodation and daily items) resolves to exactly one active `Place` row scoped to that `destination_id`; the accommodation's resolved place has `place_category_id = ACCOMMODATION` and no daily item resolves to that category. **0% tolerance** — a single unresolved name fails that `destination_option` (see step 4 for how a failed option is handled differently in `BUDGET_FIRST` mode vs. `DESTINATION_FIRST` mode).
+4. **Budget check (deterministic, Backend-computed — no model input)** — for each surviving `destination_option`: sum `(accommodation.nights × Place.reference_price)` + every daily item's `Place.reference_price`. Compare against `Trip.budget_amount`.
+   - **`DESTINATION_FIRST`:** the single option is expected to fit; Backend still computes and flags the actual total either way, but budget overrun does not automatically fail the attempt — the plan is shown with its real computed total (final UX behavior TBD, see §9).
+   - **`BUDGET_FIRST`:** options that don't fit the budget are **dropped from the response shown to the user**, not treated as a whole-attempt failure. If **zero** of the 1–3 returned options fit, that *is* an attempt failure (`FAILED_VALIDATION`) — the model was asked for budget-fitting options and produced none. See §9 for the exact minimum-surviving-options policy still to be confirmed.
+5. **Persist** — only for `destination_option`(s) the user actually selects: `Trip.destination_id` is set (if not already), and `Itinerary`, `ItineraryDay`, `ItineraryItem` rows are written in one transaction. Every `estimated_cost` is copied from the resolved `Place.reference_price` (accommodation cost = `nights × reference_price`) — never from the model, because the model no longer sends one. `CostEstimate` rows are then computed deterministically from those persisted items (Database Design §15).
 6. **On any failure** — `AIGeneration.status = FAILED_VALIDATION`, `AIGeneration.validation_errors` records what failed, bounded retry per Architecture §9, and if retries are exhausted the user sees a clear error (SRS journey 6) — never a partial or fabricated itinerary.
 
 ---
 
 ## 6. Formal JSON Schema
 
-See companion file **`triply-itinerary-generation.schema.json`** (JSON Schema draft 2020-12) for the machine-enforceable version of §3–§4. That file is the artifact Backend actually wires into the AI-Orchestration module's validation step; this document is its human-readable explanation and the record of agreed intent.
+See companion file **`triply-trip-plan-generation.schema.json`** (JSON Schema draft 2020-12) for the machine-enforceable version of §3–§4. That file is the artifact Backend actually wires into the AI-Orchestration module's validation step; this document is its human-readable explanation and the record of agreed intent.
 
 ---
 
 ## 7. Sign-Off
 
-| Role | Name | Status | Date |
-|---|---|---|---|
-| AI track lead | Aya Maali / Anas Musleh / Adam Alafandi (nominate one signer) | ☐ Pending | — |
-| Backend lead | Lynn Sharbati | ☐ Pending | — |
+| Role          | Name                                                          | Status                           | Date |
+| ------------- | ------------------------------------------------------------- | -------------------------------- | ---- |
+| AI track lead | Aya Maali / Anas Musleh / Adam Alafandi (nominate one signer) | ☐ Pending (re-opened for v2.0.0) | —    |
+| Backend lead  | Lynn Sharbati                                                 | ☐ Pending (re-opened for v2.0.0) | —    |
 
-This schema is a **draft** until both boxes above are checked. Per the task's acceptance criteria, sign-off — not just existence of the draft — is what closes this task.
+This schema is a **draft** until both boxes above are checked. The v1.0.0 sign-off (if it existed) does not apply to v2.0.0 — §8's versioning policy requires fresh sign-off for any major version.
 
 ---
 
 ## 8. Versioning Policy
 
-- Schema changes that add an optional field, a new enum value, or loosen a constraint → **minor** version bump (`1.0.0` → `1.1.0`).
-- Schema changes that remove/rename a field, tighten a constraint, or change a type → **major** version bump (`1.0.0` → `2.0.0`) and require re-sign-off from both leads.
-- `AIGeneration.model_provider`/prompt templates must always declare which `schema_version` they target; Backend rejects a response whose `schema_version` doesn't match what it's configured to validate against, rather than attempting best-effort parsing of an unknown version.
+- Schema changes that add an optional field, a new enum value, or loosen a constraint → **minor** version bump (e.g. `2.0.0` → `2.1.0`).
+- Schema changes that remove/rename a field, tighten a constraint, or change a type → **major** version bump and require re-sign-off from both leads. **This is how `1.0.0` became `2.0.0`** — five fields removed, root shape restructured (§1a).
+- `AIGeneration.model_provider`/prompt templates must always declare which schema version they target; Backend rejects a response whose shape doesn't match what it's configured to validate against, rather than attempting best-effort parsing of an unknown version.
 - All versions are committed to source control alongside the prompt templates that target them (matches the PR-review-gated workflow in Master Plan §6).
 
 ---
 
 ## 9. Open Items / Not Yet Covered
 
-| Item | Status |
-|---|---|
-| Cost tolerance band exact value (±15% proposed) | Blocked on SRS D1 / Database Design DB-D5 sign-off — this schema is written to be compatible with whatever value is confirmed |
-| Budget-first destination-suggestion response schema (FR-TRIP-002) | Separate, smaller contract — not covered here; needed before Phase 3 exit alongside this one |
-| Partial regeneration request/response shape (single day or single item, FR-TRIP-003) | Out of scope for this draft — this schema covers a full-trip generation; a "regenerate one day" variant should reuse `ItineraryDay`/`ItineraryItem` definitions from §4.2/§4.3 but is a distinct top-level contract, to be drafted alongside Phase 6 work |
-| Conversational refinement schema (FR-TRIP-005) | Post-MVP — not drafted |
+| Item                                                                                        | Status                                                                                                                                                                                                                                                                                                                                                          |
+| ------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Cost tolerance band exact value (±15% proposed, SRS D1 / Database Design DB-D5)             | **No longer applicable to this schema** — there is no model-provided cost to check a tolerance against (§1a, #1–2). DB-D5 may still matter elsewhere (e.g. how stale `Place.reference_price` is allowed to get before a manual review, per Database Design §28), but that's a dataset-freshness question, not a response-validation question for this contract. |
+| Budget-first destination-suggestion response schema (FR-TRIP-002)                           | **Resolved — merged into this contract.** No longer a separate document; see §1a, #6 and §3.                                                                                                                                                                                                                                                                    |
+| Minimum surviving `destination_options` for a `BUDGET_FIRST` attempt to count as successful | **Open.** §5 step 4 currently says "zero surviving options = failure," but whether 1-of-3 fitting is an acceptable success, or whether Backend should trigger a retry with an adjusted prompt to get closer to 3 valid options, is undecided.                                                                                                                   |
+| Accommodation slot placement within `days[]` for persistence                                | **Open (minor).** §4.3 says "conventionally `day_number = 1`" — needs Backend to confirm which `time_slot` it writes the single accommodation `ItineraryItem` into, purely for UI display consistency.                                                                                                                                                          |
+| Re-introducing `place_category` on `ItineraryItem` for name-collision safety                | **Open.** Removed in v2.0.0 (§1a, #3) on the assumption `Place.name` is effectively unique within a destination (Database Design Major Query Pattern #5 assumes this for lookup). If two active places in the same destination ever share a name across categories, this field should come back as a minor-version addition.                                    |
+| Partial regeneration request/response shape (single day or single item, FR-TRIP-003)        | Out of scope for this draft — this schema covers a full trip-plan generation; a "regenerate one day" variant should reuse `ItineraryDay`/`ItineraryItem` definitions from §4.4/§4.5 but is a distinct top-level contract.                                                                                                                                       |
+| Conversational refinement schema (FR-TRIP-005)                                              | Post-MVP — not drafted.                                                                                                                                                                                                                                                                                                                                         |
 
 ---
 
 ## 10. Traceability
 
-| Requirement/Doc | Where addressed |
-|---|---|
-| FR-AI-001 | §3, §4 — full response shape |
-| FR-AI-002 | §4.3 (`place_name`), §5 step 3 — 0% invented-place enforcement |
-| FR-COST-001 | §4.4 `cost_summary`, §5 step 5 (deterministic recomputation) |
-| Architecture ADR-01 | §1 (ownership split) |
-| Architecture §9 (AI Generation Lifecycle) | §5 (validation pipeline mirrors the sequence diagram) |
-| Database Design §6.13 (`ItineraryItem`) | §4.3 |
-| Database Design §6.15 (`AIGeneration`) | §5 step 6 |
-| Database Design §11 (Itinerary Data Model) | §2.4, §4.4 (why `cost_summary` isn't the source of truth) |
-| Database Design §15 (Normalization/denormalization) | §5 step 5 (`estimated_cost` snapshot behavior) |
+| Requirement/Doc                                     | Where addressed                                                                                                   |
+| --------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------- |
+| FR-AI-001                                           | §3, §4 — full response shape                                                                                      |
+| FR-AI-002                                           | §4.3, §4.5 (`place_name`, `destination_name`), §5 step 3 — 0% invented-place/destination enforcement              |
+| FR-TRIP-002 (budget-first)                          | §3, §4.1, §4.2, §5 step 4 — now covered by this single contract instead of a separate one                         |
+| FR-COST-001                                         | §5 step 5 (fully deterministic backend computation — no model input at all, unlike v1.0.0's coherence-check step) |
+| Architecture ADR-01                                 | §1 (ownership split)                                                                                              |
+| Architecture §9 (AI Generation Lifecycle)           | §5 (validation pipeline mirrors the sequence diagram)                                                             |
+| Database Design §6.3 (`Destination`)                | §4.2                                                                                                              |
+| Database Design §6.5 (`Place`)                      | §4.3, §4.5                                                                                                        |
+| Database Design §6.13 (`ItineraryItem`)             | §4.5                                                                                                              |
+| Database Design §6.15 (`AIGeneration`)              | §5 step 6                                                                                                         |
+| Database Design §11 (Itinerary Data Model)          | §2.6                                                                                                              |
+| Database Design §15 (Normalization/denormalization) | §5 step 5 (`estimated_cost` snapshot behavior)                                                                    |
