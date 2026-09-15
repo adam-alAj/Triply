@@ -1,0 +1,58 @@
+﻿id,destination_id,place_category_id,name,description,reference_price,currency_id,cost_category_id,price_updated_at,is_active
+1,1,4,Hôtel Le Clos Notre-Dame,"3-star hotel in the Latin Quarter, walking distance to Notre-Dame and the Seine",95,1,1,2026-09-13,True
+2,1,4,Novotel Paris 20 Belleville,"Modern 4-star chain hotel near a metro station, good base for exploring by transit",140,1,1,2026-09-13,True
+3,1,4,Ritz Paris,"Legendary palace hotel on Place Vendôme, one of the world's most iconic luxury addresses",1400,1,1,2026-09-13,True
+4,1,2,Chez Le Libanais,"Popular Lebanese sandwich/wrap counter near St-Michel, quick and cheap",8,1,3,2026-09-13,True
+5,1,2,Bouillon Chartier Grands Boulevards,"Historic 1896 Parisian bouillon restaurant, classic French dishes at low prices",20,1,3,2026-09-13,True
+6,1,2,Epicure (Le Bristol Paris),3-Michelin-star fine dining inside the Bristol Palace hotel,380,1,3,2026-09-13,True
+7,1,1,"Eiffel Tower (2nd floor, lift)","Iconic 330m iron tower, panoramic views over Paris from the 2nd floor observation deck",23.5,1,4,2026-09-13,True
+8,1,1,Louvre Museum,"World's largest art museum, home to the Mona Lisa and Venus de Milo",22,1,4,2026-09-13,True
+9,1,1,Notre-Dame Cathedral,"Gothic cathedral on Île de la Cité, reopened after restoration",0,1,4,2026-09-13,True
+10,1,3,Aqua Mundo – Villages Nature Paris,"Large indoor/outdoor tropical water park near Disneyland Paris, day-trip from the city",45,1,4,2026-09-13,True
+11,1,3,Forest of Legends (Villages Nature),"Woodland adventure playground with zip lines and climbing nets, family nature outing",10,1,4,2026-09-13,True
+12,1,3,Galeries Lafayette Haussmann,Iconic department store with Art Nouveau glass dome and free rooftop city view,0,1,4,2026-09-13,True
+13,1,3,Galeries Lafayette Champs-Élysées,Flagship store on the Champs-Élysées with curated fashion and a gourmet food hall,0,1,4,2026-09-13,True
+14,1,3,Paris Catacombs,"Underground ossuary tunnels beneath the city, one of Paris's most atmospheric sites",29,1,4,2026-09-13,True
+15,1,3,Seine River Cruise,"1-hour boat cruise past Notre-Dame, the Louvre and the Eiffel Tower",17,1,4,2026-09-13,True
+16,1,3,Moulin Rouge Cabaret Show,"World-famous cabaret revue in Montmartre, evening show",115,1,4,2026-09-13,True
+17,1,5,Airport Transfer – CDG to city centre,RER B train or flat-rate taxi from Charles de Gaulle Airport to central Paris,56,1,2,2026-09-13,True
+18,1,5,Intra-city Metro/Bus Single Ticket,Single ride on the Paris RATP metro or bus network,2.15,1,2,2026-09-13,True
+19,1,5,Navigo Easy Weekly Pass,"Unlimited travel pass for metro, bus, and RER within central Paris zones",30,1,2,2026-09-13,True
+20,2,4,Jordan Tower Hotel,Budget hotel steps from the Roman Theatre in downtown (Al-Balad) Amman,25,2,1,2026-09-13,True
+21,2,4,AlQasr Metropole Hotel,Mid-range hotel near Rainbow Street with central Amman location,55,2,1,2026-09-13,True
+22,2,4,Four Seasons Hotel Amman,"5-star hotel near the 5th Circle with spa, pool and multiple restaurants",250,2,1,2026-09-13,True
+23,2,2,Hashem Restaurant,"Legendary no-frills falafel and hummus spot in downtown Amman, open since 1956",4,2,3,2026-09-13,True
+24,2,2,Jordan Heritage Restaurant,"Traditional Jordanian dishes (mansaf, maqluba) in a restored heritage building",12,2,3,2026-09-13,True
+25,2,2,Levant Restaurant,Upscale Armenian/Levantine fine dining near King Talal Square,35,2,3,2026-09-13,True
+26,2,1,Amman Citadel & Jordan Archaeological Museum,"Hilltop archaeological site with the Temple of Hercules and Umayyad Palace, plus on-site museum",3,2,4,2026-09-13,True
+27,2,1,Roman Theatre & Museum of Popular Traditions,2nd-century Roman amphitheatre in the heart of downtown Amman,2,2,4,2026-09-13,True
+28,2,1,Jerash Archaeological Site & Museum,"One of the best-preserved Roman provincial cities in the world, day trip north of Amman",10,2,4,2026-09-13,True
+29,2,3,Wadi Rum Protected Area,"UNESCO-listed red desert of sandstone mountains, day trip from Amman (~3.5 hrs)",5,2,4,2026-09-13,True
+30,2,3,Dead Sea Public Beach,"Lowest point on Earth, famous for mineral-rich floating water, day trip from Amman (~1 hr)",15,2,4,2026-09-13,True
+31,2,3,City Mall Amman,"Amman's largest shopping mall with international brands, cinema and food court",0,2,4,2026-09-13,True
+32,2,3,Abdali Mall & Boulevard,"Modern mall and outdoor promenade with cafes, restaurants and retail",0,2,4,2026-09-13,True
+33,2,3,Wadi Rum Jeep Safari (2 hrs),"Bedouin-guided 4x4 tour through canyons, arches and dunes of Wadi Rum",35,2,4,2026-09-13,True
+34,2,3,Petra Day Trip (entrance),"UNESCO World Heritage rock-cut city, full-day trip from Amman (~2.5 hrs each way)",50,2,4,2026-09-13,True
+35,2,3,Rainbow Street Evening Walk,"Amman's liveliest street for cafes, art galleries and nightlife, near the Al-Kalha stairs",0,2,4,2026-09-13,True
+36,2,5,Airport Transfer – QAIA to Amman,Taxi from Queen Alia International Airport to central Amman (~35 km),22,2,2,2026-09-13,True
+37,2,5,Intra-city Taxi (short ride),Metered taxi or Uber/Careem ride within central Amman,3,2,2,2026-09-13,True
+38,2,5,Jordan Pass,"Combined tourist pass covering entry to 40+ sites incl. Petra, Jerash, Amman Citadel",70,2,2,2026-09-13,True
+39,3,4,Pod 51 Hotel,"Compact, budget-friendly pod-style rooms in Midtown East, walkable to major sights",150,3,1,2026-09-13,True
+40,3,4,Hampton Inn Manhattan Grand Central,Reliable mid-range chain hotel a 5-min walk from Grand Central Terminal,280,3,1,2026-09-13,True
+41,3,4,"The Ritz-Carlton New York, Central Park",5-star hotel directly on Central Park South with skyline and park views,950,3,1,2026-09-13,True
+42,3,2,Joe's Pizza,"Classic thin-crust New York slice shop, a Manhattan institution since 1975",8,3,3,2026-09-13,True
+43,3,2,Wo Hop,"Historic Chinatown Cantonese restaurant open since 1938, cash-only classic",22,3,3,2026-09-13,True
+44,3,2,Le Bernardin,3-Michelin-star seafood-focused fine dining by chef Eric Ripert,225,3,3,2026-09-13,True
+45,3,1,Empire State Building (86th floor),Art Deco skyscraper and NYC icon with an open-air observation deck,49,3,4,2026-09-13,True
+46,3,1,Top of the Rock Observation Deck,Rockefeller Center observation deck with unobstructed Central Park and skyline views,44,3,4,2026-09-13,True
+47,3,1,Statue of Liberty & Ellis Island Ferry,"Ferry to Liberty and Ellis Islands, including the immigration museum",25.5,3,4,2026-09-13,True
+48,3,3,Central Park,"843-acre park in the middle of Manhattan with lakes, walking paths and lawns",0,3,4,2026-09-13,True
+49,3,3,Saks Fifth Avenue,Iconic 9-floor luxury department store across from Rockefeller Center,0,3,4,2026-09-13,True
+50,3,3,MUJI Fifth Avenue,Japanese lifestyle and homeware store in Midtown Manhattan,0,3,4,2026-09-13,True
+51,3,3,SUMMIT One Vanderbilt,Immersive glass-and-mirror observation experience with an outdoor glass-floor elevator,44,3,4,2026-09-13,True
+52,3,3,Brooklyn Bridge Walk,Iconic 1.1-mile pedestrian walk across the East River with skyline views,0,3,4,2026-09-13,True
+53,3,3,Times Square,"Iconic, neon-lit plaza in the Theater District, hub of Broadway and street life",0,3,4,2026-09-13,True
+54,3,3,Broadway Show (standard ticket),A live Broadway musical or play in the Theater District,150,3,4,2026-09-13,True
+55,3,5,Airport Transfer – JFK to Manhattan,Official yellow taxi flat rate from JFK Airport to any Manhattan destination,70,3,2,2026-09-13,True
+56,3,5,Subway/Bus Single Ride (OMNY),"Single ride on the NYC subway or local bus, tap-to-pay OMNY fare",3,3,2,2026-09-13,True
+57,3,5,Weekly Fare Cap (OMNY),Unlimited subway/local bus rides after $35 is reached in a rolling 7-day period,35,3,2,2026-09-13,True
