@@ -15,11 +15,12 @@ public class CustomWebApplicationFactory : WebApplicationFactory<Program>
 
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
-        builder.UseEnvironment(Environments.Development);
+        builder.UseEnvironment("Testing");
+        var connectionString =
+            Environment.GetEnvironmentVariable("TRIPLY_TEST_DB_CONNECTION")
+            ?? $"Server=(localdb)\\mssqllocaldb;Database={_dbName};Trusted_Connection=True;TrustServerCertificate=True;";
 
-       var connectionString =
-    Environment.GetEnvironmentVariable("TRIPLY_TEST_DB_CONNECTION")
-    ?? $"Server=(localdb)\\mssqllocaldb;Database={_dbName};Trusted_Connection=True;TrustServerCertificate=True;";
+
         // Force the test configuration values into the application
         // configuration used by Program.cs.
         builder.UseSetting(
