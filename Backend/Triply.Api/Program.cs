@@ -13,6 +13,7 @@ using Triply.Api.Common.Middleware;
 using Triply.Api.Data;
 using Triply.Api.Entities;
 using Triply.Api.Modules.Auth;
+using Triply.Api.Modules.Destination;
 using Triply.Api.Modules.Trip.Validators;
 
 
@@ -143,6 +144,7 @@ builder.Services.AddValidatorsFromAssemblyContaining<CreateTripRequestValidator>
 // ---------- Controllers / Swagger ----------
 
 builder.Services.AddScoped<JwtTokenService>();
+builder.Services.AddScoped<IDestinationSuggestionService, DestinationSuggestionService>();
 
 builder.Services.AddControllers();
 
