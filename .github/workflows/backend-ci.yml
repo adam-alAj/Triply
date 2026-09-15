@@ -41,6 +41,7 @@ jobs:
 
       - name: Restore
         run: dotnet restore Backend/Triply.Api.Tests/Triply.Api.Tests.csproj
+
       - name: Build
         run: dotnet build Backend/Triply.Api.Tests/Triply.Api.Tests.csproj --no-restore --configuration Release
 
@@ -106,8 +107,8 @@ jobs:
             -d master \
             -Q "SELECT name, state_desc FROM sys.databases WHERE name = 'TriplyDb_Tests';"
 
-            - name: Test
-          run: |
+      - name: Test
+        run: |
           dotnet test Backend/Triply.Api.Tests/Triply.Api.Tests.csproj \
             --no-build \
             --configuration Release \
