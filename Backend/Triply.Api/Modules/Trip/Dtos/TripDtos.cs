@@ -42,4 +42,5 @@ public class UpdateTripRequest
     public decimal? BudgetAmount { get; set; }
     public long? BudgetCurrencyId { get; set; }
     public List<long> InterestCategoryIds { get; set; } = new();
+    public int ExpectedVersion { get; set; }
 }

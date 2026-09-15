@@ -5,9 +5,10 @@
 ![reg aleredy reg account](image-4.png)
 ![login not valid email](image-5.png)
 
-![post](image-6.png)
 ![get by id after auth](image-7.png)
 
 ![cant get id for other account](image-8.png)
 
-![post after edit](image-9.png)
+![post](image-9.png)
+
+![update](image-10.png)
