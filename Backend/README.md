@@ -4,11 +4,10 @@ Triply is an AI-assisted trip-planning platform (mobile + web) that turns a user
 
 This document tells the backend story **in the order it was actually built** — foundation → security → domain logic → lifecycle → concurrency → testing/CI → AI handoff. It is written to be walked through top-to-bottom in a mentor review.
 
-For exact request/response payloads, see [`API Contract.md`](./API%20Contract.md).
-For API design rules (naming, DTOs, error format, versioning), see [`API_CONVENTIONS.md`](./API_CONVENTIONS%20.md).
+For exact request/response payloads, see[API Contract](docs/API%20Contract.md).
+For API design rules (naming, DTOs, error format, versioning), see[API Conventions](docs/API_CONVENTIONS_.md).
 
 ---
-
 
 ## 1. Project Goal
 
