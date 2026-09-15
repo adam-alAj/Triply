@@ -287,3 +287,72 @@ Every returned figure is explicitly marked with `isEstimated: true`.
 ```
 
 Cost estimates for one trip must use a single currency before aggregation. A trip with no cost rows still returns all configured categories with zero amounts and uses the trip budget currency when available.
+
+# 7. Itinerary Read / Write Scaffolding
+
+**Endpoints:**
+- `GET /api/trips/{tripId}/itinerary`
+- `POST /api/trips/{tripId}/itinerary`
+
+**Authentication:** JWT Bearer required. The trip must belong to the authenticated user.
+
+The endpoint persists and returns the current itinerary with days ordered by `dayNumber` and items ordered by `timeSlot` (`MORNING`, `AFTERNOON`, `EVENING`) and then `orderIndex`.
+
+### Write request
+
+```json
+{
+  "days": [
+    {
+      "dayNumber": 1,
+      "date": "2026-10-01",
+      "items": [
+        {
+          "placeId": 1,
+          "timeSlot": "MORNING",
+          "orderIndex": 0,
+          "estimatedCost": 25.00,
+          "notes": "Start early",
+          "isAiGenerated": true
+        }
+      ]
+    }
+  ]
+}
+```
+
+Validation requires at least one day, unique positive day numbers, valid time slots, non-negative order indexes and estimated costs, and valid place IDs. Places must exist and be active; when the trip has a destination, every itinerary place must belong to that destination.
+
+The write operation replaces the existing itinerary for the trip atomically. The endpoint is scaffolding for manually supplied/validated itinerary payloads ahead of AI integration; it does not call an LLM.
+
+### Read response — `200 OK`
+
+```json
+{
+  "id": "00000000-0000-0000-0000-000000000000",
+  "tripId": "00000000-0000-0000-0000-000000000000",
+  "generatedAt": "2026-09-15T18:00:00Z",
+  "days": [
+    {
+      "id": "00000000-0000-0000-0000-000000000000",
+      "dayNumber": 1,
+      "date": "2026-10-01",
+      "items": [
+        {
+          "id": "00000000-0000-0000-0000-000000000000",
+          "placeId": 1,
+          "placeName": "Example Place",
+          "timeSlot": "MORNING",
+          "orderIndex": 0,
+          "estimatedCost": 25.00,
+          "notes": "Start early",
+          "isAiGenerated": true,
+          "modifiedAt": null
+        }
+      ]
+    }
+  ]
+}
+```
+
+A trip without an itinerary returns `404 Not Found`. A different user's itinerary also returns `404 Not Found` and never exposes itinerary data.

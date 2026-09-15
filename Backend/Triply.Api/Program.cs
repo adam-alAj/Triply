@@ -97,14 +97,15 @@ builder.Services.AddFluentValidationAutoValidation();
 builder.Services.AddValidatorsFromAssemblyContaining<Program>();
 
 // ---------- Rate Limiting ----------
-
 builder.Services.AddRateLimiter(options =>
 {
     options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
 
     options.AddFixedWindowLimiter("fixed", opt =>
     {
-        opt.PermitLimit = 10;
+        opt.PermitLimit =
+            builder.Environment.IsEnvironment("Testing") ? 100 : 10;
+
         opt.Window = TimeSpan.FromMinutes(1);
         opt.QueueProcessingOrder = QueueProcessingOrder.OldestFirst;
         opt.QueueLimit = 0;
@@ -134,13 +135,6 @@ builder.Services.AddCors(options =>
               .AllowAnyHeader()
               .AllowAnyMethod());
 });
-// ---------- FluentValidation ----------
-builder.Services
-    .AddFluentValidationAutoValidation()
-    .AddFluentValidationClientsideAdapters();
-
-builder.Services.AddValidatorsFromAssemblyContaining<CreateTripRequestValidator>();
-
 
 // ---------- Controllers / Swagger ----------
 
@@ -180,7 +174,6 @@ builder.Services.AddSwaggerGen(options =>
         }
     });
 });
-builder.Services.AddSwaggerGen();
 
 var app = builder.Build();
 
@@ -220,9 +213,7 @@ if (app.Environment.IsDevelopment())
 app.UseHttpsRedirection();
 
 app.UseCors("FlutterClients");
-
 app.UseRateLimiter();
-
 app.UseAuthentication();
 
 app.UseAuthorization();
@@ -235,14 +226,10 @@ app.MapGet("/health", () =>
     Results.Ok(new { status = "ok" }));
 
 // ---------- Database Migration ----------
-
-if (app.Environment.IsDevelopment())
+if (app.Environment.IsDevelopment() || app.Environment.IsEnvironment("Testing"))
 {
     using var scope = app.Services.CreateScope();
-
-    var db = scope.ServiceProvider
-        .GetRequiredService<ApplicationDbContext>();
-
+    var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
     db.Database.Migrate();
 }
 
