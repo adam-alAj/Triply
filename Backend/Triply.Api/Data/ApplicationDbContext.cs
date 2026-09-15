@@ -43,10 +43,13 @@ public class ApplicationDbContext : IdentityDbContext<ApplicationUser, IdentityR
             .HasOne(x => x.Destination).WithMany(x => x.Places)
             .HasForeignKey(x => x.DestinationId).OnDelete(DeleteBehavior.Restrict);
         b.Entity<Place>().HasIndex(x => x.DestinationId); // IX_Place_DestinationId
-
         // ---- Trip (§6.9, §8) ----
         b.Entity<Trip>().HasIndex(x => x.UserId); // IX_Trip_UserId
         b.Entity<Trip>().HasIndex(x => x.Status); // IX_Trip_Status
+        b.Entity<Trip>()
+            .Property(x => x.Version)
+            .IsConcurrencyToken();
+
         b.Entity<Trip>()
             .HasOne(x => x.Destination).WithMany()
             .HasForeignKey(x => x.DestinationId).OnDelete(DeleteBehavior.SetNull);

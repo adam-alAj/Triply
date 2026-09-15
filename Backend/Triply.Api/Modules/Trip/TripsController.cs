@@ -50,7 +50,9 @@ public class TripsController : ControllerBase
                 TravelerCount = t.TravelerCount,
                 BudgetAmount = t.BudgetAmount,
                 BudgetCurrencyId = t.BudgetCurrencyId,
-                InterestCategoryIds = t.TripInterests.Select(x => x.InterestCategoryId).ToList(),
+                InterestCategoryIds = t.TripInterests
+                    .Select(x => x.InterestCategoryId)
+                    .ToList(),
                 Version = t.Version
             })
             .ToListAsync(cancellationToken);
@@ -59,7 +61,9 @@ public class TripsController : ControllerBase
     }
 
     [HttpGet("{id:guid}")]
-    public async Task<IActionResult> GetById(Guid id, CancellationToken cancellationToken)
+    public async Task<IActionResult> GetById(
+        Guid id,
+        CancellationToken cancellationToken)
     {
         var trip = await _db.Trips
             .AsNoTracking()
@@ -70,7 +74,9 @@ public class TripsController : ControllerBase
         if (trip is null)
             return NotFound();
 
-        var authResult = await _authorizationService.AuthorizeAsync(User, trip, "TripOwner");
+        var authResult = await _authorizationService
+            .AuthorizeAsync(User, trip, "TripOwner");
+
         if (!authResult.Succeeded)
             return NotFound();
 
@@ -79,7 +85,9 @@ public class TripsController : ControllerBase
             .Include(x => x.Days)
                 .ThenInclude(x => x.Items)
                     .ThenInclude(x => x.Place)
-            .FirstOrDefaultAsync(x => x.TripId == id, cancellationToken);
+            .FirstOrDefaultAsync(
+                x => x.TripId == id,
+                cancellationToken);
 
         var costEstimate = await _db.CostEstimates
             .AsNoTracking()
@@ -93,12 +101,13 @@ public class TripsController : ControllerBase
     }
 
     [HttpPost("test-create")]
-    public async Task<IActionResult> TestCreate(CancellationToken cancellationToken)
+    public async Task<IActionResult> TestCreate(
+        CancellationToken cancellationToken)
     {
         var userId = GetUserId();
         if (userId is null) return Unauthorized();
 
-var trip = new Triply.Api.Entities.Trip
+        var trip = new Triply.Api.Entities.Trip
         {
             UserId = userId.Value,
             PlanningMode = "DESTINATION_FIRST",
@@ -121,14 +130,31 @@ var trip = new Triply.Api.Entities.Trip
         if (userId is null) return Unauthorized();
 
         if (request.DestinationId.HasValue &&
-            !await _db.Destinations.AnyAsync(d => d.Id == request.DestinationId.Value, cancellationToken))
-            return BadRequest(new { message = "Destination does not exist." });
+            !await _db.Destinations.AnyAsync(
+                d => d.Id == request.DestinationId.Value,
+                cancellationToken))
+        {
+            return BadRequest(new
+            {
+                message = "Destination does not exist."
+            });
+        }
 
         if (request.BudgetCurrencyId.HasValue &&
-            !await _db.Currencies.AnyAsync(c => c.Id == request.BudgetCurrencyId.Value, cancellationToken))
-            return BadRequest(new { message = "Budget currency does not exist." });
+            !await _db.Currencies.AnyAsync(
+                c => c.Id == request.BudgetCurrencyId.Value,
+                cancellationToken))
+        {
+            return BadRequest(new
+            {
+                message = "Budget currency does not exist."
+            });
+        }
 
-        var interestIds = request.InterestCategoryIds.Distinct().ToList();
+        var interestIds = request.InterestCategoryIds
+            .Distinct()
+            .ToList();
+
         if (interestIds.Count > 0)
         {
             var existingInterestIds = await _db.InterestCategories
@@ -137,12 +163,18 @@ var trip = new Triply.Api.Entities.Trip
                 .ToListAsync(cancellationToken);
 
             if (existingInterestIds.Count != interestIds.Count)
-                return BadRequest(new { message = "One or more interest categories do not exist." });
+            {
+                return BadRequest(new
+                {
+                    message = "One or more interest categories do not exist."
+                });
+            }
         }
 
-        await using var transaction = await _db.Database.BeginTransactionAsync(cancellationToken);
+        await using var transaction =
+            await _db.Database.BeginTransactionAsync(cancellationToken);
 
-var trip = new Triply.Api.Entities.Trip
+        var trip = new Triply.Api.Entities.Trip
         {
             UserId = userId.Value,
             PlanningMode = request.PlanningMode,
@@ -159,13 +191,16 @@ var trip = new Triply.Api.Entities.Trip
         };
 
         foreach (var interestId in interestIds)
+        {
             trip.TripInterests.Add(new TripInterest
             {
                 TripId = trip.Id,
                 InterestCategoryId = interestId
             });
+        }
 
         _db.Trips.Add(trip);
+
         await _db.SaveChangesAsync(cancellationToken);
         await transaction.CommitAsync(cancellationToken);
 
@@ -176,33 +211,68 @@ var trip = new Triply.Api.Entities.Trip
     }
 
     [HttpPost("{id:guid}/generate")]
-    public async Task<IActionResult> StartGeneration(Guid id, CancellationToken cancellationToken)
+    public async Task<IActionResult> StartGeneration(
+        Guid id,
+        CancellationToken cancellationToken)
     {
         var trip = await GetOwnedTrip(id, cancellationToken);
-        if (trip is null) return NotFound();
 
-        if (!TripLifecycle.CanTransition(trip.Status, TripLifecycle.Generating))
-            return Conflict(new { message = $"Trip cannot start generation from status {trip.Status}." });
+        if (trip is null)
+            return NotFound();
 
-        TripLifecycle.Transition(trip, TripLifecycle.Generating);
+        if (!TripLifecycle.CanTransition(
+                trip.Status,
+                TripLifecycle.Generating))
+        {
+            return Conflict(new
+            {
+                message =
+                    $"Trip cannot start generation from status {trip.Status}."
+            });
+        }
+
+        TripLifecycle.Transition(
+            trip,
+            TripLifecycle.Generating);
+
         trip.UpdatedAt = DateTime.UtcNow;
         trip.Version++;
 
         await _db.SaveChangesAsync(cancellationToken);
 
-        return Ok(new { trip.Id, trip.Status, trip.Version });
+        return Ok(new
+        {
+            trip.Id,
+            trip.Status,
+            trip.Version
+        });
     }
 
     [HttpPost("{id:guid}/save")]
-    public async Task<IActionResult> Save(Guid id, CancellationToken cancellationToken)
+    public async Task<IActionResult> Save(
+        Guid id,
+        CancellationToken cancellationToken)
     {
         var trip = await GetOwnedTrip(id, cancellationToken);
-        if (trip is null) return NotFound();
 
-        if (!TripLifecycle.CanTransition(trip.Status, TripLifecycle.Saved))
-            return Conflict(new { message = $"Trip cannot be saved from status {trip.Status}." });
+        if (trip is null)
+            return NotFound();
 
-        TripLifecycle.Transition(trip, TripLifecycle.Saved);
+        if (!TripLifecycle.CanTransition(
+                trip.Status,
+                TripLifecycle.Saved))
+        {
+            return Conflict(new
+            {
+                message =
+                    $"Trip cannot be saved from status {trip.Status}."
+            });
+        }
+
+        TripLifecycle.Transition(
+            trip,
+            TripLifecycle.Saved);
+
         trip.UpdatedAt = DateTime.UtcNow;
         trip.Version++;
 
@@ -212,37 +282,79 @@ var trip = new Triply.Api.Entities.Trip
     }
 
     [HttpPost("{id:guid}/archive")]
-    public async Task<IActionResult> Archive(Guid id, CancellationToken cancellationToken)
+    public async Task<IActionResult> Archive(
+        Guid id,
+        CancellationToken cancellationToken)
     {
         var trip = await GetOwnedTrip(id, cancellationToken);
-        if (trip is null) return NotFound();
 
-        if (!TripLifecycle.CanTransition(trip.Status, TripLifecycle.Archived))
-            return Conflict(new { message = $"Trip cannot be archived from status {trip.Status}." });
+        if (trip is null)
+            return NotFound();
 
-        TripLifecycle.Transition(trip, TripLifecycle.Archived);
+        if (!TripLifecycle.CanTransition(
+                trip.Status,
+                TripLifecycle.Archived))
+        {
+            return Conflict(new
+            {
+                message =
+                    $"Trip cannot be archived from status {trip.Status}."
+            });
+        }
+
+        TripLifecycle.Transition(
+            trip,
+            TripLifecycle.Archived);
+
         trip.UpdatedAt = DateTime.UtcNow;
         trip.Version++;
+
         await _db.SaveChangesAsync(cancellationToken);
 
-        return Ok(new { trip.Id, trip.Status, trip.Version });
+        return Ok(new
+        {
+            trip.Id,
+            trip.Status,
+            trip.Version
+        });
     }
 
     [HttpPost("{id:guid}/restore")]
-    public async Task<IActionResult> Restore(Guid id, CancellationToken cancellationToken)
+    public async Task<IActionResult> Restore(
+        Guid id,
+        CancellationToken cancellationToken)
     {
         var trip = await GetOwnedTrip(id, cancellationToken);
-        if (trip is null) return NotFound();
 
-        if (!TripLifecycle.CanTransition(trip.Status, TripLifecycle.Saved))
-            return Conflict(new { message = $"Trip cannot be restored from status {trip.Status}." });
+        if (trip is null)
+            return NotFound();
 
-        TripLifecycle.Transition(trip, TripLifecycle.Saved);
+        if (!TripLifecycle.CanTransition(
+                trip.Status,
+                TripLifecycle.Saved))
+        {
+            return Conflict(new
+            {
+                message =
+                    $"Trip cannot be restored from status {trip.Status}."
+            });
+        }
+
+        TripLifecycle.Transition(
+            trip,
+            TripLifecycle.Saved);
+
         trip.UpdatedAt = DateTime.UtcNow;
         trip.Version++;
+
         await _db.SaveChangesAsync(cancellationToken);
 
-        return Ok(new { trip.Id, trip.Status, trip.Version });
+        return Ok(new
+        {
+            trip.Id,
+            trip.Status,
+            trip.Version
+        });
     }
 
     [HttpPut("{id:guid}")]
@@ -252,39 +364,102 @@ var trip = new Triply.Api.Entities.Trip
         CancellationToken cancellationToken)
     {
         var userId = GetUserId();
-        if (userId is null) return Unauthorized();
+
+        if (userId is null)
+            return Unauthorized();
 
         var trip = await _db.Trips
             .Include(t => t.TripInterests)
-            .FirstOrDefaultAsync(t => t.Id == id, cancellationToken);
+            .FirstOrDefaultAsync(
+                t => t.Id == id,
+                cancellationToken);
 
         if (trip is null || trip.UserId != userId.Value)
             return NotFound();
 
-        if (trip.Status == TripLifecycle.Generating || trip.Status == TripLifecycle.Archived)
-            return Conflict(new { message = $"Trip cannot be modified while status is {trip.Status}." });
-
-        if (request.DestinationId.HasValue &&
-            !await _db.Destinations.AnyAsync(d => d.Id == request.DestinationId.Value, cancellationToken))
-            return BadRequest(new { errors = new { DestinationId = new[] { "Destination does not exist." } } });
-
-        if (request.BudgetCurrencyId.HasValue &&
-            !await _db.Currencies.AnyAsync(c => c.Id == request.BudgetCurrencyId.Value, cancellationToken))
-            return BadRequest(new { errors = new { BudgetCurrencyId = new[] { "Budget currency does not exist." } } });
-
-        var interestIds = request.InterestCategoryIds.Distinct().ToList();
-        if (interestIds.Count > 0)
+        if (request.ExpectedVersion != trip.Version)
         {
-            var existingInterestIds = await _db.InterestCategories
-                .Where(x => interestIds.Contains(x.Id))
-                .Select(x => x.Id)
-                .ToListAsync(cancellationToken);
-
-            if (existingInterestIds.Count != interestIds.Count)
-                return BadRequest(new { errors = new { InterestCategoryIds = new[] { "One or more interest categories do not exist." } } });
+            return Conflict(new
+            {
+                message =
+                    "Trip has been modified by another request.",
+                currentVersion = trip.Version
+            });
         }
 
-        await using var transaction = await _db.Database.BeginTransactionAsync(cancellationToken);
+        if (trip.Status == TripLifecycle.Generating ||
+            trip.Status == TripLifecycle.Archived)
+        {
+            return Conflict(new
+            {
+                message =
+                    $"Trip cannot be modified while status is {trip.Status}."
+            });
+        }
+
+        if (request.DestinationId.HasValue &&
+            !await _db.Destinations.AnyAsync(
+                d => d.Id == request.DestinationId.Value,
+                cancellationToken))
+        {
+            return BadRequest(new
+            {
+                errors = new
+                {
+                    DestinationId = new[]
+                    {
+                        "Destination does not exist."
+                    }
+                }
+            });
+        }
+
+        if (request.BudgetCurrencyId.HasValue &&
+            !await _db.Currencies.AnyAsync(
+                c => c.Id == request.BudgetCurrencyId.Value,
+                cancellationToken))
+        {
+            return BadRequest(new
+            {
+                errors = new
+                {
+                    BudgetCurrencyId = new[]
+                    {
+                        "Budget currency does not exist."
+                    }
+                }
+            });
+        }
+
+        var interestIds = request.InterestCategoryIds
+            .Distinct()
+            .ToList();
+
+        if (interestIds.Count > 0)
+        {
+            var existingInterestIds =
+                await _db.InterestCategories
+                    .Where(x => interestIds.Contains(x.Id))
+                    .Select(x => x.Id)
+                    .ToListAsync(cancellationToken);
+
+            if (existingInterestIds.Count != interestIds.Count)
+            {
+                return BadRequest(new
+                {
+                    errors = new
+                    {
+                        InterestCategoryIds = new[]
+                        {
+                            "One or more interest categories do not exist."
+                        }
+                    }
+                });
+            }
+        }
+
+        await using var transaction =
+            await _db.Database.BeginTransactionAsync(cancellationToken);
 
         trip.DestinationId = request.DestinationId;
         trip.StartDate = request.StartDate;
@@ -294,42 +469,78 @@ var trip = new Triply.Api.Entities.Trip
         trip.BudgetCurrencyId = request.BudgetCurrencyId;
 
         if (trip.Status is TripLifecycle.Generated or TripLifecycle.Saved)
-            TripLifecycle.Transition(trip, TripLifecycle.Modified);
+        {
+            TripLifecycle.Transition(
+                trip,
+                TripLifecycle.Modified);
+        }
 
         trip.UpdatedAt = DateTime.UtcNow;
         trip.Version++;
 
         _db.TripInterests.RemoveRange(trip.TripInterests);
-        foreach (var interestId in interestIds)
-            trip.TripInterests.Add(new TripInterest { TripId = trip.Id, InterestCategoryId = interestId });
 
-        await _db.SaveChangesAsync(cancellationToken);
-        await transaction.CommitAsync(cancellationToken);
+        foreach (var interestId in interestIds)
+        {
+            trip.TripInterests.Add(new TripInterest
+            {
+                TripId = trip.Id,
+                InterestCategoryId = interestId
+            });
+        }
+
+        try
+        {
+            await _db.SaveChangesAsync(cancellationToken);
+            await transaction.CommitAsync(cancellationToken);
+        }
+        catch (DbUpdateConcurrencyException)
+        {
+            await transaction.RollbackAsync(cancellationToken);
+
+            return Conflict(new
+            {
+                message =
+                    "Trip has been modified by another request."
+            });
+        }
 
         return await GetById(id, cancellationToken);
     }
 
     private async Task<Triply.Api.Entities.Trip?> GetOwnedTrip(
-    Guid id,
-    CancellationToken cancellationToken)
+        Guid id,
+        CancellationToken cancellationToken)
     {
-        var trip = await _db.Trips.FirstOrDefaultAsync(t => t.Id == id, cancellationToken);
-        if (trip is null) return null;
+        var trip = await _db.Trips
+            .FirstOrDefaultAsync(
+                t => t.Id == id,
+                cancellationToken);
 
-        var authResult = await _authorizationService.AuthorizeAsync(User, trip, "TripOwner");
+        if (trip is null)
+            return null;
+
+        var authResult = await _authorizationService
+            .AuthorizeAsync(User, trip, "TripOwner");
+
         return authResult.Succeeded ? trip : null;
     }
 
     private Guid? GetUserId()
     {
-        var claim = User.FindFirstValue(ClaimTypes.NameIdentifier) ?? User.FindFirstValue("sub");
-        return Guid.TryParse(claim, out var userId) ? userId : null;
+        var claim =
+            User.FindFirstValue(ClaimTypes.NameIdentifier)
+            ?? User.FindFirstValue("sub");
+
+        return Guid.TryParse(claim, out var userId)
+            ? userId
+            : null;
     }
 
     private static TripResponse ToResponse(
-    Triply.Api.Entities.Trip trip,
-    Triply.Api.Entities.Itinerary? itinerary,
-    List<CostEstimate> costEstimates)
+        Triply.Api.Entities.Trip trip,
+        Triply.Api.Entities.Itinerary? itinerary,
+        List<CostEstimate> costEstimates)
     {
         ItineraryResponse? itineraryResponse = null;
 
@@ -348,20 +559,23 @@ var trip = new Triply.Api.Entities.Trip
                         DayNumber = day.DayNumber,
                         Date = day.Date,
                         Items = day.Items
-                            .OrderBy(item => TimeSlotOrder(item.TimeSlot))
+                            .OrderBy(item =>
+                                TimeSlotOrder(item.TimeSlot))
                             .ThenBy(item => item.OrderIndex)
-                            .Select(item => new ItineraryItemResponse
-                            {
-                                Id = item.Id,
-                                PlaceId = item.PlaceId,
-                                PlaceName = item.Place.Name,
-                                TimeSlot = item.TimeSlot,
-                                OrderIndex = item.OrderIndex,
-                                EstimatedCost = item.EstimatedCost,
-                                Notes = item.Notes,
-                                IsAiGenerated = item.IsAiGenerated,
-                                ModifiedAt = item.ModifiedAt
-                            })
+                            .Select(item =>
+                                new ItineraryItemResponse
+                                {
+                                    Id = item.Id,
+                                    PlaceId = item.PlaceId,
+                                    PlaceName = item.Place.Name,
+                                    TimeSlot = item.TimeSlot,
+                                    OrderIndex = item.OrderIndex,
+                                    EstimatedCost = item.EstimatedCost,
+                                    Notes = item.Notes,
+                                    IsAiGenerated =
+                                        item.IsAiGenerated,
+                                    ModifiedAt = item.ModifiedAt
+                                })
                             .ToList()
                     })
                     .ToList()
@@ -369,22 +583,32 @@ var trip = new Triply.Api.Entities.Trip
         }
 
         CostEstimateResponse? costResponse = null;
+
         if (costEstimates.Count > 0)
         {
             costResponse = new CostEstimateResponse
             {
                 TripId = trip.Id,
-                Categories = costEstimates.Select(x => new CostCategoryEstimateResponse
-                {
-                    CostCategoryId = x.CostCategoryId,
-                    CategoryCode = x.CostCategory.Code,
-                    CategoryName = x.CostCategory.Label,
-                    Amount = x.Amount,
-                    Currency = x.Currency.IsoCode,
-                    IsEstimated = true
-                }).ToList(),
-                TotalEstimatedCost = costEstimates.Sum(x => x.Amount),
-                Currency = costEstimates[0].Currency.IsoCode,
+                Categories = costEstimates
+                    .Select(x =>
+                        new CostCategoryEstimateResponse
+                        {
+                            CostCategoryId =
+                                x.CostCategoryId,
+                            CategoryCode =
+                                x.CostCategory.Code,
+                            CategoryName =
+                                x.CostCategory.Label,
+                            Amount = x.Amount,
+                            Currency =
+                                x.Currency.IsoCode,
+                            IsEstimated = true
+                        })
+                    .ToList(),
+                TotalEstimatedCost =
+                    costEstimates.Sum(x => x.Amount),
+                Currency =
+                    costEstimates[0].Currency.IsoCode,
                 IsEstimated = true
             };
         }
@@ -401,18 +625,22 @@ var trip = new Triply.Api.Entities.Trip
             TravelerCount = trip.TravelerCount,
             BudgetAmount = trip.BudgetAmount,
             BudgetCurrencyId = trip.BudgetCurrencyId,
-            InterestCategoryIds = trip.TripInterests.Select(x => x.InterestCategoryId).ToList(),
+            InterestCategoryIds =
+                trip.TripInterests
+                    .Select(x => x.InterestCategoryId)
+                    .ToList(),
             Itinerary = itineraryResponse,
             CostEstimate = costResponse,
             Version = trip.Version
         };
     }
 
-    private static int TimeSlotOrder(string timeSlot) => timeSlot.ToUpperInvariant() switch
-    {
-        "MORNING" => 1,
-        "AFTERNOON" => 2,
-        "EVENING" => 3,
-        _ => 99
-    };
+    private static int TimeSlotOrder(string timeSlot) =>
+        timeSlot.ToUpperInvariant() switch
+        {
+            "MORNING" => 1,
+            "AFTERNOON" => 2,
+            "EVENING" => 3,
+            _ => 99
+        };
 }
