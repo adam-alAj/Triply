@@ -9,25 +9,6 @@ For API design rules (naming, DTOs, error format, versioning), see [`API_CONVENT
 
 ---
 
-## 0. How to present this document
-
-| Order | Section | What to say |
-|---|---|---|
-| 1 | §1–2 | What Triply is, and why the backend is built this way |
-| 2 | §3 | Tech stack + module structure |
-| 3 | §4 | Foundation: Docker, EF Core, Swagger, conventions |
-| 4 | §5 | Auth & security — show screenshots |
-| 5 | §6 | Trip management + ownership |
-| 6 | §7 | Budget-first destination suggestions |
-| 7 | §8 | Deterministic cost aggregation |
-| 8 | §9 | Itinerary persistence scaffolding |
-| 9 | §10 | Trip lifecycle (DRAFT → ... → ARCHIVED) |
-| 10 | §11 | Optimistic concurrency — **most recent work** |
-| 11 | §12–14 | Testing, Docker, CI |
-| 12 | §15 | What's next: AI integration handoff |
-| 13 | §16 | Current status summary |
-
----
 
 ## 1. Project Goal
 
