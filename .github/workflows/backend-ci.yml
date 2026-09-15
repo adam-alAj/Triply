@@ -106,6 +106,9 @@ jobs:
             -d master \
             -Q "SELECT name, state_desc FROM sys.databases WHERE name = 'TriplyDb_Tests';"
 
-      - name: Test
-        run: dotnet test Backend/Triply.Api.Tests/Triply.Api.Tests.csproj --no-build --configuration Release
-# CI integration tests
+            - name: Test
+          run: |
+          dotnet test Backend/Triply.Api.Tests/Triply.Api.Tests.csproj \
+            --no-build \
+            --configuration Release \
+            --logger "console;verbosity=detailed"
