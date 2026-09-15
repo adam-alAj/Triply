@@ -344,5 +344,5 @@ Backend foundation → Core trip APIs → AI handoff → Gemini integration
 
 ## 17. Related Documents
 
-- [`API Contract.md`](./API%20Contract.md) — exact request/response JSON for every endpoint
-- [`API_CONVENTIONS .md`](./API_CONVENTIONS%20.md) — naming, DTO, error-format, and versioning rules
+- - [`API Contract.md`]([./API%20Contract.md](https://github.com/adam-alAj/Triply/blob/backend/feat/api-conventions/Backend/docs/API%20Contract.md)) — exact request/response JSON for every endpoint — exact request/response JSON for every endpoint
+- [`API_CONVENTIONS .md`]((https://github.com/adam-alAj/Triply/blob/backend/feat/api-conventions/Backend/docs)/API_CONVENTIONS%20.md) — naming, DTO, error-format, and versioning rules
