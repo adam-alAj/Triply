@@ -90,7 +90,7 @@ Before writing any feature, the project foundation was set up so it could actual
 - Swagger, health endpoint, centralized exception-handling middleware
 - API conventions agreed up front: `/api` base path, DTOs (never raw EF entities), `camelCase` JSON, `ProblemDetails` error format, UTC timestamps, `yyyy-MM-dd` dates
 
-This foundation is the single source of truth for how Flutter and the backend communicate — see `API_CONVENTIONS.md`.
+This foundation is the single source of truth for how Flutter and the backend communicate — see[`API_CONVENTIONS.md`](./API_CONVENTIONS%20.md).
 
 ---
 
