@@ -356,3 +356,56 @@ The write operation replaces the existing itinerary for the trip atomically. The
 ```
 
 A trip without an itinerary returns `404 Not Found`. A different user's itinerary also returns `404 Not Found` and never exposes itinerary data.
+
+
+---
+
+# 8. Trip Save / Retrieve and Status Lifecycle
+
+**Endpoints:**
+- `GET /api/trips/{id}`
+- `POST /api/trips/{id}/generate`
+- `POST /api/trips/{id}/save`
+- `POST /api/trips/{id}/archive`
+- `POST /api/trips/{id}/restore`
+
+**Authentication:** JWT Bearer required. The trip must belong to the authenticated user.
+
+Trip status follows the database lifecycle:
+
+`DRAFT → GENERATING → GENERATED → MODIFIED → SAVED → ARCHIVED`
+
+A generation request moves `DRAFT` to `GENERATING`. Writing the generated itinerary moves `GENERATING` to `GENERATED`; changes to a generated or saved trip move it to `MODIFIED`. Saving a generated/modified trip moves it to `SAVED` and increments `version`. A saved trip can be archived and an archived trip can be restored to `SAVED`.
+
+### Save
+
+`POST /api/trips/{id}/save`
+
+Only `GENERATED` and `MODIFIED` trips can be saved. The response returns the complete persisted trip representation.
+
+### Retrieve
+
+`GET /api/trips/{id}` returns the trip together with its current itinerary and cost estimates, including the persisted status and version.
+
+A different user's trip returns `404 Not Found`.
+
+### Trip response
+
+```json
+{
+  "id": "00000000-0000-0000-0000-000000000000",
+  "planningMode": "DESTINATION_FIRST",
+  "status": "SAVED",
+  "destinationId": 1,
+  "destinationName": "Example City",
+  "startDate": "2026-10-01",
+  "endDate": "2026-10-05",
+  "travelerCount": 2,
+  "budgetAmount": 1500.00,
+  "budgetCurrencyId": 1,
+  "interestCategoryIds": [1, 2],
+  "itinerary": null,
+  "costEstimate": null,
+  "version": 2
+}
+```
