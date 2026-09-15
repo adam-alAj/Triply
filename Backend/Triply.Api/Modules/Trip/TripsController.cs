@@ -57,10 +57,7 @@ public async Task<IActionResult> GetMyTrips()
     return Ok(trips);
 }
 
-   [HttpGet("{id:guid}")]
 
-    // Minimal endpoint whose only purpose right now is to prove the
-    // ownership boundary (Task 6/9). Full Trip CRUD is a separate task.
     [HttpGet("{id:guid}")]
     public async Task<IActionResult> GetById(Guid id)
     {
