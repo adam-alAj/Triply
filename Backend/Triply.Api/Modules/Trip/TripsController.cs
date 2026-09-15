@@ -5,6 +5,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.EntityFrameworkCore;
 using Triply.Api.Data;
+
 using Triply.Api.Entities;
 using Triply.Api.Modules.Trip.Dtos;
 
@@ -57,6 +58,10 @@ public async Task<IActionResult> GetMyTrips()
 }
 
    [HttpGet("{id:guid}")]
+
+    // Minimal endpoint whose only purpose right now is to prove the
+    // ownership boundary (Task 6/9). Full Trip CRUD is a separate task.
+    [HttpGet("{id:guid}")]
     public async Task<IActionResult> GetById(Guid id)
     {
         var trip = await _db.Trips.FirstOrDefaultAsync(t => t.Id == id);
@@ -332,4 +337,5 @@ public async Task<IActionResult> Update(
         InterestCategoryIds = interestIds
     });
 }
+
 }

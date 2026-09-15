@@ -189,6 +189,8 @@ b.Entity<Destination>().HasData(
 );
                 
         // ---- Reference data seed (Database Design §26) ----
+
+                // ---- Reference data seed (Database Design §26) ----
     
         b.Entity<InterestCategory>().HasData(
             new InterestCategory { Id = 1, Code = "NATURE",     Label = "Nature" },

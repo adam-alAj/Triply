@@ -15,6 +15,7 @@ using Triply.Api.Entities;
 using Triply.Api.Modules.Auth;
 using Triply.Api.Modules.Trip.Validators;
 
+
 var builder = WebApplication.CreateBuilder(args);
 
 // ---------- Configuration ----------
@@ -138,6 +139,7 @@ builder.Services
 
 builder.Services.AddValidatorsFromAssemblyContaining<CreateTripRequestValidator>();
 
+
 // ---------- Controllers / Swagger ----------
 
 builder.Services.AddScoped<JwtTokenService>();
@@ -173,6 +175,8 @@ builder.Services.AddSwaggerGen(options =>
         }
     });
 });
+builder.Services.AddSwaggerGen();
+
 var app = builder.Build();
 
 // ---------- Centralized Error Handling ----------
