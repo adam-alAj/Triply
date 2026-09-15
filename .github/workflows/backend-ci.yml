@@ -57,3 +57,4 @@ jobs:
 
       - name: Test
         run: dotnet test Backend/Triply.Api.Tests/Triply.Api.Tests.csproj --no-build --configuration Release
+# CI integration tests
