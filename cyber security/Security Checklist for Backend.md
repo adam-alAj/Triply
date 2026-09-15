@@ -7,7 +7,7 @@
 
 **2. Ownership Authorization (BOLA)**
 - [ ] Every resource query checks `resource.user_id == current_user.id`
-- [ ] No `user_id`/`owner_id` accepted from client input — always from session
+- [ ] No `user_id` / `owner_id` accepted from client input — always from session
 - [ ] Cross-user access tested (or manually verified) for touched endpoints
 
 **3. Gemini Key Protection**
