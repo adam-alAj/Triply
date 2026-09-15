@@ -1,7 +1,5 @@
 {
   "$comment": "قبل التعديل على هذا الـ schema، راجعوا AI/04-Learning-Notes/Gemini_Prompt_Engineering_Upskilling_Module.md لفهم الفرق بين responseSchema وresponseJsonSchema وكيف يُستخدم هذا الملف مع Gemini API.",
-  "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "title": "TriplyTripPlanGeneration",
 
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "title": "TriplyTripPlanGeneration",

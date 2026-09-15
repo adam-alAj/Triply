@@ -1,0 +1,72 @@
+{
+  "dataset_version": "1.0.0",
+  "schema_contract_ref": "FR-DATA-001 (SRS); Database Design §6.3–§6.7, §26, §28",
+  "scope_ref": "D5-agreed destinations (MVP supported list)",
+  "generated_at": "2026-09-15T22:00:52Z",
+  "files": {
+    "Country.csv": {
+      "sha256": "3cc32e0450820710dcfdb5c7d0c43c5d8912fb8a6b73808493171f4ad1a1d83b",
+      "rows": 3
+    },
+    "Currency.csv": {
+      "sha256": "2999838946d85cc21a91755b4909bba3631e30475a7f9601326ee0039cbe9533",
+      "rows": 3
+    },
+    "Destination.csv": {
+      "sha256": "c4f6b994076350313b020443593ff61920737023205c1babadcb461e79a4858d",
+      "rows": 3
+    },
+    "PlaceCategory.csv": {
+      "sha256": "ab2b4b69cdc3af80a996649a3b7b1ac2e16ef45305ad5253500b11ad34dd348a",
+      "rows": 5
+    },
+    "CostCategory.csv": {
+      "sha256": "de3c113bf82df2570017aa742bc743d02d15863d76a86c11360e77fb362829da",
+      "rows": 5
+    },
+    "InterestCategory.csv": {
+      "sha256": "9b4e2d2f1ab8fc27c90401bd268284e677341ede1831067314733bdc0f2c7d24",
+      "rows": 8
+    },
+    "Place.csv": {
+      "sha256": "e07016aa333a46ed2b24383839e853d4c5048ce121d7d838e8a53bdc847f440b",
+      "rows": 57
+    },
+    "Extra_AI_Context.csv": {
+      "sha256": "bfac9974965c1b4c94f83d0e4c68476accf22993229a4b595d714af8ed9f1bc2",
+      "rows": 57
+    }
+  },
+  "coverage": {
+    "countries": 3,
+    "destinations": 3,
+    "destination_names": [
+      "Paris",
+      "Amman",
+      "New York"
+    ],
+    "places": 57,
+    "places_per_destination": {
+      "Paris": 19,
+      "Amman": 19,
+      "New York": 19
+    },
+    "price_coverage_by_currency": {
+      "EUR": {
+        "places": 19,
+        "min_reference_price": 0.0,
+        "max_reference_price": 1400.0
+      },
+      "JOD": {
+        "places": 19,
+        "min_reference_price": 0.0,
+        "max_reference_price": 250.0
+      },
+      "USD": {
+        "places": 19,
+        "min_reference_price": 0.0,
+        "max_reference_price": 950.0
+      }
+    }
+  }
+}
