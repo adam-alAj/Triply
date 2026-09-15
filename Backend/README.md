@@ -153,11 +153,9 @@ Once a user is authenticated, the Trip domain was built:
 - **Ownership protection** — a user can never see or modify another user's trip; unauthorized access returns `404`, not `403`, so trip existence isn't leaked
 
 **Evidence:**
-
 | Create trip | Get trip (authenticated) | Other user's trip blocked | Trip update |
 |---|---|---|---|
-| ![Trip POST](image-6.png) | ![Trip GET](image-7.png) | ![Blocked](image-8.png) | ![Update](image-9.png) |
-
+| ![Trip POST](docs/image-6.png) | ![Trip GET](docs/image-7.png) | ![Blocked](docs/image-8.png) | ![Update](docs/image-9.png) |
 ---
 
 ## 7. Stage 4 — Budget-First Destination Suggestions
