@@ -244,3 +244,46 @@ Candidates are calculated from the internal `Place` dataset. Active place refere
 ```
 
 The current approved database schema does not contain a direct Destination/Place-to-Interest relationship. Therefore the endpoint validates the supplied interest IDs but does not invent an interest-to-place mapping; budget matching is performed against the internal pricing dataset. Interest-aware candidate ranking can be added when that dataset relationship/AI contract is explicitly approved.
+
+---
+
+# 6. Cost Estimate Aggregation
+
+**Endpoint:** `GET /api/trips/{tripId}/cost-estimate`
+
+**Authentication:** JWT Bearer required. The trip must belong to the authenticated user.
+
+The endpoint deterministically aggregates `CostEstimates` for the trip by `CostCategory`, includes every configured cost category (including categories with no estimate, returned as `0.00`), computes the total as the sum of category amounts, and persists the result to `Trip.TotalEstimatedCost`.
+
+Every returned figure is explicitly marked with `isEstimated: true`.
+
+### Success response — `200 OK`
+
+```json
+{
+  "tripId": "00000000-0000-0000-0000-000000000000",
+  "categories": [
+    {
+      "costCategoryId": 1,
+      "categoryCode": "ACCOMMODATION",
+      "categoryName": "Accommodation",
+      "amount": 120.00,
+      "currency": "USD",
+      "isEstimated": true
+    },
+    {
+      "costCategoryId": 2,
+      "categoryCode": "FOOD",
+      "categoryName": "Food",
+      "amount": 80.00,
+      "currency": "USD",
+      "isEstimated": true
+    }
+  ],
+  "totalEstimatedCost": 200.00,
+  "currency": "USD",
+  "isEstimated": true
+}
+```
+
+Cost estimates for one trip must use a single currency before aggregation. A trip with no cost rows still returns all configured categories with zero amounts and uses the trip budget currency when available.
