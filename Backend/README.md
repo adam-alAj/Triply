@@ -147,9 +147,8 @@ POST /api/destinations/suggestions
 
 Given a budget, currency, and interest categories, the service aggregates **active `Place` reference prices per destination** (from the real internal dataset) and returns destinations whose estimated aggregate cost fits the budget, sorted ascending by cost.
 
-> **Important point to make to the mentor:** the approved database schema has no direct Interest → Place/Destination relationship. Rather than inventing a fake mapping to make the feature look "smarter," interest IDs are validated but budget matching is done purely against the real pricing dataset. This keeps AI/data logic honest instead of faking it — matches the project's core "no invented capability" rule.
 
-Full request/response shape: see `API Contract.md` §5.
+Full request/response shape: see [`API Contract.md`](./API%20Contract.md).
 
 ---
 
