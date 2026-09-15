@@ -3,6 +3,8 @@
 # Stop with:            docker compose down
 # Wipe the DB volume:   docker compose down -v
 
+name: triply-backend
+
 services:
   db:
     image: mcr.microsoft.com/mssql/server:2022-latest

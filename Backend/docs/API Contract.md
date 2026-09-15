@@ -190,3 +190,57 @@ Flutter should use the returned `expiresAtUtc` value rather than hardcoding the 
 * Multiple login attempts → `429`
 * Registering an already registered account → `400`
 * Invalid registration data → `400`
+
+
+---
+
+# 5. Budget-First Destination Suggestions
+
+**Endpoint:** `POST /api/destinations/suggestions`
+
+**Authentication:** JWT Bearer required.
+
+### Request body
+
+```json
+{
+  "budgetAmount": 700.00,
+  "budgetCurrencyId": 1,
+  "interestCategoryIds": [1, 2]
+}
+```
+
+`budgetAmount` must be greater than zero, the currency must exist, and at least one valid interest category must be supplied.
+
+### Success response — `200 OK`
+
+```json
+{
+  "suggestions": [
+    {
+      "destinationId": 1,
+      "destinationName": "Jerusalem",
+      "countryName": "Palestine",
+      "estimatedCost": 600.00,
+      "currency": "USD",
+      "isEstimated": true
+    }
+  ],
+  "count": 1,
+  "message": null
+}
+```
+
+Candidates are calculated from the internal `Place` dataset. Active place reference prices are aggregated per destination in the requested currency, and destinations whose aggregate estimated cost is within the supplied budget are returned in ascending estimated-cost order.
+
+### No matching destination — `200 OK`
+
+```json
+{
+  "suggestions": [],
+  "count": 0,
+  "message": "No supported destinations match the requested budget and currency."
+}
+```
+
+The current approved database schema does not contain a direct Destination/Place-to-Interest relationship. Therefore the endpoint validates the supplied interest IDs but does not invent an interest-to-place mapping; budget matching is performed against the internal pricing dataset. Interest-aware candidate ranking can be added when that dataset relationship/AI contract is explicitly approved.

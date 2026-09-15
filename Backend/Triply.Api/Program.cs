@@ -13,6 +13,9 @@ using Triply.Api.Common.Middleware;
 using Triply.Api.Data;
 using Triply.Api.Entities;
 using Triply.Api.Modules.Auth;
+using Triply.Api.Modules.Destination;
+using Triply.Api.Modules.Trip.Validators;
+
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -130,15 +133,50 @@ builder.Services.AddCors(options =>
               .AllowAnyHeader()
               .AllowAnyMethod());
 });
+// ---------- FluentValidation ----------
+builder.Services
+    .AddFluentValidationAutoValidation()
+    .AddFluentValidationClientsideAdapters();
+
+builder.Services.AddValidatorsFromAssemblyContaining<CreateTripRequestValidator>();
+
 
 // ---------- Controllers / Swagger ----------
 
 builder.Services.AddScoped<JwtTokenService>();
+builder.Services.AddScoped<IDestinationSuggestionService, DestinationSuggestionService>();
 
 builder.Services.AddControllers();
 
 builder.Services.AddEndpointsApiExplorer();
 
+builder.Services.AddSwaggerGen(options =>
+{
+    options.AddSecurityDefinition("Bearer", new Microsoft.OpenApi.Models.OpenApiSecurityScheme
+    {
+        Name = "Authorization",
+        Type = Microsoft.OpenApi.Models.SecuritySchemeType.Http,
+        Scheme = "bearer",
+        BearerFormat = "JWT",
+        In = Microsoft.OpenApi.Models.ParameterLocation.Header,
+        Description = "Enter your JWT token."
+    });
+
+    options.AddSecurityRequirement(new Microsoft.OpenApi.Models.OpenApiSecurityRequirement
+    {
+        {
+            new Microsoft.OpenApi.Models.OpenApiSecurityScheme
+            {
+                Reference = new Microsoft.OpenApi.Models.OpenApiReference
+                {
+                    Type = Microsoft.OpenApi.Models.ReferenceType.SecurityScheme,
+                    Id = "Bearer"
+                }
+            },
+            Array.Empty<string>()
+        }
+    });
+});
 builder.Services.AddSwaggerGen();
 
 var app = builder.Build();

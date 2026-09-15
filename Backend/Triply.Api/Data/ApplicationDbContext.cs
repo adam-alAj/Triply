@@ -133,6 +133,63 @@ b.Entity<ApplicationUser>().HasIndex(x => x.NormalizedEmail).IsUnique();
         b.Entity<AIGeneration>().ToTable(t => t.HasCheckConstraint(
             "CK_AIGeneration_Status",
             "[Status] IN ('PENDING','SUCCEEDED','FAILED_VALIDATION','FAILED_ERROR')"));
+        // ---- Basic reference data seed for local development ----
+
+b.Entity<Country>().HasData(
+    new Country
+    {
+        Id = 1,
+        Name = "Palestine",
+        IsoCode = "PS"
+    },
+    new Country
+    {
+        Id = 2,
+        Name = "Jordan",
+        IsoCode = "JO"
+    }
+);
+
+b.Entity<Currency>().HasData(
+    new Currency
+    {
+        Id = 1,
+        IsoCode = "USD",
+        Symbol = "$"
+    },
+    new Currency
+    {
+        Id = 2,
+        IsoCode = "JOD",
+        Symbol = "JD"
+    }
+);
+
+b.Entity<Destination>().HasData(
+    new Destination
+    {
+        Id = 1,
+        CountryId = 1,
+        Name = "Jerusalem",
+        Description = "Historic and cultural destination",
+        Latitude = 31.7683m,
+        Longitude = 35.2137m,
+        IsSupported = true
+    },
+    new Destination
+    {
+        Id = 2,
+        CountryId = 2,
+        Name = "Amman",
+        Description = "Capital city of Jordan",
+        Latitude = 31.9539m,
+        Longitude = 35.9106m,
+        IsSupported = true
+    }
+);
+                
+        // ---- Reference data seed (Database Design §26) ----
+
                 // ---- Reference data seed (Database Design §26) ----
     
         b.Entity<InterestCategory>().HasData(
