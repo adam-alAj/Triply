@@ -5,6 +5,7 @@ using Microsoft.EntityFrameworkCore;
 using Triply.Api.Data;
 using Triply.Api.Entities;
 using Triply.Api.Modules.Itinerary.Dtos;
+using Triply.Api.Modules.Trip;
 
 namespace Triply.Api.Modules.Itinerary;
 
@@ -156,6 +157,19 @@ var itinerary = new Triply.Api.Entities.Itinerary
         }
 
         _db.Itineraries.Add(itinerary);
+
+        if (trip.Status == TripLifecycle.Generating)
+            TripLifecycle.Transition(trip, TripLifecycle.Generated);
+        else if (trip.Status is TripLifecycle.Generated or TripLifecycle.Saved)
+            TripLifecycle.Transition(trip, TripLifecycle.Modified);
+        else if (trip.Status == TripLifecycle.Modified)
+            TripLifecycle.Transition(trip, TripLifecycle.Modified);
+        else if (trip.Status == TripLifecycle.Archived)
+            return Conflict(new { message = "Archived trips cannot be modified." });
+
+        trip.UpdatedAt = DateTime.UtcNow;
+        trip.Version++;
+
         await _db.SaveChangesAsync(cancellationToken);
         await transaction.CommitAsync(cancellationToken);
 
