@@ -136,7 +136,7 @@ Once a user is authenticated, the Trip domain was built:
 **Evidence:**
 | Create trip | Get trip (authenticated) | Other user's trip blocked | Trip update |
 |---|---|---|---|
-| ![Trip POST](docs/image-6.png) | ![Trip GET](docs/image-7.png) | ![Blocked](docs/image-8.png) | ![Update](docs/image-9.png) |
+| ![Trip POST](docs/image-9.png) | ![Trip GET](docs/image-7.png) | ![Blocked](docs/image-8.png) | ![Update](docs/image-10.png) |
 ---
 
 ## 7. Stage 4 — Budget-First Destination Suggestions
