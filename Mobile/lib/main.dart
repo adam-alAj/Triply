@@ -1,16 +1,24 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:triply_project/presentation/screens/onboarding/onboarding_flow.dart';
-import 'package:triply_project/presentation/screens/splash_screen.dart';
-import 'package:triply_project/presentation/widgets/auth/login_screen.dart';
-import 'package:triply_project/presentation/widgets/auth/register_screen.dart';
 
+import 'core/network/api_client.dart';
+import 'data/repositories/api_auth_repository.dart';
 import 'data/repositories/auth_repository.dart';
-import 'data/repositories/mock_auth_repository.dart';
 import 'presentation/providers/auth_provider.dart';
+import 'presentation/screens/home/home_screen.dart';
+import 'presentation/screens/onboarding/onboarding_flow.dart';
+import 'presentation/screens/splash_screen.dart';
+import 'presentation/widgets/auth/login_screen.dart';
+import 'presentation/widgets/auth/register_screen.dart';
 
 void main() {
-  final AuthRepository authRepository = MockAuthRepository();
+  final apiClient = ApiClient(
+    baseUrl: 'http://10.0.2.2:8080',
+  );
+
+  final AuthRepository authRepository = ApiAuthRepository(
+    apiClient: apiClient,
+  );
 
   runApp(
     MyApp(
@@ -48,6 +56,7 @@ class MyApp extends StatelessWidget {
           '/onboarding': (_) => const OnboardingFlow(),
           '/login': (_) => const LoginScreen(),
           '/register': (_) => const RegisterScreen(),
+          '/home': (_) => const HomeScreen(),
         },
       ),
     );

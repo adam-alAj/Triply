@@ -66,28 +66,25 @@ class _LoginScreenState extends State<LoginScreen> {
     ).hasMatch(email);
   }
 
-  void _login() {
+  Future<void> _login() async {
     FocusScope.of(context).unfocus();
 
     if (!_validateFields()) {
       return;
     }
 
-    context.read<AuthProvider>().login(
+    await context.read<AuthProvider>().login(
       email: _emailController.text.trim(),
       password: _passwordController.text,
     );
-  }
 
-  void _showLoginSuccess() {
-    ScaffoldMessenger.of(context).hideCurrentSnackBar();
+    if (!mounted) return;
 
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('Login successful.'),
-        duration: Duration(seconds: 2),
-      ),
-    );
+    final auth = context.read<AuthProvider>();
+
+    if (auth.status == AuthStatus.success) {
+      Navigator.pushReplacementNamed(context, '/home');
+    }
   }
 
   @override
@@ -95,15 +92,6 @@ class _LoginScreenState extends State<LoginScreen> {
     return AppScaffold(
       body: Consumer<AuthProvider>(
         builder: (context, auth, _) {
-          // Show success message after the mock login succeeds.
-          if (auth.status == AuthStatus.success) {
-            WidgetsBinding.instance.addPostFrameCallback((_) {
-              if (!mounted) return;
-
-              _showLoginSuccess();
-            });
-          }
-
           return SingleChildScrollView(
             padding: const EdgeInsets.symmetric(horizontal: 16),
             child: Column(
