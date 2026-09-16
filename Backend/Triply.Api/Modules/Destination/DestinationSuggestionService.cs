@@ -26,6 +26,7 @@ public class DestinationSuggestionService : IDestinationSuggestionService
             .AsNoTracking()
             .Where(p =>
                 p.IsActive &&
+                p.Destination.IsSupported &&
                 p.CurrencyId == request.BudgetCurrencyId)
             .GroupBy(p => new
             {

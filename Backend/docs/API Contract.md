@@ -36,7 +36,8 @@ All endpoints below are under `/api/auth`.
   "token": "<JWT_TOKEN>",
   "expiresAtUtc": "2026-09-14T17:01:57.1299752Z",
   "userId": "<USER_ID>",
-  "email": "leen.test2026@example.com"
+  "email": "leen.test2026@example.com",
+  "displayName": "Leen Test"
 }
 ```
 
@@ -107,7 +108,7 @@ Flutter should read the relevant field from `errors` when displaying validation 
 }
 ```
 
-The response has the same structure as Register.
+The response has the same structure as Register, including `displayName`.
 
 ### Tested in Swagger
 
@@ -193,6 +194,74 @@ Flutter should use the returned `expiresAtUtc` value rather than hardcoding the 
 
 
 ---
+
+
+---
+
+# 5. Reference Data for Flutter
+
+These authenticated read-only endpoints provide the data used by the Flutter planning flow. They return simple JSON arrays.
+
+## 5.1 Supported Destinations
+
+**Endpoint:** `GET /api/destinations`
+
+**Authentication:** JWT Bearer required.
+
+Only destinations with `isSupported = true` are returned.
+
+### Success response — `200 OK`
+
+```json
+[
+  {
+    "id": 1,
+    "name": "Jerusalem",
+    "countryName": "Palestine",
+    "description": "Historic and cultural destination",
+    "latitude": 31.7683,
+    "longitude": 35.2137
+  }
+]
+```
+
+## 5.2 Interest Categories
+
+**Endpoint:** `GET /api/interest-categories`
+
+**Authentication:** JWT Bearer required.
+
+### Success response — `200 OK`
+
+```json
+[
+  {
+    "id": 1,
+    "code": "NATURE",
+    "label": "Nature"
+  }
+]
+```
+
+## 5.3 Currencies
+
+**Endpoint:** `GET /api/currencies`
+
+**Authentication:** JWT Bearer required.
+
+### Success response — `200 OK`
+
+```json
+[
+  {
+    "id": 1,
+    "isoCode": "USD",
+    "symbol": "$"
+  }
+]
+```
+
+These endpoints are intentionally read-only. Flutter should use their returned IDs when creating/updating trips or requesting destination suggestions.
 
 # 5. Budget-First Destination Suggestions
 

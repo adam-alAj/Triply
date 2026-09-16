@@ -18,6 +18,17 @@ This document is the single source of truth for how the Flutter client and the A
 
 ---
 
+## 2.1 Flutter Reference Data Routes
+
+The backend exposes these authenticated read-only reference-data collections:
+
+- `GET /api/destinations`
+- `GET /api/interest-categories`
+- `GET /api/currencies`
+- `POST /api/destinations/suggestions`
+
+These routes return data from the SQL Server dataset; Flutter should not hardcode or replace them with mock data in the integrated flow.
+
 ## 2. Resource Naming
 
 | Rule                                                        | Example                           |

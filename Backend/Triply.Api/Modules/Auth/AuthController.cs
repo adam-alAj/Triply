@@ -47,7 +47,7 @@ public class AuthController : ControllerBase
         }
 
         var (token, expires) = _jwt.CreateToken(user);
-        return Ok(new AuthResponse(token, expires, user.Id, user.Email!));
+        return Ok(new AuthResponse(token, expires, user.Id, user.Email!, user.DisplayName));
     }
 
     [EnableRateLimiting("login")]
@@ -67,6 +67,6 @@ public class AuthController : ControllerBase
             return genericError();
 
         var (token, expires) = _jwt.CreateToken(user);
-        return Ok(new AuthResponse(token, expires, user.Id, user.Email!));
+        return Ok(new AuthResponse(token, expires, user.Id, user.Email!, user.DisplayName));
     }
 }
