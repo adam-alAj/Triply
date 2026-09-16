@@ -28,3 +28,4 @@ flutter:
 
   assets:
     - assets/images/
+    - assets/images/trip_creation/

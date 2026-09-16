@@ -55,11 +55,19 @@ class _RegisterScreenState extends State<RegisterScreen> {
       emailError = 'Please enter a valid email address.';
     }
 
-    // Password validation
+    // Password validation — mirrors the backend's ASP.NET Core Identity
+    // policy (min length 8, uppercase, digit, non-alphanumeric) so a form
+    // that passes here won't be rejected by the server.
     if (password.isEmpty) {
       passwordError = 'Password is required.';
     } else if (password.length < 8) {
       passwordError = 'Password must be at least 8 characters.';
+    } else if (!RegExp(r'[A-Z]').hasMatch(password)) {
+      passwordError = 'Password must include an uppercase letter.';
+    } else if (!RegExp(r'[0-9]').hasMatch(password)) {
+      passwordError = 'Password must include a number.';
+    } else if (!RegExp(r'[^a-zA-Z0-9]').hasMatch(password)) {
+      passwordError = 'Password must include a special character.';
     }
 
     setState(() {
@@ -236,7 +244,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
                 AppTextField(
                   label: 'Password',
-                  helperText: 'Min. 8 characters',
+                  helperText: 'Min. 8 characters, 1 uppercase, 1 number, 1 symbol',
                   controller: _passwordController,
                   leadingIcon: Icons.lock_outline,
                   obscureText: true,
