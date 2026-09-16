@@ -190,8 +190,6 @@ Itinerary
 
 Validation: unique/positive day numbers, valid time slots, non-negative cost and order index, place must exist, be active, and (when the trip has a destination) belong to that destination. The write is an **atomic replacement** of the current itinerary.
 
-> **Say this explicitly:** this stage is a persistence/validation scaffold built *ahead of* AI integration — it does not call an LLM. It exists so the AI team has a working, validated contract to write into once Gemini is connected.
-
 ---
 
 ## 10. Stage 7 — Trip Save, Retrieve & Lifecycle
@@ -286,7 +284,7 @@ de7c818  feat: implement deterministic cost aggregation
 
 ## 15. What's Next — AI Integration Handoff
 
-The backend is now at a **stable handoff point**. Non-AI trip functionality is implemented and tested; the next dependency is the AI team's finalized prompt/JSON-schema/validation contract.
+The backend is now at a **stable handoff point**. Non-AI trip functionality is implemented and tested.
 
 ```text
 Flutter
@@ -325,7 +323,6 @@ Remaining backend work once the AI contract lands:
 9. Final API contract + Swagger updates
 10. Backend hardening & deployment prep
 
-*(Conversational/multi-turn refinement is Post-MVP by design — not a gap in the current backend.)*
 
 ---
 
@@ -338,7 +335,7 @@ Backend foundation → Core trip APIs → AI handoff → Gemini integration
 
 **Completed:** foundation, Docker, SQL Server/EF Core, migrations, API conventions, Swagger, exception handling, auth, JWT, rate limiting, ownership authorization, trip management, budget-first suggestions, deterministic cost aggregation, itinerary persistence scaffolding, trip save/retrieve, trip lifecycle, optimistic concurrency, integration testing, CI.
 
-**Not yet started:** live Gemini integration (blocked on AI team's contract).
+**Not yet started:** live Gemini integration.
 
 ---
 
