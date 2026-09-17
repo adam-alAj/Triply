@@ -7,6 +7,7 @@ import '../../../data/repositories/mock_home_repository.dart';
 import '../../../data/repositories/widgets/home_active_trip_card.dart';
 import '../../../data/repositories/widgets/home_region_card.dart';
 import '../../providers/home_provider.dart';
+import '../../widgets/app_bottom_navigation.dart';
 import '../../widgets/empty_state.dart';
 
 class HomeScreen extends StatelessWidget {
@@ -114,7 +115,7 @@ class _HomeViewState extends State<_HomeView>
                   child: CustomScrollView(
                     physics: const AlwaysScrollableScrollPhysics(),
                     slivers: [
-                      SliverToBoxAdapter(
+                      const SliverToBoxAdapter(
                         child: _HomeTopBar(),
                       ),
 
@@ -126,7 +127,7 @@ class _HomeViewState extends State<_HomeView>
                             16,
                             0,
                           ),
-                          child: _GreetingSection(),
+                          child: const _GreetingSection(),
                         ),
                       ),
 
@@ -140,12 +141,9 @@ class _HomeViewState extends State<_HomeView>
                           ),
                           child: _PlanTripSection(
                             onPressed: () {
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                const SnackBar(
-                                  content: Text(
-                                    'Trip planning will be connected next.',
-                                  ),
-                                ),
+                              Navigator.pushNamed(
+                                context,
+                                '/create-trip',
                               );
                             },
                           ),
@@ -181,21 +179,29 @@ class _HomeViewState extends State<_HomeView>
                               ? HomeActiveTripCard(
                             trip: provider.recentTrips.first,
                             onResume: () {
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                const SnackBar(
-                                  content: Text(
-                                    'Trip overview will be connected next.',
-                                  ),
-                                ),
+                              // "Resume" opens the trip itself (Trip
+                              // Overview), not the creation wizard — it was
+                              // wired to /create-trip before Trip Overview
+                              // existed.
+                              Navigator.pushNamed(
+                                context,
+                                '/trip-overview',
+                                arguments: provider.recentTrips.first.id,
                               );
                             },
                           )
-                              : const EmptyState(
+                              : EmptyState(
                             title: 'No trips yet',
                             description:
                             'Plan your first trip and start building your journey.',
                             icon: Icons.luggage_outlined,
                             actionLabel: 'Plan Your First Trip',
+                            onAction: () {
+                              Navigator.pushNamed(
+                                context,
+                                '/create-trip',
+                              );
+                            },
                           ),
                         ),
                       ),
@@ -227,24 +233,28 @@ class _HomeViewState extends State<_HomeView>
                           child: Row(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: const [
-                              HomeRegionCard(
-                                name: 'Japan',
-                                imageAsset:
-                                'assets/images/home_japan.jpg',
-                                badge: 'Top Pick',
-                                guides: '14 Guides',
-                                description:
-                                'Culture, Gastronomy, Rail',
+                              Expanded(
+                                child: HomeRegionCard(
+                                  name: 'Japan',
+                                  imageAsset:
+                                  'assets/images/home_japan.jpg',
+                                  badge: 'Top Pick',
+                                  guides: '14 Guides',
+                                  description:
+                                  'Culture, Gastronomy, Rail',
+                                ),
                               ),
                               SizedBox(width: 10),
-                              HomeRegionCard(
-                                name: 'Italy',
-                                imageAsset:
-                                'assets/images/home_italy.jpg',
-                                badge: 'Scenic',
-                                guides: '18 Guides',
-                                description:
-                                'Coastal, History, Wine',
+                              Expanded(
+                                child: HomeRegionCard(
+                                  name: 'Italy',
+                                  imageAsset:
+                                  'assets/images/home_italy.jpg',
+                                  badge: 'Scenic',
+                                  guides: '18 Guides',
+                                  description:
+                                  'Coastal, History, Wine',
+                                ),
                               ),
                             ],
                           ),
@@ -259,7 +269,7 @@ class _HomeViewState extends State<_HomeView>
                             16,
                             28,
                           ),
-                          child: _UnderstoodBanner(),
+                          child: const _UnderstoodBanner(),
                         ),
                       ),
                     ],
@@ -270,8 +280,7 @@ class _HomeViewState extends State<_HomeView>
           },
         ),
       ),
-
-      bottomNavigationBar: const _HomeBottomNavigation(),
+      bottomNavigationBar: const AppBottomNavigation(selected: AppNavTab.home),
     );
   }
 }
@@ -354,9 +363,7 @@ class _GreetingSection extends StatelessWidget {
             ),
           ),
         ),
-
         const SizedBox(height: 8),
-
         RichText(
           text: TextSpan(
             style: AppTextStyles.headlineLg.copyWith(
@@ -375,9 +382,7 @@ class _GreetingSection extends StatelessWidget {
             ],
           ),
         ),
-
         const SizedBox(height: 4),
-
         Text(
           'Plan your perfect itinerary in seconds with mindful AI curation.',
           style: AppTextStyles.bodySm,
@@ -422,23 +427,17 @@ class _PlanTripSection extends StatelessWidget {
               ),
             ),
           ),
-
           const SizedBox(height: 9),
-
           Text(
             'Design a Journey',
             style: AppTextStyles.headlineMd,
           ),
-
           const SizedBox(height: 4),
-
           Text(
             'Start effortlessly by selecting your dream destination or establishing a budget first.',
             style: AppTextStyles.bodySm,
           ),
-
           const SizedBox(height: 12),
-
           Row(
             children: const [
               Expanded(
@@ -458,9 +457,7 @@ class _PlanTripSection extends StatelessWidget {
               ),
             ],
           ),
-
           const SizedBox(height: 10),
-
           ElevatedButton(
             onPressed: onPressed,
             style: ElevatedButton.styleFrom(
@@ -620,9 +617,7 @@ class _UnderstoodBanner extends StatelessWidget {
               size: 18,
             ),
           ),
-
           const SizedBox(width: 10),
-
           Expanded(
             child: RichText(
               text: TextSpan(
@@ -649,169 +644,3 @@ class _UnderstoodBanner extends StatelessWidget {
   }
 }
 
-class _HomeBottomNavigation extends StatelessWidget {
-  const _HomeBottomNavigation();
-
-  @override
-  Widget build(BuildContext context) {
-    return BottomAppBar(
-      color: Colors.white,
-      elevation: 10,
-      child: SizedBox(
-        height: 62,
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.spaceAround,
-          children: [
-            _NavItem(
-              icon: Icons.home_outlined,
-              label: 'Home',
-              selected: true,
-              onTap: () {},
-            ),
-
-            _NavItem(
-              icon: Icons.luggage_outlined,
-              label: 'My Trips',
-              onTap: () {},
-            ),
-
-            _CreateNavButton(
-              onTap: () {},
-            ),
-
-            _NavItem(
-              icon: Icons.person_outline,
-              label: 'Profile',
-              onTap: () {},
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _CreateNavButton extends StatefulWidget {
-  const _CreateNavButton({
-    required this.onTap,
-  });
-
-  final VoidCallback onTap;
-
-  @override
-  State<_CreateNavButton> createState() => _CreateNavButtonState();
-}
-
-class _CreateNavButtonState extends State<_CreateNavButton> {
-  bool _pressed = false;
-
-  void _handleTap() {
-    setState(() {
-      _pressed = true;
-    });
-
-    Future.delayed(
-      const Duration(milliseconds: 110),
-          () {
-        if (!mounted) return;
-
-        setState(() {
-          _pressed = false;
-        });
-      },
-    );
-
-    widget.onTap();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return InkWell(
-      onTap: _handleTap,
-      borderRadius: BorderRadius.circular(16),
-      child: SizedBox(
-        width: 58,
-        height: 62,
-        child: Center(
-          child: AnimatedScale(
-            scale: _pressed ? 0.90 : 1.0,
-            duration: const Duration(milliseconds: 110),
-            curve: Curves.easeOut,
-            child: Container(
-              width: 44,
-              height: 44,
-              decoration: BoxDecoration(
-                color: AppColors.primary,
-                borderRadius: BorderRadius.circular(14),
-                boxShadow: const [
-                  BoxShadow(
-                    blurRadius: 8,
-                    offset: Offset(0, 3),
-                    color: Color(0x22000000),
-                  ),
-                ],
-              ),
-              child: const Icon(
-                Icons.add,
-                color: Colors.white,
-                size: 25,
-              ),
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _NavItem extends StatelessWidget {
-  const _NavItem({
-    required this.icon,
-    required this.label,
-    this.selected = false,
-    required this.onTap,
-  });
-
-  final IconData icon;
-  final String label;
-  final bool selected;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    final color = selected
-        ? AppColors.primary
-        : AppColors.secondary;
-
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(16),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(
-          horizontal: 12,
-          vertical: 6,
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(
-              icon,
-              size: 20,
-              color: color,
-            ),
-            const SizedBox(height: 2),
-            Text(
-              label,
-              style: AppTextStyles.labelSm.copyWith(
-                color: color,
-                fontWeight: selected
-                    ? FontWeight.w700
-                    : FontWeight.w500,
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
