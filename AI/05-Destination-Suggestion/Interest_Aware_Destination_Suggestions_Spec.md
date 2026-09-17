@@ -57,19 +57,23 @@ Add a many-to-many table: **`PlaceInterest`**
 
 `Extra_AI_Context.csv` (57 rows) already has an `interest_tag` column. Cross-checked against `InterestCategory.csv`:
 
-| interest_tag value | Count | Maps to InterestCategory.Code          |
-| ------------------ | ----- | -------------------------------------- |
-| History            | 12    | HISTORY                                |
-| Food               | 9     | FOOD                                   |
-| Culture            | 8     | CULTURE                                |
-| Shopping           | 6     | SHOPPING                               |
-| Nature             | 5     | NATURE                                 |
-| Relaxation         | 3     | RELAXATION                             |
-| Adventure          | 3     | ADVENTURE                              |
-| Other              | 2     | OTHER                                  |
-| *(blank)*          | 9     | **⚠ gap — needs a tag before seeding** |
+| interest_tag value      | Count | Maps to InterestCategory.Code |
+| ----------------------- | ----- | ----------------------------- |
+| History                 | 12    | HISTORY                       |
+| Food                    | 9     | FOOD                          |
+| Culture                 | 8     | CULTURE                       |
+| Shopping                | 6     | SHOPPING                      |
+| Nature                  | 5     | NATURE                        |
+| Relaxation              | 3     | RELAXATION                    |
+| Adventure               | 3     | ADVENTURE                     |
+| Other                   | 2     | OTHER                         |
+| *(blank — intentional)* | 9     | **N/A — see below**           |
 
-All 8 non-blank values map 1:1 to existing `InterestCategory` codes — no new reference values needed. **Open item:** 9 places currently have no `interest_tag`; AI track will fill these before handoff (tracked separately, not blocking the schema/migration work).
+All 8 non-blank values map 1:1 to existing `InterestCategory` codes — no new reference values needed.
+
+**Design decision on the 9 blank rows:** all 9 are `PlaceCategory = TRANSPORT` (airport transfers, single-ride/weekly transit passes, day-trip passes) across the three destinations. A transport/logistics line item has no traveler "interest" in the same sense an attraction, restaurant, activity, or hotel does — nobody picks a destination because of its metro ticket. These are **intentionally left untagged**, not a data gap. Each row's `notes` field now documents this explicitly (`"interest_tag intentionally blank — TRANSPORT/logistics place, not interest-relevant by design (excluded from PlaceInterest scope)"`).
+
+**Consequence for §2:** the `PlaceInterest` seeding step should only cover `PlaceCategory IN (ATTRACTION, RESTAURANT, ACTIVITY, ACCOMMODATION)` — 48 of 57 places. `TRANSPORT` places stay out of `PlaceInterest` by design but remain fully priced and available to the (unrelated, already-working) budget/cost-aggregation logic.
 
 ---
 
@@ -106,8 +110,7 @@ This keeps the existing budget computation intact and only adds a scoring/orderi
 
 ## 7. Sign-off
 
-| Reviewer   | Role     | Status |
-| ---------- | -------- | ------ |
-| Aya Maali  | AI track | ☐      |
-|            |
-| Leen azzam | Backend  | ☐      |
+| Reviewer   | Role         | Status |
+| ---------- | ------------ | ------ |
+| Aya Mali   | AI track     | ☐      |
+| Leen Azzam | Backend lead | ☐      |

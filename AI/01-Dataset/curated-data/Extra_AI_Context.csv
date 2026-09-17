@@ -1,4 +1,4 @@
-﻿place_id,place_name,budget_tier,suitable_travel_style,interest_tag,source_url,notes
+place_id,place_name,budget_tier,suitable_travel_style,interest_tag,source_url,notes
 1,Hôtel Le Clos Notre-Dame,Low,"Cultural, Budget",History,https://www.google.com/maps/place/?q=place_id:ChIJ39yOM95x5kcRCELH76xP8-A,"Avg price/night, double room — verify seasonal rate"
 2,Novotel Paris 20 Belleville,Medium,"Family, Cultural",Culture,https://www.google.com/maps/place/?q=place_id:ChIJi1FfWkdt5kcRWKTSoeZ8pjQ,Avg price/night — verify seasonal rate
 3,Ritz Paris,High,"Luxury, Romantic",Relaxation,https://www.google.com/maps/place/?q=place_id:ChIJVSOS5FBv5kcRmaCCdrMCfk4,"Avg nightly rate, entry-level room — highly seasonal, verify"
@@ -15,9 +15,9 @@
 14,Paris Catacombs,Medium,"Adventure, Cultural",History,https://www.catacombes.paris.fr/en,"Official adult ticket incl. audioguide, Sept 2026"
 15,Seine River Cruise,Low,"Romantic, Family",Culture,https://www.bateauxparisiens.com/english/,Estimated standard adult fare
 16,Moulin Rouge Cabaret Show,High,"Romantic, Luxury",Culture,https://www.moulinrouge.fr/en/,"Estimated show-only ticket, no dinner — verify"
-17,Airport Transfer – CDG to city centre,Medium,,,https://www.ratp.fr/en/visiting-paris-rer-b,"Official taxi flat rate, Right Bank — RER B ~€11.80"
-18,Intra-city Metro/Bus Single Ticket,Low,,,https://www.ratp.fr/en/titres-et-tarifs,"Official t+ ticket price, Sept 2026"
-19,Navigo Easy Weekly Pass,Medium,,,https://www.ratp.fr/en/titres-et-tarifs,Estimated weekly zone 1-2 pass — verify zones needed
+17,Airport Transfer – CDG to city centre,Medium,,,https://www.ratp.fr/en/visiting-paris-rer-b,"Official taxi flat rate, Right Bank — RER B ~€11.80 | interest_tag intentionally blank — TRANSPORT/logistics place, not interest-relevant by design (excluded from PlaceInterest scope)"
+18,Intra-city Metro/Bus Single Ticket,Low,,,https://www.ratp.fr/en/titres-et-tarifs,"Official t+ ticket price, Sept 2026 | interest_tag intentionally blank — TRANSPORT/logistics place, not interest-relevant by design (excluded from PlaceInterest scope)"
+19,Navigo Easy Weekly Pass,Medium,,,https://www.ratp.fr/en/titres-et-tarifs,"Estimated weekly zone 1-2 pass — verify zones needed | interest_tag intentionally blank — TRANSPORT/logistics place, not interest-relevant by design (excluded from PlaceInterest scope)"
 20,Jordan Tower Hotel,Low,"Budget, Cultural",History,https://www.google.com/maps/place/?q=place_id:ChIJuQUQ8ZdfGxURtDBGvlT5kkg,"Avg price/night, incl. breakfast — verify seasonal rate"
 21,AlQasr Metropole Hotel,Medium,"Family, Cultural",Culture,https://www.google.com/maps/place/?q=place_id:ChIJt-ah7XZfGxUR5an2D8l8ams,Avg price/night — verify seasonal rate
 22,Four Seasons Hotel Amman,High,"Luxury, Relaxing",Relaxation,https://www.google.com/maps/place/?q=place_id:ChIJnV3aclegHBURWX1PriFOqIA,"Avg nightly rate, entry-level room — verify seasonal rate"
@@ -34,9 +34,9 @@
 33,Wadi Rum Jeep Safari (2 hrs),Medium,Adventure,Adventure,https://www.google.com/maps/search/?api=1&query=Wadi%20Rum%20jeep%20tour,"Estimated per-person rate, shared jeep — verify"
 34,Petra Day Trip (entrance),High,"Adventure, Cultural",History,https://www.jsta.org.jo,Official 1-day foreign-visitor entrance fee — transport extra
 35,Rainbow Street Evening Walk,Low,"Cultural, Romantic",Culture,https://www.google.com/maps/place/?q=place_id:ChIJ3dc2V5dfGxURcX44IU3XAJo,Free to walk; cafe/restaurant spend separate
-36,Airport Transfer – QAIA to Amman,Medium,,,https://www.google.com/maps/search/?api=1&query=Queen%20Alia%20International%20Airport,Estimated official airport taxi flat rate — verify
-37,Intra-city Taxi (short ride),Low,,,https://www.google.com/maps/search/?api=1&query=taxi%20Amman,Estimated average short in-city fare
-38,Jordan Pass,Medium,,,https://www.jordanpass.jo,"Official 1-day Petra tier, Sept 2026 — verify"
+36,Airport Transfer – QAIA to Amman,Medium,,,https://www.google.com/maps/search/?api=1&query=Queen%20Alia%20International%20Airport,"Estimated official airport taxi flat rate — verify | interest_tag intentionally blank — TRANSPORT/logistics place, not interest-relevant by design (excluded from PlaceInterest scope)"
+37,Intra-city Taxi (short ride),Low,,,https://www.google.com/maps/search/?api=1&query=taxi%20Amman,"Estimated average short in-city fare | interest_tag intentionally blank — TRANSPORT/logistics place, not interest-relevant by design (excluded from PlaceInterest scope)"
+38,Jordan Pass,Medium,,,https://www.jordanpass.jo,"Official 1-day Petra tier, Sept 2026 — verify | interest_tag intentionally blank — TRANSPORT/logistics place, not interest-relevant by design (excluded from PlaceInterest scope)"
 39,Pod 51 Hotel,Low,Budget,Other,https://www.google.com/maps/search/?api=1&query=Pod%2051%20Hotel%20New%20York,"Estimated avg nightly rate — highly seasonal, verify"
 40,Hampton Inn Manhattan Grand Central,Medium,Family,Other,https://www.google.com/maps/place/?q=place_id:ChIJXWOUJgNZwokR0VrAkVbSZkM,Avg nightly rate — verify seasonal rate
 41,"The Ritz-Carlton New York, Central Park",High,"Luxury, Romantic",Relaxation,https://www.google.com/maps/place/?q=place_id:ChIJ4yNdwPBYwokRqc1lCC4n89w,"Avg nightly rate, entry-level room — verify seasonal rate"
@@ -53,6 +53,6 @@
 52,Brooklyn Bridge Walk,Low,"Adventure, Romantic",Adventure,https://www.google.com/maps/search/?api=1&query=Brooklyn%20Bridge%20pedestrian%20entrance,Free — self-guided
 53,Times Square,Low,"Family, Cultural",Culture,https://www.google.com/maps/place/?q=place_id:ChIJmQJIxlVYwokRLgeuocVOGVU,Free to visit; nearby attractions/shows cost extra
 54,Broadway Show (standard ticket),High,"Romantic, Luxury",Culture,https://www.google.com/maps/search/?api=1&query=Broadway%20Theater%20District%20New%20York,"Estimated mid-range ticket, varies widely by show — verify"
-55,Airport Transfer – JFK to Manhattan,Medium,,,https://www.nyc.gov/site/tlc/passengers/passenger-frequently-asked-questions.page,"Official NYC TLC flat rate + tolls/surcharges, verify current rate"
-56,Subway/Bus Single Ride (OMNY),Low,,,https://www.mta.info/fares-tolls/subway-bus,"Official MTA base fare, Jan 2026"
-57,Weekly Fare Cap (OMNY),Medium,,,https://www.mta.info/fares-tolls/subway-bus,"Official MTA weekly fare cap, Jan 2026 — no pre-payment needed"
+55,Airport Transfer – JFK to Manhattan,Medium,,,https://www.nyc.gov/site/tlc/passengers/passenger-frequently-asked-questions.page,"Official NYC TLC flat rate + tolls/surcharges, verify current rate | interest_tag intentionally blank — TRANSPORT/logistics place, not interest-relevant by design (excluded from PlaceInterest scope)"
+56,Subway/Bus Single Ride (OMNY),Low,,,https://www.mta.info/fares-tolls/subway-bus,"Official MTA base fare, Jan 2026 | interest_tag intentionally blank — TRANSPORT/logistics place, not interest-relevant by design (excluded from PlaceInterest scope)"
+57,Weekly Fare Cap (OMNY),Medium,,,https://www.mta.info/fares-tolls/subway-bus,"Official MTA weekly fare cap, Jan 2026 — no pre-payment needed | interest_tag intentionally blank — TRANSPORT/logistics place, not interest-relevant by design (excluded from PlaceInterest scope)"
