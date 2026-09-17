@@ -12,6 +12,7 @@ using Triply.Api.Common.Authorization;
 using Triply.Api.Common.Middleware;
 using Triply.Api.Data;
 using Triply.Api.Entities;
+using Triply.Api.Modules.AIOrchestration;
 using Triply.Api.Modules.Auth;
 using Triply.Api.Modules.Cost;
 using Triply.Api.Modules.Destination;
@@ -142,6 +143,16 @@ builder.Services.AddScoped<ICostAggregationService, CostAggregationService>();
 
 builder.Services.AddScoped<JwtTokenService>();
 builder.Services.AddScoped<IDestinationSuggestionService, DestinationSuggestionService>();
+
+// ---------- AI-Orchestration (Gemini) — Architecture §4 ADR-01 ----------
+
+builder.Services.Configure<GeminiOptions>(
+    builder.Configuration.GetSection(GeminiOptions.SectionName));
+
+builder.Services.AddHttpClient<IGeminiClient, GeminiClient>();
+builder.Services.AddScoped<IItineraryPromptBuilder, ItineraryPromptBuilder>();
+builder.Services.AddScoped<IItineraryValidator, ItineraryValidationService>();
+builder.Services.AddScoped<IAiOrchestrationService, AiOrchestrationService>();
 
 builder.Services.AddControllers();
 

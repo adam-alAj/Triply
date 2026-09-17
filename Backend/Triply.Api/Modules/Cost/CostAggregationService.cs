@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using Triply.Api.Data;
+using Triply.Api.Entities;
 using Triply.Api.Modules.Cost.Dtos;
 
 namespace Triply.Api.Modules.Cost;
@@ -11,6 +12,78 @@ public class CostAggregationService : ICostAggregationService
     public CostAggregationService(ApplicationDbContext db)
     {
         _db = db;
+    }
+
+    public async Task<CostEstimateResponse> GenerateFromItineraryAsync(
+        Guid tripId,
+        CancellationToken cancellationToken = default)
+    {
+        var trip = await _db.Trips
+            .Include(t => t.BudgetCurrency)
+            .FirstOrDefaultAsync(t => t.Id == tripId, cancellationToken);
+
+        if (trip is null)
+            throw new KeyNotFoundException("Trip does not exist.");
+
+        // Pull every itinerary item's snapshot cost together with the Place's
+        // cost bucket + currency — this is deterministic backend logic (Database
+        // Design §12: CostEstimate is system-computed, never LLM-generated).
+        var itemRows = await _db.ItineraryItems
+            .AsNoTracking()
+            .Where(item => item.ItineraryDay.Itinerary.TripId == tripId)
+            .Select(item => new
+            {
+                item.EstimatedCost,
+                item.Place.CostCategoryId,
+                CurrencyId = item.Place.CurrencyId
+            })
+            .ToListAsync(cancellationToken);
+
+        var currencyIds = itemRows.Select(x => x.CurrencyId).Distinct().ToList();
+
+        if (currencyIds.Count > 1)
+        {
+            throw new InvalidOperationException(
+                "Itinerary items reference places in more than one currency; cannot aggregate costs.");
+        }
+
+        var currencyId = currencyIds.FirstOrDefault(trip.BudgetCurrencyId ?? 0);
+
+        var grouped = itemRows
+            .GroupBy(x => x.CostCategoryId)
+            .Select(g => new { CostCategoryId = g.Key, Amount = g.Sum(x => x.EstimatedCost) })
+            .ToList();
+
+        await using var transaction = await _db.Database.BeginTransactionAsync(cancellationToken);
+
+        // Replace any previous estimates for this trip (regeneration / partial-edit
+        // recompute both land here) rather than trying to diff row by row.
+        var existing = await _db.CostEstimates
+            .Where(c => c.TripId == tripId)
+            .ToListAsync(cancellationToken);
+
+        _db.CostEstimates.RemoveRange(existing);
+
+        if (currencyId != 0)
+        {
+            foreach (var group in grouped)
+            {
+                _db.CostEstimates.Add(new CostEstimate
+                {
+                    TripId = tripId,
+                    CostCategoryId = group.CostCategoryId,
+                    Amount = group.Amount,
+                    CurrencyId = currencyId,
+                    ComputedAt = DateTime.UtcNow
+                });
+            }
+        }
+
+        await _db.SaveChangesAsync(cancellationToken);
+        await transaction.CommitAsync(cancellationToken);
+
+        // Refresh Trip.TotalEstimatedCost and build the response from what was just written.
+        return await CalculateAsync(tripId, cancellationToken);
     }
 
     public async Task<CostEstimateResponse> CalculateAsync(

@@ -32,4 +32,5 @@ public class Place
     public CostCategory CostCategory { get; set; } = default!;
     public DateTime PriceUpdatedAt { get; set; } = DateTime.UtcNow;
     public bool IsActive { get; set; } = true;
+   public ICollection<PlaceInterest> PlaceInterests { get; set; } = new List<PlaceInterest>();
 }
