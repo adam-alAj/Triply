@@ -24,6 +24,28 @@ public class DestinationsController : ControllerBase
         _suggestionService = suggestionService;
     }
 
+    [HttpGet]
+    public async Task<IActionResult> GetSupportedDestinations(
+        CancellationToken cancellationToken)
+    {
+        var destinations = await _db.Destinations
+            .AsNoTracking()
+            .Where(d => d.IsSupported)
+            .OrderBy(d => d.Name)
+            .Select(d => new DestinationListResponse
+            {
+                Id = d.Id,
+                Name = d.Name,
+                CountryName = d.Country.Name,
+                Description = d.Description,
+                Latitude = d.Latitude,
+                Longitude = d.Longitude
+            })
+            .ToListAsync(cancellationToken);
+
+        return Ok(destinations);
+    }
+
     [HttpPost("suggestions")]
     public async Task<IActionResult> Suggest(
         [FromBody] DestinationSuggestionRequest request,

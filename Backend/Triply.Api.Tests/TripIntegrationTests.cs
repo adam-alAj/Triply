@@ -311,12 +311,16 @@ public async Task UpdateTrip_StaleVersion_ReturnsConflict()
 
         Assert.NotNull(created);
 
-        var generateResponse = await _client.PostAsync(
-            $"/api/trips/{created!.Id}/generate",
-            null);
+using (var scope = _factory.Services.CreateScope())
+{
+    var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
 
-        generateResponse.EnsureSuccessStatusCode();
+    var tripToGenerate = await db.Trips
+        .FirstAsync(x => x.Id == created!.Id);
 
+    tripToGenerate.Status = "GENERATED";
+    await db.SaveChangesAsync();
+}
         var placeId = await GetOrCreateTestPlaceAsync(1);
 
         var itineraryResponse = await _client.PostAsJsonAsync(
@@ -426,20 +430,18 @@ public async Task UpdateTrip_StaleVersion_ReturnsConflict()
         Assert.NotNull(trip);
         Assert.Equal("DRAFT", trip!.Status);
 
-        var generating = await _client.PostAsync(
-            $"/api/trips/{trip.Id}/generate",
-            null);
+       using (var scope = _factory.Services.CreateScope())
+{
+    var db = scope.ServiceProvider
+        .GetRequiredService<ApplicationDbContext>();
 
-        generating.EnsureSuccessStatusCode();
+    var tripToGenerate = await db.Trips
+        .FirstAsync(x => x.Id == trip.Id);
 
-        var generatingBody =
-            await generating.Content
-                .ReadFromJsonAsync<Dictionary<string, object>>();
+    tripToGenerate.Status = "GENERATING";
 
-        Assert.Equal(
-            "GENERATING",
-            generatingBody!["status"]?.ToString());
-
+    await db.SaveChangesAsync();
+}
         var placeId = await GetOrCreateTestPlaceAsync(1);
 
         var write = await _client.PostAsJsonAsync(

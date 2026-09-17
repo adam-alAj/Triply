@@ -210,43 +210,6 @@ public class TripsController : ControllerBase
             ToResponse(trip, null, []));
     }
 
-    [HttpPost("{id:guid}/generate")]
-    public async Task<IActionResult> StartGeneration(
-        Guid id,
-        CancellationToken cancellationToken)
-    {
-        var trip = await GetOwnedTrip(id, cancellationToken);
-
-        if (trip is null)
-            return NotFound();
-
-        if (!TripLifecycle.CanTransition(
-                trip.Status,
-                TripLifecycle.Generating))
-        {
-            return Conflict(new
-            {
-                message =
-                    $"Trip cannot start generation from status {trip.Status}."
-            });
-        }
-
-        TripLifecycle.Transition(
-            trip,
-            TripLifecycle.Generating);
-
-        trip.UpdatedAt = DateTime.UtcNow;
-        trip.Version++;
-
-        await _db.SaveChangesAsync(cancellationToken);
-
-        return Ok(new
-        {
-            trip.Id,
-            trip.Status,
-            trip.Version
-        });
-    }
 
     [HttpPost("{id:guid}/save")]
     public async Task<IActionResult> Save(

@@ -1,4 +1,4 @@
-# Backend Progress
+﻿# Backend Progress
 
 **Owner:** Leen Sharbati
 **Track:** Backend
@@ -34,16 +34,6 @@
 - [x] Update Trip total estimated cost
 - [ ] Complete CostEstimate end-to-end verification
 
-### Dataset / Destination Suggestions
-- [x] Add `PlaceInterest` place-to-interest relationship
-- [x] Add composite key and foreign keys for `PlaceInterest`
-- [x] Make budget-first destination suggestions interest-aware
-- [x] Rank suggestions by matched-interest count, then estimated cost
-- [x] Exclude destinations with zero interest overlap
-- [x] Add separate migrations for dataset schema alignment and `PlaceInterest`
-- [ ] Load the AI track's authoritative `PlaceInterest` seed data once delivered
-- [ ] Resolve Backend vs AI reference-data seed conflict
-
 ### Flutter Integration
 - [x] `GET /api/destinations`
 - [x] `GET /api/interest-categories`
@@ -71,7 +61,6 @@
 ## Currently Working On
 
 - [ ] Verify Flutter-facing endpoints with the Flutter client
-- [ ] Apply and verify the new EF Core migrations against the development database
 - [ ] Run complete Backend build and test suite after latest changes
 - [ ] Complete real Gemini API integration testing
 - [ ] Verify Trip → AI → Itinerary → Cost end-to-end flow
