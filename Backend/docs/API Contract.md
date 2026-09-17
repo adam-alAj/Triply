@@ -36,7 +36,8 @@ All endpoints below are under `/api/auth`.
   "token": "<JWT_TOKEN>",
   "expiresAtUtc": "2026-09-14T17:01:57.1299752Z",
   "userId": "<USER_ID>",
-  "email": "leen.test2026@example.com"
+  "email": "leen.test2026@example.com",
+  "displayName": "Leen Test"
 }
 ```
 
@@ -107,7 +108,7 @@ Flutter should read the relevant field from `errors` when displaying validation 
 }
 ```
 
-The response has the same structure as Register.
+The response has the same structure as Register, including `displayName`.
 
 ### Tested in Swagger
 
@@ -194,6 +195,74 @@ Flutter should use the returned `expiresAtUtc` value rather than hardcoding the 
 
 ---
 
+
+---
+
+# 5. Reference Data for Flutter
+
+These authenticated read-only endpoints provide the data used by the Flutter planning flow. They return simple JSON arrays.
+
+## 5.1 Supported Destinations
+
+**Endpoint:** `GET /api/destinations`
+
+**Authentication:** JWT Bearer required.
+
+Only destinations with `isSupported = true` are returned.
+
+### Success response — `200 OK`
+
+```json
+[
+  {
+    "id": 1,
+    "name": "Jerusalem",
+    "countryName": "Palestine",
+    "description": "Historic and cultural destination",
+    "latitude": 31.7683,
+    "longitude": 35.2137
+  }
+]
+```
+
+## 5.2 Interest Categories
+
+**Endpoint:** `GET /api/interest-categories`
+
+**Authentication:** JWT Bearer required.
+
+### Success response — `200 OK`
+
+```json
+[
+  {
+    "id": 1,
+    "code": "NATURE",
+    "label": "Nature"
+  }
+]
+```
+
+## 5.3 Currencies
+
+**Endpoint:** `GET /api/currencies`
+
+**Authentication:** JWT Bearer required.
+
+### Success response — `200 OK`
+
+```json
+[
+  {
+    "id": 1,
+    "isoCode": "USD",
+    "symbol": "$"
+  }
+]
+```
+
+These endpoints are intentionally read-only. Flutter should use their returned IDs when creating/updating trips or requesting destination suggestions.
+
 # 5. Budget-First Destination Suggestions
 
 **Endpoint:** `POST /api/destinations/suggestions`
@@ -231,7 +300,7 @@ Flutter should use the returned `expiresAtUtc` value rather than hardcoding the 
 }
 ```
 
-Candidates are calculated from the internal `Place` dataset. Active place reference prices are aggregated per destination in the requested currency, and destinations whose aggregate estimated cost is within the supplied budget are returned in ascending estimated-cost order.
+Candidates are calculated from the internal `Place` dataset. Active place reference prices are aggregated per destination in the requested currency. The supplied interests are matched through the `PlaceInterest` dataset: a destination receives one match for each distinct requested interest represented by its places. Destinations with at least one interest match and an aggregate estimated cost within the supplied budget are returned, ordered by matched-interest count descending and estimated cost ascending.
 
 ### No matching destination — `200 OK`
 
@@ -239,11 +308,11 @@ Candidates are calculated from the internal `Place` dataset. Active place refere
 {
   "suggestions": [],
   "count": 0,
-  "message": "No supported destinations match the requested budget and currency."
+  "message": "No supported destinations match the requested budget, currency, and interests."
 }
 ```
 
-The current approved database schema does not contain a direct Destination/Place-to-Interest relationship. Therefore the endpoint validates the supplied interest IDs but does not invent an interest-to-place mapping; budget matching is performed against the internal pricing dataset. Interest-aware candidate ranking can be added when that dataset relationship/AI contract is explicitly approved.
+Interest-aware suggestions use the internal `PlaceInterest` ground-truth mapping. Destinations with zero overlap are excluded, so a budget-first request cannot silently fall back to budget-only matching.
 
 ---
 
