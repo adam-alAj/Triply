@@ -22,6 +22,7 @@ public class InterestCategory
     public long Id { get; set; }
     public string Code { get; set; } = default!;       // UNIQUE
     public string Label { get; set; } = default!;
+   public ICollection<PlaceInterest> PlaceInterests { get; set; } = new List<PlaceInterest>();
 }
 
 // §6.6 — CostCategory

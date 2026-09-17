@@ -300,7 +300,7 @@ These endpoints are intentionally read-only. Flutter should use their returned I
 }
 ```
 
-Candidates are calculated from the internal `Place` dataset. Active place reference prices are aggregated per destination in the requested currency, and destinations whose aggregate estimated cost is within the supplied budget are returned in ascending estimated-cost order.
+Candidates are calculated from the internal `Place` dataset. Active place reference prices are aggregated per destination in the requested currency. The supplied interests are matched through the `PlaceInterest` dataset: a destination receives one match for each distinct requested interest represented by its places. Destinations with at least one interest match and an aggregate estimated cost within the supplied budget are returned, ordered by matched-interest count descending and estimated cost ascending.
 
 ### No matching destination — `200 OK`
 
@@ -308,11 +308,11 @@ Candidates are calculated from the internal `Place` dataset. Active place refere
 {
   "suggestions": [],
   "count": 0,
-  "message": "No supported destinations match the requested budget and currency."
+  "message": "No supported destinations match the requested budget, currency, and interests."
 }
 ```
 
-The current approved database schema does not contain a direct Destination/Place-to-Interest relationship. Therefore the endpoint validates the supplied interest IDs but does not invent an interest-to-place mapping; budget matching is performed against the internal pricing dataset. Interest-aware candidate ranking can be added when that dataset relationship/AI contract is explicitly approved.
+Interest-aware suggestions use the internal `PlaceInterest` ground-truth mapping. Destinations with zero overlap are excluded, so a budget-first request cannot silently fall back to budget-only matching.
 
 ---
 

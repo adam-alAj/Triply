@@ -1,3 +1,5 @@
+import 'dart:io' show Platform;
+
 import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
 
@@ -7,9 +9,9 @@ import 'package:flutter/foundation.dart';
 /// This is the only class allowed to touch Dio directly. Repositories depend
 /// on this class; the presentation layer never does.
 class ApiClient {
-  ApiClient({Dio? dio, String baseUrl = defaultBaseUrl}) : _dio = dio ?? Dio() {
+  ApiClient({Dio? dio, String? baseUrl}) : _dio = dio ?? Dio() {
     _dio.options = _dio.options.copyWith(
-      baseUrl: baseUrl,
+      baseUrl: baseUrl ?? resolveDefaultBaseUrl(),
       connectTimeout: const Duration(seconds: 15),
       receiveTimeout: const Duration(seconds: 15),
       sendTimeout: const Duration(seconds: 15),
@@ -30,8 +32,17 @@ class ApiClient {
     }
   }
 
-  /// Placeholder base URL. Swap for the Triply backend once it exists.
-  static const String defaultBaseUrl = 'https://jsonplaceholder.typicode.com';
+  /// Local-dev backend URL, resolved per platform:
+  /// - Android emulator cannot reach the host machine via `localhost`, so it
+  ///   needs the special loopback alias `10.0.2.2`.
+  /// - iOS simulator / desktop reach the host directly via `localhost`.
+  /// A physical device on the same network, or a deployed backend, needs an
+  /// explicit `baseUrl` passed to the constructor instead.
+  static String resolveDefaultBaseUrl() {
+    if (kIsWeb) return 'http://localhost:8080';
+    if (Platform.isAndroid) return 'http://10.0.2.2:8080';
+    return 'http://localhost:8080';
+  }
 
   final Dio _dio;
 
@@ -91,10 +102,33 @@ class ApiException implements Exception {
       DioExceptionType.cancel => 'The request was cancelled.',
       DioExceptionType.badCertificate => 'The server certificate is invalid.',
       DioExceptionType.badResponse =>
-        'The server responded with status ${statusCode ?? 'unknown'}.',
+        _extractServerMessage(error) ??
+            'The server responded with status ${statusCode ?? 'unknown'}.',
       DioExceptionType.unknown => error.message ?? 'An unknown error occurred.',
     };
     return ApiException(message, statusCode: statusCode);
+  }
+
+  /// Backend errors follow ASP.NET Core's `ProblemDetails` shape: a plain
+  /// `{ title }` for generic failures, or `{ title, errors: { Field: [...] } }`
+  /// for FluentValidation/ModelState failures. Field-level messages are more
+  /// useful to show than the generic title, so they're preferred when present.
+  static String? _extractServerMessage(DioException error) {
+    final data = error.response?.data;
+    if (data is! Map) return null;
+
+    final errors = data['errors'];
+    if (errors is Map && errors.isNotEmpty) {
+      final firstValue = errors.values.first;
+      if (firstValue is List && firstValue.isNotEmpty) {
+        return firstValue.first.toString();
+      }
+    }
+
+    final title = data['title'] ?? data['message'];
+    if (title is String && title.isNotEmpty) return title;
+
+    return null;
   }
 
   final String message;

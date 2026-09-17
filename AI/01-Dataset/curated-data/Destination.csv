@@ -1,0 +1,4 @@
+﻿id,country_id,name,description,latitude,longitude,is_supported
+1,1,Paris,"Capital of France, known for iconic landmarks, museums, and cuisine.",48.8566,2.3522,True
+2,2,Amman,"Capital of Jordan, blending ancient Roman ruins with a modern Middle Eastern city.",31.9539,35.9106,True
+3,3,New York,"Major US city known for iconic skyline, museums, and entertainment.",40.7128,-74.006,True

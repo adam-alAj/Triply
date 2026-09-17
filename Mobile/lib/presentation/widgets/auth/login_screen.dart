@@ -66,28 +66,25 @@ class _LoginScreenState extends State<LoginScreen> {
     ).hasMatch(email);
   }
 
-  void _login() {
+  Future<void> _login() async {
     FocusScope.of(context).unfocus();
 
     if (!_validateFields()) {
       return;
     }
 
-    context.read<AuthProvider>().login(
+    await context.read<AuthProvider>().login(
       email: _emailController.text.trim(),
       password: _passwordController.text,
     );
-  }
 
-  void _showLoginSuccess() {
-    ScaffoldMessenger.of(context).hideCurrentSnackBar();
+    if (!mounted) return;
 
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('Login successful.'),
-        duration: Duration(seconds: 2),
-      ),
-    );
+    final auth = context.read<AuthProvider>();
+
+    if (auth.status == AuthStatus.success) {
+      Navigator.pushReplacementNamed(context, '/home');
+    }
   }
 
   @override
@@ -95,15 +92,6 @@ class _LoginScreenState extends State<LoginScreen> {
     return AppScaffold(
       body: Consumer<AuthProvider>(
         builder: (context, auth, _) {
-          // Show success message after the mock login succeeds.
-          if (auth.status == AuthStatus.success) {
-            WidgetsBinding.instance.addPostFrameCallback((_) {
-              if (!mounted) return;
-
-              _showLoginSuccess();
-            });
-          }
-
           return SingleChildScrollView(
             padding: const EdgeInsets.symmetric(horizontal: 16),
             child: Column(
@@ -132,7 +120,9 @@ class _LoginScreenState extends State<LoginScreen> {
                         width: 32,
                         height: 32,
                       ),
+
                       const SizedBox(width: 12),
+
                       Expanded(
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
@@ -148,6 +138,7 @@ class _LoginScreenState extends State<LoginScreen> {
                           ],
                         ),
                       ),
+
                       Container(
                         padding: const EdgeInsets.symmetric(
                           horizontal: 10,
@@ -267,7 +258,9 @@ class _LoginScreenState extends State<LoginScreen> {
                         size: 18,
                         color: AppColors.formError,
                       ),
+
                       const SizedBox(width: 8),
+
                       Expanded(
                         child: Text(
                           'Zero credential leakage. Sessions protected by '
@@ -292,15 +285,21 @@ class _LoginScreenState extends State<LoginScreen> {
 
                 Row(
                   children: [
-                    const Expanded(child: Divider()),
+                    const Expanded(
+                      child: Divider(),
+                    ),
                     Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 12),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                      ),
                       child: Text(
                         'OR SIGN IN WITH',
                         style: AppTextStyles.labelSm,
                       ),
                     ),
-                    const Expanded(child: Divider()),
+                    const Expanded(
+                      child: Divider(),
+                    ),
                   ],
                 ),
 
@@ -318,10 +317,14 @@ class _LoginScreenState extends State<LoginScreen> {
                         ),
                       ),
                     ),
+
                     const SizedBox(width: 10),
+
                     SocialAuthButton(
                       label: 'Passkey',
-                      icon: const Icon(Icons.fingerprint),
+                      icon: const Icon(
+                        Icons.fingerprint,
+                      ),
                     ),
                   ],
                 ),
@@ -336,6 +339,7 @@ class _LoginScreenState extends State<LoginScreen> {
                         "Don't have an account? ",
                         style: AppTextStyles.bodyMd,
                       ),
+
                       GestureDetector(
                         onTap: auth.isLoading
                             ? null

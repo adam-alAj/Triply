@@ -470,10 +470,10 @@ namespace Triply.Api.Migrations
                         .HasColumnType("bit");
 
                     b.Property<decimal?>("Latitude")
-                        .HasColumnType("decimal(10,2)");
+                        .HasColumnType("decimal(9,6)");
 
                     b.Property<decimal?>("Longitude")
-                        .HasColumnType("decimal(10,2)");
+                        .HasColumnType("decimal(9,6)");
 
                     b.Property<string>("Name")
                         .IsRequired()
@@ -703,7 +703,7 @@ namespace Triply.Api.Migrations
 
                     b.Property<string>("Name")
                         .IsRequired()
-                        .HasColumnType("nvarchar(max)");
+                        .HasColumnType("varchar(200)");
 
                     b.Property<long>("PlaceCategoryId")
                         .HasColumnType("bigint");
@@ -723,6 +723,9 @@ namespace Triply.Api.Migrations
                     b.HasIndex("DestinationId");
 
                     b.HasIndex("PlaceCategoryId");
+
+                    b.HasIndex("DestinationId", "Name")
+                        .IsUnique();
 
                     b.ToTable("Places");
                 });
@@ -783,6 +786,21 @@ namespace Triply.Api.Migrations
                         });
                 });
 
+            modelBuilder.Entity("Triply.Api.Entities.PlaceInterest", b =>
+                {
+                    b.Property<long>("PlaceId")
+                        .HasColumnType("bigint");
+
+                    b.Property<long>("InterestCategoryId")
+                        .HasColumnType("bigint");
+
+                    b.HasKey("PlaceId", "InterestCategoryId");
+
+                    b.HasIndex("InterestCategoryId");
+
+                    b.ToTable("PlaceInterests");
+                });
+
             modelBuilder.Entity("Triply.Api.Entities.Trip", b =>
                 {
                     b.Property<Guid>("Id")
@@ -833,6 +851,7 @@ namespace Triply.Api.Migrations
                         .HasColumnType("uniqueidentifier");
 
                     b.Property<int>("Version")
+                        .IsConcurrencyToken()
                         .HasColumnType("int");
 
                     b.HasKey("Id");
@@ -1046,6 +1065,25 @@ namespace Triply.Api.Migrations
                     b.Navigation("PlaceCategory");
                 });
 
+            modelBuilder.Entity("Triply.Api.Entities.PlaceInterest", b =>
+                {
+                    b.HasOne("Triply.Api.Entities.InterestCategory", "InterestCategory")
+                        .WithMany("PlaceInterests")
+                        .HasForeignKey("InterestCategoryId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("Triply.Api.Entities.Place", "Place")
+                        .WithMany("PlaceInterests")
+                        .HasForeignKey("PlaceId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("InterestCategory");
+
+                    b.Navigation("Place");
+                });
+
             modelBuilder.Entity("Triply.Api.Entities.Trip", b =>
                 {
                     b.HasOne("Triply.Api.Entities.Currency", "BudgetCurrency")
@@ -1094,6 +1132,11 @@ namespace Triply.Api.Migrations
                     b.Navigation("Places");
                 });
 
+            modelBuilder.Entity("Triply.Api.Entities.InterestCategory", b =>
+                {
+                    b.Navigation("PlaceInterests");
+                });
+
             modelBuilder.Entity("Triply.Api.Entities.Itinerary", b =>
                 {
                     b.Navigation("Days");
@@ -1102,6 +1145,11 @@ namespace Triply.Api.Migrations
             modelBuilder.Entity("Triply.Api.Entities.ItineraryDay", b =>
                 {
                     b.Navigation("Items");
+                });
+
+            modelBuilder.Entity("Triply.Api.Entities.Place", b =>
+                {
+                    b.Navigation("PlaceInterests");
                 });
 
             modelBuilder.Entity("Triply.Api.Entities.Trip", b =>

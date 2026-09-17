@@ -4,11 +4,10 @@ Triply is an AI-assisted trip-planning platform (mobile + web) that turns a user
 
 This document tells the backend story **in the order it was actually built** — foundation → security → domain logic → lifecycle → concurrency → testing/CI → AI handoff. It is written to be walked through top-to-bottom in a mentor review.
 
-For exact request/response payloads, see [`API Contract.md`](./API%20Contract.md).
-For API design rules (naming, DTOs, error format, versioning), see [`API_CONVENTIONS.md`](./API_CONVENTIONS%20.md).
+For exact request/response payloads, see[API Contract](docs/API%20Contract.md).
+For API design rules (naming, DTOs, error format, versioning), see[API Conventions](docs/API_CONVENTIONS_.md).
 
 ---
-
 
 ## 1. Project Goal
 
@@ -90,7 +89,7 @@ Before writing any feature, the project foundation was set up so it could actual
 - Swagger, health endpoint, centralized exception-handling middleware
 - API conventions agreed up front: `/api` base path, DTOs (never raw EF entities), `camelCase` JSON, `ProblemDetails` error format, UTC timestamps, `yyyy-MM-dd` dates
 
-This foundation is the single source of truth for how Flutter and the backend communicate — see `API_CONVENTIONS.md`.
+This foundation is the single source of truth for how Flutter and the backend communicate — see[`API_CONVENTIONS.md`](./API_CONVENTIONS%20.md).
 
 ---
 
@@ -147,9 +146,8 @@ POST /api/destinations/suggestions
 
 Given a budget, currency, and interest categories, the service aggregates **active `Place` reference prices per destination** (from the real internal dataset) and returns destinations whose estimated aggregate cost fits the budget, sorted ascending by cost.
 
-> **Important point to make to the mentor:** the approved database schema has no direct Interest → Place/Destination relationship. Rather than inventing a fake mapping to make the feature look "smarter," interest IDs are validated but budget matching is done purely against the real pricing dataset. This keeps AI/data logic honest instead of faking it — matches the project's core "no invented capability" rule.
 
-Full request/response shape: see `API Contract.md` §5.
+Full request/response shape: see [`API Contract.md`](./API%20Contract.md).
 
 ---
 
@@ -189,8 +187,6 @@ Itinerary
 ```
 
 Validation: unique/positive day numbers, valid time slots, non-negative cost and order index, place must exist, be active, and (when the trip has a destination) belong to that destination. The write is an **atomic replacement** of the current itinerary.
-
-> **Say this explicitly:** this stage is a persistence/validation scaffold built *ahead of* AI integration — it does not call an LLM. It exists so the AI team has a working, validated contract to write into once Gemini is connected.
 
 ---
 
@@ -286,7 +282,7 @@ de7c818  feat: implement deterministic cost aggregation
 
 ## 15. What's Next — AI Integration Handoff
 
-The backend is now at a **stable handoff point**. Non-AI trip functionality is implemented and tested; the next dependency is the AI team's finalized prompt/JSON-schema/validation contract.
+The backend is now at a **stable handoff point**. Non-AI trip functionality is implemented and tested.
 
 ```text
 Flutter
@@ -325,7 +321,6 @@ Remaining backend work once the AI contract lands:
 9. Final API contract + Swagger updates
 10. Backend hardening & deployment prep
 
-*(Conversational/multi-turn refinement is Post-MVP by design — not a gap in the current backend.)*
 
 ---
 
@@ -338,11 +333,10 @@ Backend foundation → Core trip APIs → AI handoff → Gemini integration
 
 **Completed:** foundation, Docker, SQL Server/EF Core, migrations, API conventions, Swagger, exception handling, auth, JWT, rate limiting, ownership authorization, trip management, budget-first suggestions, deterministic cost aggregation, itinerary persistence scaffolding, trip save/retrieve, trip lifecycle, optimistic concurrency, integration testing, CI.
 
-**Not yet started:** live Gemini integration (blocked on AI team's contract).
+**Not yet started:** live Gemini integration.
 
 ---
 
 ## 17. Related Documents
-
-- [`API Contract.md`](./API%20Contract.md) — exact request/response JSON for every endpoint
-- [`API_CONVENTIONS .md`](./API_CONVENTIONS%20.md) — naming, DTO, error-format, and versioning rules
+[API Contract](docs/API%20Contract.md)— exact request/response JSON for every endpoint — exact request/response JSON for every endpoint
+[API Conventions](docs/API_CONVENTIONS_.md) — naming, DTO, error-format, and versioning rules
