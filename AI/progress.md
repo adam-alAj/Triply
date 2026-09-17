@@ -49,7 +49,21 @@ traceability.
 
 ---
 
-## 3. Not Yet Started
+## 3. Dataset Curation Schema/Workflow Mapping (TASK17) — ⬜ Pending Backend review
+
+**Task objective:** Define the working spreadsheet/notebook schema for curating places so it maps cleanly onto the DB's Place/Destination tables.
+
+| Step                                     | Detail                                                                                                                                                                                                                                                | Status                                                                                 |
+| ---------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------- |
+| Compared curated CSVs against DB spec    | Checked every column in `curated-data/*.csv` (Country, Currency, PlaceCategory, CostCategory, InterestCategory, Destination, Place, Extra_AI_Context) against Database Design §6.2–§6.8                                                               | ✅ Done                                                                                 |
+| Documented column-to-table mapping       | `AI/01-Dataset/DATASET_CURATION_SCHEMA_MAPPING.md` — full column mapping, curation workflow diagram, and the known applied-schema mismatches carried over from `REVIEW_RECORD.md` §6 (coordinate precision, `Place.name` width, missing unique index) | ✅ Done                                                                                 |
+| Flagged `Extra_AI_Context.csv` as non-DB | Documented explicitly: no column in this file has a DB equivalent (prompt-context/provenance only); `interest_tag` has no destination table until `PlaceInterest` is approved                                                                         | ✅ Done                                                                                 |
+| Committed on dedicated branch            | `AI-docs/add-schema-mapping-doc-task17`                                                                                                                                                                                                               | ✅ Done                                                                                 |
+| Sent to Backend lead for review          | —                                                                                                                                                                                                                                                     | ⬜ Pending — waiting on Lynn to review §3 (mapping) and §5 (mismatches) of the document |
+
+---
+
+## 4. Not Yet Started
 
 - Validation harness (`AI/03-Validation/place-existence-check/` — currently empty)
 - `PlaceInterest` seed file + seeder update (blocked on Backend decision, §2 above)
