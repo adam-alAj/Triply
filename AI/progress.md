@@ -22,6 +22,15 @@ This document tracks new work done on the AI track from this point forward — w
 | Synced branch with `main`           | Merged `origin/main` into `AI` locally (no conflicts), pushed via VS Code Sync (135 commits)                                                                                                                                                                   | ✅ Done |
 | Progress tracking file added        | `AI/progress.md` (this file) committed to the repo                                                                                                                                                                                                             | ✅ Done |
 
+**Note on acceptance criteria wording:** the task's acceptance criteria calls
+for the notebook to run "against a placeholder CSV." No separate placeholder
+file was created — verification ran directly against the real
+`curated-data/*.csv` files (the actual v1.0.0 dataset) instead of a dummy
+stand-in. This is a stronger check than the literal wording (it proves the
+environment works against the real data, not just a synthetic sample), so
+the criterion is considered satisfied; flagging the difference here for
+traceability.
+
 ---
 
 ## 2. Interest-Aware Destination Suggestions — Backend Coordination

@@ -1,0 +1,49 @@
+destination_name,place_name,interest_category_code
+Paris,Hôtel Le Clos Notre-Dame,HISTORY
+Paris,Novotel Paris 20 Belleville,CULTURE
+Paris,Ritz Paris,RELAXATION
+Paris,Chez Le Libanais,FOOD
+Paris,Bouillon Chartier Grands Boulevards,FOOD
+Paris,Epicure (Le Bristol Paris),FOOD
+Paris,"Eiffel Tower (2nd floor, lift)",HISTORY
+Paris,Louvre Museum,HISTORY
+Paris,Notre-Dame Cathedral,HISTORY
+Paris,Aqua Mundo – Villages Nature Paris,NATURE
+Paris,Forest of Legends (Villages Nature),NATURE
+Paris,Galeries Lafayette Haussmann,SHOPPING
+Paris,Galeries Lafayette Champs-Élysées,SHOPPING
+Paris,Paris Catacombs,HISTORY
+Paris,Seine River Cruise,CULTURE
+Paris,Moulin Rouge Cabaret Show,CULTURE
+Amman,Jordan Tower Hotel,HISTORY
+Amman,AlQasr Metropole Hotel,CULTURE
+Amman,Four Seasons Hotel Amman,RELAXATION
+Amman,Hashem Restaurant,FOOD
+Amman,Jordan Heritage Restaurant,FOOD
+Amman,Levant Restaurant,FOOD
+Amman,Amman Citadel & Jordan Archaeological Museum,HISTORY
+Amman,Roman Theatre & Museum of Popular Traditions,HISTORY
+Amman,Jerash Archaeological Site & Museum,HISTORY
+Amman,Wadi Rum Protected Area,NATURE
+Amman,Dead Sea Public Beach,NATURE
+Amman,City Mall Amman,SHOPPING
+Amman,Abdali Mall & Boulevard,SHOPPING
+Amman,Wadi Rum Jeep Safari (2 hrs),ADVENTURE
+Amman,Petra Day Trip (entrance),HISTORY
+Amman,Rainbow Street Evening Walk,CULTURE
+New York,Pod 51 Hotel,OTHER
+New York,Hampton Inn Manhattan Grand Central,OTHER
+New York,"The Ritz-Carlton New York, Central Park",RELAXATION
+New York,Joe's Pizza,FOOD
+New York,Wo Hop,FOOD
+New York,Le Bernardin,FOOD
+New York,Empire State Building (86th floor),HISTORY
+New York,Top of the Rock Observation Deck,CULTURE
+New York,Statue of Liberty & Ellis Island Ferry,HISTORY
+New York,Central Park,NATURE
+New York,Saks Fifth Avenue,SHOPPING
+New York,MUJI Fifth Avenue,SHOPPING
+New York,SUMMIT One Vanderbilt,ADVENTURE
+New York,Brooklyn Bridge Walk,ADVENTURE
+New York,Times Square,CULTURE
+New York,Broadway Show (standard ticket),CULTURE
