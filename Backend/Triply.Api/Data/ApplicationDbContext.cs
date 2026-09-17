@@ -16,6 +16,7 @@ public class ApplicationDbContext : IdentityDbContext<ApplicationUser, IdentityR
     public DbSet<PlaceCategory> PlaceCategories => Set<PlaceCategory>();
     public DbSet<Destination> Destinations => Set<Destination>();
     public DbSet<Place> Places => Set<Place>();
+    public DbSet<PlaceInterest> PlaceInterests => Set<PlaceInterest>();
     public DbSet<Trip> Trips => Set<Trip>();
     public DbSet<TripInterest> TripInterests => Set<TripInterest>();
     public DbSet<Itinerary> Itineraries => Set<Itinerary>();
@@ -43,6 +44,32 @@ public class ApplicationDbContext : IdentityDbContext<ApplicationUser, IdentityR
             .HasOne(x => x.Destination).WithMany(x => x.Places)
             .HasForeignKey(x => x.DestinationId).OnDelete(DeleteBehavior.Restrict);
         b.Entity<Place>().HasIndex(x => x.DestinationId); // IX_Place_DestinationId
+        b.Entity<Place>()
+            .Property(x => x.Name)
+            .HasColumnType("varchar(200)");
+        b.Entity<Place>()
+            .HasIndex(x => new { x.DestinationId, x.Name })
+            .IsUnique();
+
+        // ---- PlaceInterest (Place ↔ InterestCategory, §6.5 + interest-aware suggestions) ----
+      b.Entity<PlaceInterest>().HasKey(x => new
+{
+    x.PlaceId,
+    x.InterestCategoryId
+});
+
+b.Entity<PlaceInterest>()
+    .HasOne(x => x.Place)
+    .WithMany(x => x.PlaceInterests)
+    .HasForeignKey(x => x.PlaceId)
+    .OnDelete(DeleteBehavior.Cascade);
+
+b.Entity<PlaceInterest>()
+    .HasOne(x => x.InterestCategory)
+    .WithMany(x => x.PlaceInterests)
+    .HasForeignKey(x => x.InterestCategoryId)
+    .OnDelete(DeleteBehavior.Restrict);
+
         // ---- Trip (§6.9, §8) ----
         b.Entity<Trip>().HasIndex(x => x.UserId); // IX_Trip_UserId
         b.Entity<Trip>().HasIndex(x => x.Status); // IX_Trip_Status
@@ -110,6 +137,14 @@ public class ApplicationDbContext : IdentityDbContext<ApplicationUser, IdentityR
         {
             prop.SetColumnType("decimal(10,2)");
         }
+
+        // Coordinates are more precise than monetary decimal fields.
+        b.Entity<Destination>()
+            .Property(x => x.Latitude)
+            .HasColumnType("decimal(9,6)");
+        b.Entity<Destination>()
+            .Property(x => x.Longitude)
+            .HasColumnType("decimal(9,6)");
 
         // email UNIQUE enforced at DB level, not just app-level RequireUniqueEmail
 b.Entity<ApplicationUser>().HasIndex(x => x.NormalizedEmail).IsUnique();
