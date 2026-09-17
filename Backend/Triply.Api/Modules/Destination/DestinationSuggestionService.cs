@@ -17,15 +17,18 @@ public class DestinationSuggestionService : IDestinationSuggestionService
         DestinationSuggestionRequest request,
         CancellationToken cancellationToken = default)
     {
-        // The current approved schema has no Destination/Place-to-Interest
-        // relationship. Interests are therefore validated by the controller,
-        // while the deterministic candidate query follows Database Design
-        // §23 query #7: aggregate active Place.reference_price by destination
-        // and keep destinations whose aggregate fits the requested budget.
+        // Budget-first suggestions are interest-aware. The destination cost
+        // aggregation remains unchanged; PlaceInterest adds an interest
+        // overlap score used for filtering and ranking.
+        var requestedInterestIds = request.InterestCategoryIds
+            .Distinct()
+            .ToList();
+
         var candidates = await _db.Places
             .AsNoTracking()
             .Where(p =>
                 p.IsActive &&
+                p.Destination.IsSupported &&
                 p.CurrencyId == request.BudgetCurrencyId)
             .GroupBy(p => new
             {
@@ -34,17 +37,35 @@ public class DestinationSuggestionService : IDestinationSuggestionService
                 CountryName = p.Destination.Country.Name,
                 Currency = p.Currency.IsoCode
             })
-            .Select(g => new DestinationSuggestionResponse
+            .Select(g => new
             {
                 DestinationId = g.Key.DestinationId,
                 DestinationName = g.Key.DestinationName,
                 CountryName = g.Key.CountryName,
                 EstimatedCost = g.Sum(p => p.ReferencePrice),
                 Currency = g.Key.Currency,
+                MatchCount = _db.PlaceInterests
+                    .Where(pi =>
+                        pi.Place.DestinationId == g.Key.DestinationId &&
+                        requestedInterestIds.Contains(pi.InterestCategoryId))
+                    .Select(pi => pi.InterestCategoryId)
+                    .Distinct()
+                    .Count()
+            })
+            .Where(x =>
+                x.EstimatedCost <= request.BudgetAmount &&
+                x.MatchCount > 0)
+            .OrderByDescending(x => x.MatchCount)
+            .ThenBy(x => x.EstimatedCost)
+            .Select(x => new DestinationSuggestionResponse
+            {
+                DestinationId = x.DestinationId,
+                DestinationName = x.DestinationName,
+                CountryName = x.CountryName,
+                EstimatedCost = x.EstimatedCost,
+                Currency = x.Currency,
                 IsEstimated = true
             })
-            .Where(x => x.EstimatedCost <= request.BudgetAmount)
-            .OrderBy(x => x.EstimatedCost)
             .ToListAsync(cancellationToken);
 
         return candidates;

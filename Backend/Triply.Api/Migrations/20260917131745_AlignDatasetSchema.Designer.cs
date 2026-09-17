@@ -3,6 +3,7 @@ using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Triply.Api.Data;
 
@@ -11,9 +12,11 @@ using Triply.Api.Data;
 namespace Triply.Api.Migrations
 {
     [DbContext(typeof(ApplicationDbContext))]
-    partial class ApplicationDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260917131745_AlignDatasetSchema")]
+    partial class AlignDatasetSchema
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -786,21 +789,6 @@ namespace Triply.Api.Migrations
                         });
                 });
 
-            modelBuilder.Entity("Triply.Api.Entities.PlaceInterest", b =>
-                {
-                    b.Property<long>("PlaceId")
-                        .HasColumnType("bigint");
-
-                    b.Property<long>("InterestCategoryId")
-                        .HasColumnType("bigint");
-
-                    b.HasKey("PlaceId", "InterestCategoryId");
-
-                    b.HasIndex("InterestCategoryId");
-
-                    b.ToTable("PlaceInterests");
-                });
-
             modelBuilder.Entity("Triply.Api.Entities.Trip", b =>
                 {
                     b.Property<Guid>("Id")
@@ -1065,25 +1053,6 @@ namespace Triply.Api.Migrations
                     b.Navigation("PlaceCategory");
                 });
 
-            modelBuilder.Entity("Triply.Api.Entities.PlaceInterest", b =>
-                {
-                    b.HasOne("Triply.Api.Entities.InterestCategory", "InterestCategory")
-                        .WithMany("PlaceInterests")
-                        .HasForeignKey("InterestCategoryId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
-                    b.HasOne("Triply.Api.Entities.Place", "Place")
-                        .WithMany("PlaceInterests")
-                        .HasForeignKey("PlaceId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("InterestCategory");
-
-                    b.Navigation("Place");
-                });
-
             modelBuilder.Entity("Triply.Api.Entities.Trip", b =>
                 {
                     b.HasOne("Triply.Api.Entities.Currency", "BudgetCurrency")
@@ -1132,11 +1101,6 @@ namespace Triply.Api.Migrations
                     b.Navigation("Places");
                 });
 
-            modelBuilder.Entity("Triply.Api.Entities.InterestCategory", b =>
-                {
-                    b.Navigation("PlaceInterests");
-                });
-
             modelBuilder.Entity("Triply.Api.Entities.Itinerary", b =>
                 {
                     b.Navigation("Days");
@@ -1145,11 +1109,6 @@ namespace Triply.Api.Migrations
             modelBuilder.Entity("Triply.Api.Entities.ItineraryDay", b =>
                 {
                     b.Navigation("Items");
-                });
-
-            modelBuilder.Entity("Triply.Api.Entities.Place", b =>
-                {
-                    b.Navigation("PlaceInterests");
                 });
 
             modelBuilder.Entity("Triply.Api.Entities.Trip", b =>
