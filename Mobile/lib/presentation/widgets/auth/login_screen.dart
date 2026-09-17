@@ -120,7 +120,9 @@ class _LoginScreenState extends State<LoginScreen> {
                         width: 32,
                         height: 32,
                       ),
+
                       const SizedBox(width: 12),
+
                       Expanded(
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
@@ -136,6 +138,7 @@ class _LoginScreenState extends State<LoginScreen> {
                           ],
                         ),
                       ),
+
                       Container(
                         padding: const EdgeInsets.symmetric(
                           horizontal: 10,
@@ -255,7 +258,9 @@ class _LoginScreenState extends State<LoginScreen> {
                         size: 18,
                         color: AppColors.formError,
                       ),
+
                       const SizedBox(width: 8),
+
                       Expanded(
                         child: Text(
                           'Zero credential leakage. Sessions protected by '
@@ -280,15 +285,21 @@ class _LoginScreenState extends State<LoginScreen> {
 
                 Row(
                   children: [
-                    const Expanded(child: Divider()),
+                    const Expanded(
+                      child: Divider(),
+                    ),
                     Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 12),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                      ),
                       child: Text(
                         'OR SIGN IN WITH',
                         style: AppTextStyles.labelSm,
                       ),
                     ),
-                    const Expanded(child: Divider()),
+                    const Expanded(
+                      child: Divider(),
+                    ),
                   ],
                 ),
 
@@ -306,10 +317,14 @@ class _LoginScreenState extends State<LoginScreen> {
                         ),
                       ),
                     ),
+
                     const SizedBox(width: 10),
+
                     SocialAuthButton(
                       label: 'Passkey',
-                      icon: const Icon(Icons.fingerprint),
+                      icon: const Icon(
+                        Icons.fingerprint,
+                      ),
                     ),
                   ],
                 ),
@@ -324,6 +339,7 @@ class _LoginScreenState extends State<LoginScreen> {
                         "Don't have an account? ",
                         style: AppTextStyles.bodyMd,
                       ),
+
                       GestureDetector(
                         onTap: auth.isLoading
                             ? null

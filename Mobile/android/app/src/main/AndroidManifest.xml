@@ -1,4 +1,8 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- Required for all networking: the Triply backend API calls (auth, trips,
+         destinations, ...) and, in debug builds, the Dart VM service socket. -->
+    <uses-permission android:name="android.permission.INTERNET"/>
+
     <application
         android:label="triply_project"
         android:name="${applicationName}"
