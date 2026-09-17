@@ -68,26 +68,41 @@ public class DestinationSuggestionIntegrationTests
             .Select(x => x.Id)
             .FirstAsync();
 
-        db.Places.AddRange(
-            new Place
+        var firstPlace = new Place
+        {
+            DestinationId = destination.Id,
+            PlaceCategoryId = placeCategoryId,
+            Name = $"SuggestionPlaceA_{Guid.NewGuid():N}",
+            ReferencePrice = firstPrice,
+            CurrencyId = currencyId,
+            CostCategoryId = costCategoryId,
+            IsActive = true
+        };
+
+        var secondPlace = new Place
+        {
+            DestinationId = destination.Id,
+            PlaceCategoryId = placeCategoryId,
+            Name = $"SuggestionPlaceB_{Guid.NewGuid():N}",
+            ReferencePrice = secondPrice,
+            CurrencyId = currencyId,
+            CostCategoryId = costCategoryId,
+            IsActive = true
+        };
+
+        db.Places.AddRange(firstPlace, secondPlace);
+        await db.SaveChangesAsync();
+
+        db.PlaceInterests.AddRange(
+            new PlaceInterest
             {
-                DestinationId = destination.Id,
-                PlaceCategoryId = placeCategoryId,
-                Name = $"SuggestionPlaceA_{Guid.NewGuid():N}",
-                ReferencePrice = firstPrice,
-                CurrencyId = currencyId,
-                CostCategoryId = costCategoryId,
-                IsActive = true
+                PlaceId = firstPlace.Id,
+                InterestCategoryId = 1
             },
-            new Place
+            new PlaceInterest
             {
-                DestinationId = destination.Id,
-                PlaceCategoryId = placeCategoryId,
-                Name = $"SuggestionPlaceB_{Guid.NewGuid():N}",
-                ReferencePrice = secondPrice,
-                CurrencyId = currencyId,
-                CostCategoryId = costCategoryId,
-                IsActive = true
+                PlaceId = secondPlace.Id,
+                InterestCategoryId = 2
             });
 
         await db.SaveChangesAsync();
@@ -159,6 +174,102 @@ public class DestinationSuggestionIntegrationTests
         Assert.NotNull(body);
         Assert.Equal(0, body!.Count);
         Assert.Empty(body.Suggestions);
+    }
+
+    [Fact]
+    public async Task Suggestions_WithNoInterestOverlap_ExcludesDestination()
+    {
+        var token = await RegisterAndGetTokenAsync();
+        _client.DefaultRequestHeaders.Authorization =
+            new AuthenticationHeaderValue("Bearer", token);
+
+        var destinationId = await SeedDestinationWithPlacesAsync(
+            currencyId: 1,
+            firstPrice: 100,
+            secondPrice: 100);
+
+        var response = await _client.PostAsJsonAsync(
+            "/api/destinations/suggestions",
+            new DestinationSuggestionRequest
+            {
+                BudgetAmount = 500,
+                BudgetCurrencyId = 1,
+                InterestCategoryIds = new List<long> { 3 }
+            });
+
+        response.EnsureSuccessStatusCode();
+
+        var body = await response.Content
+            .ReadFromJsonAsync<DestinationSuggestionEnvelope>();
+
+        Assert.NotNull(body);
+        Assert.Equal(0, body!.Count);
+        Assert.DoesNotContain(
+            body.Suggestions,
+            x => x.DestinationId == destinationId);
+    }
+
+    [Fact]
+    public async Task Suggestions_WithMultipleInterestMatches_RanksByMatchCountBeforeCost()
+    {
+        var token = await RegisterAndGetTokenAsync();
+        _client.DefaultRequestHeaders.Authorization =
+            new AuthenticationHeaderValue("Bearer", token);
+
+        var lowerCostDestination = await SeedDestinationWithPlacesAsync(
+            currencyId: 1,
+            firstPrice: 100,
+            secondPrice: 100);
+
+        var higherCostDestination = await SeedDestinationWithPlacesAsync(
+            currencyId: 1,
+            firstPrice: 300,
+            secondPrice: 300);
+
+        using (var scope = _factory.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+
+            var secondDestinationPlaceIds = await db.Places
+                .Where(p => p.DestinationId == higherCostDestination)
+                .Select(p => p.Id)
+                .ToListAsync();
+
+            db.PlaceInterests.Add(
+                new PlaceInterest
+                {
+                    PlaceId = secondDestinationPlaceIds[1],
+                    InterestCategoryId = 1
+                });
+
+            await db.SaveChangesAsync();
+        }
+
+        var response = await _client.PostAsJsonAsync(
+            "/api/destinations/suggestions",
+            new DestinationSuggestionRequest
+            {
+                BudgetAmount = 1000,
+                BudgetCurrencyId = 1,
+                InterestCategoryIds = new List<long> { 1, 2 }
+            });
+
+        response.EnsureSuccessStatusCode();
+
+        var body = await response.Content
+            .ReadFromJsonAsync<DestinationSuggestionEnvelope>();
+
+        Assert.NotNull(body);
+        Assert.True(body!.Count >= 2);
+
+        var first = body.Suggestions
+            .First(x => x.DestinationId == lowerCostDestination);
+        var second = body.Suggestions
+            .First(x => x.DestinationId == higherCostDestination);
+
+        Assert.True(
+            body.Suggestions.IndexOf(first) <
+            body.Suggestions.IndexOf(second));
     }
 
     [Fact]
