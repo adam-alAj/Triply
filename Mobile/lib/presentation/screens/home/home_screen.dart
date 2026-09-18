@@ -10,6 +10,7 @@ import '../../../data/repositories/widgets/home_region_card.dart';
 import '../../providers/home_provider.dart';
 import '../../widgets/app_bottom_navigation.dart';
 import '../../widgets/empty_state.dart';
+import '../../widgets/loading_skeleton.dart';
 
 class HomeScreen extends StatelessWidget {
   const HomeScreen({super.key});
@@ -79,9 +80,7 @@ class _HomeViewState extends State<_HomeView>
         child: Consumer<HomeProvider>(
           builder: (context, provider, _) {
             if (provider.status == HomeStatus.loading) {
-              return const Center(
-                child: CircularProgressIndicator(),
-              );
+              return const _HomeLoadingSkeleton();
             }
 
             if (provider.status == HomeStatus.failure) {
@@ -235,13 +234,17 @@ class _HomeViewState extends State<_HomeView>
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               for (final region in provider.regions) ...[
-                                Expanded(
-                                  child: HomeRegionCard(
-                                    name: region.name,
-                                    imageAsset: region.imageAsset,
-                                    badge: region.country,
-                                    description: region.description,
-                                  ),
+                                // HomeRegionCard already wraps itself in
+                                // Expanded — do not add a second one here
+                                // (two Expandeds writing FlexParentData to
+                                // the same RenderObject throws "Incorrect
+                                // use of ParentDataWidget" and cascades into
+                                // unrelated-looking framework assertions).
+                                HomeRegionCard(
+                                  name: region.name,
+                                  imageAsset: region.imageAsset,
+                                  badge: region.country,
+                                  description: region.description,
                                 ),
                                 if (region != provider.regions.last)
                                   const SizedBox(width: 10),
@@ -271,6 +274,31 @@ class _HomeViewState extends State<_HomeView>
         ),
       ),
       bottomNavigationBar: const AppBottomNavigation(selected: AppNavTab.home),
+    );
+  }
+}
+
+/// Mirrors Home's actual layout (08_SYSTEM_DESIGN.md §34: "skeletons when
+/// content structure is known" — avoid a bare spinner when we do).
+class _HomeLoadingSkeleton extends StatelessWidget {
+  const _HomeLoadingSkeleton();
+
+  @override
+  Widget build(BuildContext context) {
+    return const Padding(
+      padding: EdgeInsets.fromLTRB(16, 10, 16, 0),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          LoadingSkeleton(height: 24, width: 220, borderRadius: 6),
+          SizedBox(height: 24),
+          LoadingSkeleton(height: 160, borderRadius: 24),
+          SizedBox(height: 20),
+          LoadingSkeleton(height: 18, width: 140, borderRadius: 6),
+          SizedBox(height: 10),
+          LoadingSkeleton(height: 130, borderRadius: 20),
+        ],
+      ),
     );
   }
 }

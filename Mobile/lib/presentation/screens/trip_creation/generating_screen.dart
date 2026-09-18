@@ -191,10 +191,10 @@ class _FailureView extends StatelessWidget {
   }
 }
 
-/// PENDING BACKEND: real AI itinerary generation isn't wired yet — today
-/// `POST /generate` only flips the trip's status. Once it produces real
-/// content, success here should navigate straight to Trip Overview
-/// (MOB-TRIP-09) instead of back to Home.
+/// `POST /generate` now runs real AI generation (Gemini) and returns the
+/// finished itinerary synchronously — by the time this view shows, Trip
+/// Overview has real content to display, per UI Pages §8 ("auto-advance to
+/// Trip Overview").
 class _SuccessView extends StatelessWidget {
   const _SuccessView({required this.tripId});
 
@@ -212,24 +212,25 @@ class _SuccessView extends StatelessWidget {
         ),
         const SizedBox(height: 16),
         Text(
-          'Your trip is on its way!',
+          'Your trip is ready!',
           style: AppTextStyles.headlineMd,
           textAlign: TextAlign.center,
         ),
         const SizedBox(height: 8),
         Text(
-          'Trip #$tripId was created and generation has started.',
+          'Your personalized itinerary has been generated.',
           style: AppTextStyles.bodyMd.copyWith(color: AppColors.secondary),
           textAlign: TextAlign.center,
         ),
         const SizedBox(height: 24),
         PrimaryButton(
-          label: 'Back to Home',
+          label: 'View My Trip',
           fullWidth: false,
           onPressed: () {
             Navigator.of(context).pushNamedAndRemoveUntil(
-              '/home',
+              '/trip-overview',
               (route) => false,
+              arguments: tripId,
             );
           },
         ),

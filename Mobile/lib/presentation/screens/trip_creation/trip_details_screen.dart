@@ -101,65 +101,10 @@ class _TripDetailsScreenState extends State<TripDetailsScreen> {
   }
 
   Future<void> _editBudget() async {
-    final controller = TextEditingController(
-      text: _budget?.toStringAsFixed(0) ?? '',
-    );
-    String? errorText;
-
     final result = await showDialog<double>(
       context: context,
-      builder: (context) {
-        return StatefulBuilder(
-          builder: (context, setState) {
-            return AlertDialog(
-              title: const Text('Target Budget'),
-              content: TextField(
-                controller: controller,
-                autofocus: true,
-                keyboardType: const TextInputType.numberWithOptions(
-                  decimal: true,
-                ),
-                decoration: InputDecoration(
-                  prefixText: '\$ ',
-                  hintText: '2500',
-                  filled: true,
-                  fillColor: AppColors.surfaceContainerLow,
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(14),
-                    borderSide: BorderSide.none,
-                  ),
-                  errorText: errorText,
-                ),
-              ),
-              actions: [
-                TextButton(
-                  onPressed: () => Navigator.pop(context),
-                  child: const Text('Cancel'),
-                ),
-                ElevatedButton(
-                  onPressed: () {
-                    final error = TripValidators.budgetInput(
-                      controller.text,
-                      required: true,
-                    );
-
-                    if (error != null) {
-                      setState(() => errorText = error);
-                      return;
-                    }
-
-                    Navigator.pop(context, double.parse(controller.text.trim()));
-                  },
-                  child: const Text('Save'),
-                ),
-              ],
-            );
-          },
-        );
-      },
+      builder: (context) => _BudgetDialog(initialValue: _budget),
     );
-
-    controller.dispose();
 
     if (result == null) return;
 
@@ -744,6 +689,78 @@ class _TripDetailsScreenState extends State<TripDetailsScreen> {
           ),
         ],
       ),
+    );
+  }
+}
+
+/// A dedicated StatefulWidget (not an ad-hoc StatefulBuilder + a
+/// TextEditingController manually created/disposed around showDialog) so
+/// Flutter's own widget lifecycle owns the controller — the manual version
+/// of this dialog caused a real "TextEditingController used after being
+/// disposed" crash (which cascades into unrelated-looking framework
+/// assertions) under certain dismiss timings.
+class _BudgetDialog extends StatefulWidget {
+  const _BudgetDialog({this.initialValue});
+
+  final double? initialValue;
+
+  @override
+  State<_BudgetDialog> createState() => _BudgetDialogState();
+}
+
+class _BudgetDialogState extends State<_BudgetDialog> {
+  late final _controller = TextEditingController(
+    text: widget.initialValue?.toStringAsFixed(0) ?? '',
+  );
+  String? _errorText;
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  void _save() {
+    final error = TripValidators.budgetInput(_controller.text, required: true);
+
+    if (error != null) {
+      setState(() => _errorText = error);
+      return;
+    }
+
+    Navigator.pop(context, double.parse(_controller.text.trim()));
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: const Text('Target Budget'),
+      content: TextField(
+        controller: _controller,
+        autofocus: true,
+        keyboardType: const TextInputType.numberWithOptions(decimal: true),
+        decoration: InputDecoration(
+          prefixText: '\$ ',
+          hintText: '2500',
+          filled: true,
+          fillColor: AppColors.surfaceContainerLow,
+          border: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(14),
+            borderSide: BorderSide.none,
+          ),
+          errorText: _errorText,
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: const Text('Cancel'),
+        ),
+        ElevatedButton(
+          onPressed: _save,
+          child: const Text('Save'),
+        ),
+      ],
     );
   }
 }

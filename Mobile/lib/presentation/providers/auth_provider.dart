@@ -1,5 +1,6 @@
 import 'package:flutter/foundation.dart';
 
+import '../../core/network/api_client.dart';
 import '../../core/storage/profile_local_storage.dart';
 import '../../data/models/auth_user.dart';
 import '../../data/repositories/auth_repository.dart';
@@ -50,7 +51,7 @@ class AuthProvider extends ChangeNotifier {
       _user = await _withLocalNameOverride(result.user);
       _status = AuthStatus.success;
     } catch (error) {
-      _errorMessage = error.toString().replaceFirst('Exception: ', '');
+      _errorMessage = _cleanMessage(error);
       _status = AuthStatus.failure;
     }
 
@@ -78,11 +79,26 @@ class AuthProvider extends ChangeNotifier {
       _user = result.user;
       _status = AuthStatus.success;
     } catch (error) {
-      _errorMessage = error.toString().replaceFirst('Exception: ', '');
+      _errorMessage = _cleanMessage(error);
       _status = AuthStatus.failure;
     }
 
     notifyListeners();
+  }
+
+  /// Never show a raw exception to the user (08_SYSTEM_DESIGN.md §36: no
+  /// stack traces / API internals). [ApiException] already carries a clean
+  /// message; [MockAuthRepository] throws plain `Exception('...')`, whose
+  /// `toString()` is prefixed with "Exception: " — strip that. Anything
+  /// else falls back to a generic message rather than leaking `toString()`.
+  String _cleanMessage(Object error) {
+    if (error is ApiException) return error.message;
+
+    final text = error.toString();
+    const prefix = 'Exception: ';
+    if (text.startsWith(prefix)) return text.substring(prefix.length);
+
+    return 'Something went wrong. Please try again.';
   }
 
   void clearError() {

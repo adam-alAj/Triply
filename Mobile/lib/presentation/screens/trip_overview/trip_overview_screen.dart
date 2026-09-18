@@ -5,7 +5,7 @@ import '../../../core/network/api_client.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_text_styles.dart';
 import '../../../data/models/trip_overview_data.dart';
-import '../../../data/repositories/mock_trip_overview_repository.dart';
+import '../../../data/repositories/api_trip_overview_repository.dart';
 import '../../providers/trip_overview_provider.dart';
 import '../../widgets/app_bottom_navigation.dart';
 import '../../widgets/day_selector.dart';
@@ -39,7 +39,9 @@ class TripOverviewScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     return ChangeNotifierProvider(
       create: (_) => TripOverviewProvider(
-        repository: MockTripOverviewRepository(),
+        repository: ApiTripOverviewRepository(
+          apiClient: context.read<ApiClient>(),
+        ),
         tripId: tripId,
       ),
       child: const _TripOverviewView(),
@@ -447,12 +449,18 @@ class _ActionBar extends StatelessWidget {
     if (!confirmed || !context.mounted) return;
 
     final provider = context.read<TripOverviewProvider>();
-    await provider.archiveTrip(context.read<ApiClient>());
-    if (context.mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Trip archived.')),
-      );
-    }
+    final succeeded = await provider.archiveTrip(context.read<ApiClient>());
+    if (!context.mounted) return;
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          succeeded
+              ? 'Trip archived.'
+              : provider.errorMessage ?? 'Unable to archive this trip.',
+        ),
+      ),
+    );
   }
 }
 
@@ -1175,11 +1183,9 @@ class _BudgetHealthCard
 
     final fraction = health.spentFraction;
 
-    final spentPercent =
-    (health.spentUsd /
-        health.targetCapUsd *
-        100)
-        .round();
+    final spentPercent = health.targetCapUsd <= 0
+        ? 0
+        : (health.spentUsd / health.targetCapUsd * 100).round();
 
     final remainingPercent =
         100 - spentPercent;
