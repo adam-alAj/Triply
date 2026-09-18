@@ -1,9 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import '../../../core/network/api_client.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_text_styles.dart';
-import '../../../data/repositories/mock_home_repository.dart';
+import '../../../data/repositories/api_home_repository.dart';
 import '../../../data/repositories/widgets/home_active_trip_card.dart';
 import '../../../data/repositories/widgets/home_region_card.dart';
 import '../../providers/home_provider.dart';
@@ -17,7 +18,7 @@ class HomeScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     return ChangeNotifierProvider(
       create: (_) => HomeProvider(
-        repository: MockHomeRepository(),
+        repository: ApiHomeRepository(apiClient: context.read<ApiClient>()),
       )..loadHome(),
       child: const _HomeView(),
     );
@@ -232,30 +233,19 @@ class _HomeViewState extends State<_HomeView>
                           ),
                           child: Row(
                             crossAxisAlignment: CrossAxisAlignment.start,
-                            children: const [
-                              Expanded(
-                                child: HomeRegionCard(
-                                  name: 'Japan',
-                                  imageAsset:
-                                  'assets/images/home_japan.jpg',
-                                  badge: 'Top Pick',
-                                  guides: '14 Guides',
-                                  description:
-                                  'Culture, Gastronomy, Rail',
+                            children: [
+                              for (final region in provider.regions) ...[
+                                Expanded(
+                                  child: HomeRegionCard(
+                                    name: region.name,
+                                    imageAsset: region.imageAsset,
+                                    badge: region.country,
+                                    description: region.description,
+                                  ),
                                 ),
-                              ),
-                              SizedBox(width: 10),
-                              Expanded(
-                                child: HomeRegionCard(
-                                  name: 'Italy',
-                                  imageAsset:
-                                  'assets/images/home_italy.jpg',
-                                  badge: 'Scenic',
-                                  guides: '18 Guides',
-                                  description:
-                                  'Coastal, History, Wine',
-                                ),
-                              ),
+                                if (region != provider.regions.last)
+                                  const SizedBox(width: 10),
+                              ],
                             ],
                           ),
                         ),
