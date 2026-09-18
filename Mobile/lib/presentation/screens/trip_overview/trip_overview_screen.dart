@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import '../../../core/network/api_client.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_text_styles.dart';
 import '../../../data/models/trip_overview_data.dart';
@@ -14,6 +15,10 @@ import '../../widgets/loading_skeleton.dart';
 import '../../widgets/primary_button.dart';
 import '../../widgets/secondary_button.dart';
 import '../../widgets/status_badge.dart';
+import '../../widgets/trip_overview/archive_delete_dialog.dart';
+import '../../widgets/trip_overview/edit_item_modal.dart';
+import '../../widgets/trip_overview/place_detail_sheet.dart';
+import '../../widgets/trip_overview/regenerate_sheet.dart';
 
 /// MOB-TRIP-09 — Trip Overview
 ///
@@ -404,9 +409,50 @@ class _ActionBar extends StatelessWidget {
               );
             },
           ),
+
+          const SizedBox(width: 8),
+
+          _CircleIconButton(
+            tooltip: 'Regenerate',
+            icon: Icons.autorenew,
+            onPressed: () => _handleRegenerate(context),
+          ),
+
+          const SizedBox(width: 8),
+
+          _CircleIconButton(
+            tooltip: 'Archive trip',
+            icon: Icons.archive_outlined,
+            onPressed: () => _handleArchive(context),
+          ),
         ],
       ),
     );
+  }
+
+  Future<void> _handleRegenerate(BuildContext context) async {
+    final scope = await showRegenerateSheet(context);
+    if (scope != null && context.mounted) {
+      _placeholder(
+        context,
+        scope == RegenerateScope.item
+            ? 'Regenerating this item'
+            : 'Regenerating this day',
+      );
+    }
+  }
+
+  Future<void> _handleArchive(BuildContext context) async {
+    final confirmed = await showArchiveTripDialog(context);
+    if (!confirmed || !context.mounted) return;
+
+    final provider = context.read<TripOverviewProvider>();
+    await provider.archiveTrip(context.read<ApiClient>());
+    if (context.mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Trip archived.')),
+      );
+    }
   }
 }
 
@@ -836,12 +882,55 @@ class _ItineraryBody extends StatelessWidget {
                 item.isAiGenerated,
                 isUserModified:
                 !item.isAiGenerated,
+                onTap: () async {
+                  final action = await showPlaceDetailSheet(context, item);
+                  if (!context.mounted) return;
+
+                  final itemIndex = selectedDay.items.indexOf(item);
+                  if (action == PlaceDetailAction.edit) {
+                    await _editItem(context, provider.selectedDayIndex, itemIndex, item);
+                  } else if (action == PlaceDetailAction.remove) {
+                    context.read<TripOverviewProvider>().removeItem(
+                          provider.selectedDayIndex,
+                          itemIndex,
+                        );
+                  }
+                },
+                onEdit: () => _editItem(
+                  context,
+                  provider.selectedDayIndex,
+                  selectedDay.items.indexOf(item),
+                  item,
+                ),
+                onRegenerate: () async {
+                  final scope = await showRegenerateSheet(context);
+                  if (scope != null && context.mounted) {
+                    _placeholder(
+                      context,
+                      scope == RegenerateScope.item
+                          ? 'Regenerating this item'
+                          : 'Regenerating this day',
+                    );
+                  }
+                },
               );
             },
           ),
         ),
       ],
     );
+  }
+
+  Future<void> _editItem(
+    BuildContext context,
+    int dayIndex,
+    int itemIndex,
+    ItineraryItemData item,
+  ) async {
+    final edited = await showEditItemModal(context, item);
+    if (edited != null && context.mounted) {
+      context.read<TripOverviewProvider>().updateItem(dayIndex, itemIndex, edited);
+    }
   }
 
   List<ItineraryItemData> _orderedByTimeSlot(
