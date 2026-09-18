@@ -24,6 +24,7 @@ public class ApplicationDbContext : IdentityDbContext<ApplicationUser, IdentityR
     public DbSet<ItineraryItem> ItineraryItems => Set<ItineraryItem>();
     public DbSet<CostEstimate> CostEstimates => Set<CostEstimate>();
     public DbSet<AIGeneration> AIGenerations => Set<AIGeneration>();
+    public DbSet<UserPreferences> UserPreferences => Set<UserPreferences>();
 
     protected override void OnModelCreating(ModelBuilder b)
     {
@@ -70,6 +71,19 @@ b.Entity<PlaceInterest>()
     .HasForeignKey(x => x.InterestCategoryId)
     .OnDelete(DeleteBehavior.Restrict);
 
+        // ---- UserPreferences ----
+        b.Entity<UserPreferences>().HasKey(x => x.UserId);
+        b.Entity<UserPreferences>()
+            .HasOne(x => x.User).WithOne()
+            .HasForeignKey<UserPreferences>(x => x.UserId)
+            .OnDelete(DeleteBehavior.Cascade);
+        b.Entity<UserPreferences>()
+            .HasOne(x => x.PreferredCurrency).WithMany()
+            .HasForeignKey(x => x.PreferredCurrencyId)
+            .OnDelete(DeleteBehavior.Restrict);
+        b.Entity<UserPreferences>().Property(x => x.DistanceUnit).HasMaxLength(10);
+        b.Entity<UserPreferences>().Property(x => x.Pacing).HasMaxLength(20);
+
         // ---- Trip (§6.9, §8) ----
         b.Entity<Trip>().HasIndex(x => x.UserId); // IX_Trip_UserId
         b.Entity<Trip>().HasIndex(x => x.Status); // IX_Trip_Status
@@ -82,6 +96,8 @@ b.Entity<PlaceInterest>()
             .HasForeignKey(x => x.DestinationId).OnDelete(DeleteBehavior.SetNull);
         b.Entity<Trip>().Property(x => x.PlanningMode).HasMaxLength(20);
         b.Entity<Trip>().Property(x => x.Status).HasMaxLength(20);
+        b.Entity<Trip>().Property(x => x.Title).HasMaxLength(200);
+        b.Entity<Trip>().Property(x => x.CoverImageUrl).HasMaxLength(1000);
         b.Entity<Trip>().HasQueryFilter(x => x.DeletedAt == null); // soft-delete safeguard, §28 risk mitigation
 
         // ---- TripInterest (composite PK, §6.10) ----

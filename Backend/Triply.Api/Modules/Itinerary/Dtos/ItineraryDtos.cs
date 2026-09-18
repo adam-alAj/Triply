@@ -50,3 +50,11 @@ public sealed class ItineraryItemResponse
     public bool IsAiGenerated { get; set; }
     public DateTime? ModifiedAt { get; set; }
 }
+
+public sealed class UpdateItineraryItemRequest
+{
+    public long PlaceId { get; set; }
+    public string TimeSlot { get; set; } = default!;
+    public int OrderIndex { get; set; }
+    public string? Notes { get; set; }
+}

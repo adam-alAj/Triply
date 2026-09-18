@@ -23,6 +23,11 @@ namespace Triply.Api.Modules.AIOrchestration;
 public interface IAiOrchestrationService
 {
     Task<AiGenerationResult> GenerateItineraryAsync(Guid tripId, CancellationToken cancellationToken = default);
+
+    Task<AiGenerationResult> RegeneratePartialAsync(
+        Guid tripId,
+        GenerateItineraryRequest request,
+        CancellationToken cancellationToken = default);
 }
 
 public class AiOrchestrationService : IAiOrchestrationService
@@ -413,6 +418,352 @@ public class AiOrchestrationService : IAiOrchestrationService
             Success = false,
             Status = "FAILED_VALIDATION",
             AiGenerationId = lastFailedGeneration.Id,
+            AttemptsUsed = maxAttempts,
+            Errors = allErrors
+        };
+    }
+
+    public async Task<AiGenerationResult> RegeneratePartialAsync(
+        Guid tripId,
+        GenerateItineraryRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        var scope = request.Scope?.Trim().ToUpperInvariant() ?? "FULL";
+        if (scope is not "DAY" and not "ITEM")
+            throw new ArgumentException("Partial regeneration scope must be DAY or ITEM.", nameof(request));
+
+        var trip = await _db.Trips
+            .Include(t => t.TripInterests)
+                .ThenInclude(ti => ti.InterestCategory)
+            .Include(t => t.BudgetCurrency)
+            .Include(t => t.Destination)
+            .FirstOrDefaultAsync(t => t.Id == tripId, cancellationToken);
+
+        if (trip is null)
+            throw new KeyNotFoundException("Trip does not exist.");
+
+        if (trip.Status == TripLifecycle.Archived || trip.Status == TripLifecycle.Generating)
+            throw new InvalidOperationException($"Trip cannot be partially regenerated while status is {trip.Status}.");
+
+        if (scope == "DAY" && (!request.DayNumber.HasValue || request.DayNumber.Value <= 0))
+            throw new ArgumentException("DayNumber is required for DAY regeneration.", nameof(request));
+
+        if (scope == "ITEM" && !request.ItemId.HasValue)
+            throw new ArgumentException("ItemId is required for ITEM regeneration.", nameof(request));
+
+        var itinerary = await _db.Itineraries
+            .Include(i => i.Days)
+                .ThenInclude(d => d.Items)
+                    .ThenInclude(i => i.Place)
+                        .ThenInclude(p => p.PlaceCategory)
+            .FirstOrDefaultAsync(i => i.TripId == tripId, cancellationToken);
+
+        if (itinerary is null)
+            throw new KeyNotFoundException("Trip does not have an itinerary to partially regenerate.");
+
+        ItineraryDay? targetDay = null;
+        ItineraryItem? targetItem = null;
+
+        if (scope == "DAY")
+        {
+            targetDay = itinerary.Days.FirstOrDefault(d => d.DayNumber == request.DayNumber!.Value);
+            if (targetDay is null)
+                throw new KeyNotFoundException("The requested itinerary day does not exist.");
+        }
+        else
+        {
+            targetItem = itinerary.Days
+                .SelectMany(d => d.Items)
+                .FirstOrDefault(i => i.Id == request.ItemId!.Value);
+
+            if (targetItem is null)
+                throw new KeyNotFoundException("The requested itinerary item does not exist in this trip.");
+
+            if (string.Equals(targetItem.Place.PlaceCategory.Code, "ACCOMMODATION", StringComparison.OrdinalIgnoreCase) ||
+                (targetItem.Notes?.StartsWith("Accommodation:", StringComparison.OrdinalIgnoreCase) ?? false))
+            {
+                throw new InvalidOperationException("Accommodation cannot be partially regenerated as an activity.");
+            }
+
+            targetDay = targetItem.ItineraryDay;
+        }
+
+        var placeQuery = _db.Places
+            .AsNoTracking()
+            .Include(p => p.PlaceCategory)
+            .Include(p => p.Currency)
+            .Include(p => p.Destination)
+            .Where(p => p.IsActive);
+
+        if (trip.PlanningMode == "DESTINATION_FIRST")
+        {
+            if (trip.DestinationId is null)
+                throw new InvalidOperationException("Destination-first trips require a destination.");
+            placeQuery = placeQuery.Where(p => p.DestinationId == trip.DestinationId.Value);
+        }
+
+        var places = await placeQuery
+            .Select(p => new PlaceContextDto
+            {
+                Id = p.Id,
+                DestinationId = p.DestinationId,
+                DestinationName = p.Destination.Name,
+                Name = p.Name,
+                Category = p.PlaceCategory.Code,
+                ReferencePrice = p.ReferencePrice,
+                Currency = p.Currency.IsoCode,
+                BudgetTier = null
+            })
+            .ToListAsync(cancellationToken);
+
+        if (trip.PlanningMode == "BUDGET_FIRST")
+        {
+            var budgetTiers = await _extraAiContextReader.ReadBudgetTiersAsync(cancellationToken);
+            foreach (var place in places)
+            {
+                budgetTiers.TryGetValue(place.Id.ToString(), out var tier);
+                if (tier is null)
+                    budgetTiers.TryGetValue(place.Name, out tier);
+                place.BudgetTier = tier;
+            }
+
+            if (places.Any(p => string.IsNullOrWhiteSpace(p.BudgetTier)))
+                throw new InvalidOperationException("BUDGET_FIRST partial regeneration requires complete budget_tier context.");
+        }
+
+        var interestLabels = trip.TripInterests.Select(ti => ti.InterestCategory.Label).ToList();
+        var dayCount = trip.StartDate.HasValue && trip.EndDate.HasValue
+            ? Math.Max(1, trip.EndDate.Value.DayNumber - trip.StartDate.Value.DayNumber + 1)
+            : Math.Max(1, itinerary.Days.Count);
+
+        var destinations = trip.PlanningMode == "BUDGET_FIRST"
+            ? await _db.Destinations
+                .AsNoTracking()
+                .Where(d => d.IsSupported)
+                .Select(d => new DestinationContextDto { Name = d.Name, Description = d.Description })
+                .OrderBy(d => d.Name)
+                .ToListAsync(cancellationToken)
+            : new List<DestinationContextDto>();
+
+        var schemaPath = Path.Combine(_environment.ContentRootPath, "AI-Schemas", "triply-trip-plan-generation.schema.json");
+        if (!File.Exists(schemaPath))
+            throw new InvalidOperationException($"AI response schema was not found at '{schemaPath}'.");
+
+        await using var schemaStream = File.OpenRead(schemaPath);
+        using var responseSchema = await JsonDocument.ParseAsync(schemaStream, cancellationToken: cancellationToken);
+
+        var basePrompt = trip.PlanningMode == "BUDGET_FIRST"
+            ? _promptBuilder.BuildBudgetFirst(trip, places, destinations, interestLabels, dayCount)
+            : _promptBuilder.Build(trip, places, interestLabels, dayCount);
+
+        var targetInstruction = scope == "DAY"
+            ? $"This is a PARTIAL REGENERATION request. Regenerate only day_number {targetDay!.DayNumber}. The backend will preserve every other day. Keep the requested day consistent with the existing trip dates."
+            : $"This is a PARTIAL REGENERATION request. Generate a replacement activity for the existing day_number {targetDay!.DayNumber}. Prefer the same time slot ({targetItem!.TimeSlot}) and do not generate accommodation. The backend will replace only that one activity and preserve everything else.";
+
+        var prompt = basePrompt + "\n\n" + targetInstruction;
+        var inputSnapshot = JsonSerializer.Serialize(new
+        {
+            trip.DestinationId,
+            trip.TravelerCount,
+            trip.StartDate,
+            trip.EndDate,
+            Interests = interestLabels,
+            DayCount = dayCount,
+            trip.PlanningMode,
+            Scope = scope,
+            request.DayNumber,
+            request.ItemId
+        });
+
+        var allErrors = new List<string>();
+        var maxAttempts = _options.MaxRetries + 1;
+
+        for (var attempt = 1; attempt <= maxAttempts; attempt++)
+        {
+            var aiGeneration = new AIGeneration
+            {
+                TripId = tripId,
+                AttemptNumber = attempt,
+                ModelProvider = _options.Model,
+                InputSnapshot = inputSnapshot,
+                Status = "PENDING"
+            };
+            _db.AIGenerations.Add(aiGeneration);
+            await _db.SaveChangesAsync(cancellationToken);
+
+            string rawText;
+            try
+            {
+                rawText = await _geminiClient.GenerateJsonWithSchemaAsync(
+                    prompt,
+                    "You are Triply's backend partial-regeneration assistant. Return only data allowed by the supplied JSON schema and use only the grounded dataset.",
+                    responseSchema,
+                    cancellationToken);
+            }
+            catch (GeminiApiException ex)
+            {
+                aiGeneration.Status = "FAILED_ERROR";
+                aiGeneration.ValidationErrors = ex.Message;
+                aiGeneration.CompletedAt = DateTime.UtcNow;
+                await _db.SaveChangesAsync(cancellationToken);
+                allErrors.Add($"Attempt {attempt}: Gemini call failed - {ex.Message}");
+                continue;
+            }
+
+            aiGeneration.RawOutput = rawText;
+            GeminiItineraryOutputDto? output;
+            try
+            {
+                output = JsonSerializer.Deserialize<GeminiItineraryOutputDto>(rawText, JsonOptions);
+            }
+            catch (JsonException)
+            {
+                output = null;
+            }
+
+            if (output is null)
+            {
+                aiGeneration.Status = "FAILED_VALIDATION";
+                aiGeneration.ValidationErrors = "Response was not valid JSON against the agreed schema.";
+                aiGeneration.CompletedAt = DateTime.UtcNow;
+                await _db.SaveChangesAsync(cancellationToken);
+                allErrors.Add($"Attempt {attempt}: response was not valid JSON.");
+                continue;
+            }
+
+            var validation = await _validator.ValidateAsync(trip, output, cancellationToken);
+            if (!validation.IsValid)
+            {
+                aiGeneration.Status = "FAILED_VALIDATION";
+                aiGeneration.ValidationErrors = string.Join(" | ", validation.Errors);
+                aiGeneration.CompletedAt = DateTime.UtcNow;
+                await _db.SaveChangesAsync(cancellationToken);
+                allErrors.AddRange(validation.Errors.Select(e => $"Attempt {attempt}: {e}"));
+                continue;
+            }
+
+            var selectedOption = trip.DestinationId.HasValue
+                ? output.DestinationOptions.FirstOrDefault(o =>
+                    places.Any(p => p.DestinationId == trip.DestinationId.Value &&
+                                    string.Equals(p.DestinationName, o.DestinationName, StringComparison.Ordinal)))
+                  ?? output.DestinationOptions.First()
+                : output.DestinationOptions.First();
+
+            var selectedDay = selectedOption.Days.FirstOrDefault(d => d.DayNumber == targetDay!.DayNumber);
+            if (selectedDay is null)
+            {
+                aiGeneration.Status = "FAILED_VALIDATION";
+                aiGeneration.ValidationErrors = $"Generated output did not contain target day {targetDay!.DayNumber}.";
+                aiGeneration.CompletedAt = DateTime.UtcNow;
+                await _db.SaveChangesAsync(cancellationToken);
+                allErrors.Add($"Attempt {attempt}: generated output did not contain target day {targetDay.DayNumber}.");
+                continue;
+            }
+
+            var placeLookup = places
+                .Where(p => p.DestinationName == selectedOption.DestinationName)
+                .ToDictionary(p => p.Name, p => p);
+
+            if (scope == "ITEM")
+            {
+                var replacement = selectedDay.Items
+                    .FirstOrDefault(i => string.Equals(i.TimeSlot, targetItem!.TimeSlot, StringComparison.OrdinalIgnoreCase))
+                    ?? selectedDay.Items.FirstOrDefault();
+
+                if (replacement is null || !placeLookup.ContainsKey(replacement.PlaceName))
+                {
+                    aiGeneration.Status = "FAILED_VALIDATION";
+                    aiGeneration.ValidationErrors = "Generated target day did not contain a grounded replacement activity.";
+                    aiGeneration.CompletedAt = DateTime.UtcNow;
+                    await _db.SaveChangesAsync(cancellationToken);
+                    allErrors.Add($"Attempt {attempt}: no grounded replacement activity was generated.");
+                    continue;
+                }
+
+                await using var transaction = await _db.Database.BeginTransactionAsync(cancellationToken);
+                targetItem!.PlaceId = placeLookup[replacement.PlaceName].Id;
+                targetItem.TimeSlot = targetItem.TimeSlot.ToUpperInvariant();
+                targetItem.EstimatedCost = placeLookup[replacement.PlaceName].ReferencePrice;
+                targetItem.Notes = replacement.Notes;
+                targetItem.IsAiGenerated = true;
+                targetItem.ModifiedAt = DateTime.UtcNow;
+
+                if (trip.Status is TripLifecycle.Generated or TripLifecycle.Saved)
+                    TripLifecycle.Transition(trip, TripLifecycle.Modified);
+                trip.UpdatedAt = DateTime.UtcNow;
+                trip.Version++;
+                aiGeneration.Status = "SUCCEEDED";
+                aiGeneration.CompletedAt = DateTime.UtcNow;
+
+                await _db.SaveChangesAsync(cancellationToken);
+                await transaction.CommitAsync(cancellationToken);
+
+                var cost = await _costAggregationService.GenerateFromItineraryAsync(tripId, cancellationToken);
+                return new AiGenerationResult
+                {
+                    Success = true,
+                    Status = "SUCCEEDED",
+                    AiGenerationId = aiGeneration.Id,
+                    AttemptsUsed = attempt,
+                    Itinerary = ToItineraryResponse(itinerary, placeLookup),
+                    Cost = cost
+                };
+            }
+
+            await using (var transaction = await _db.Database.BeginTransactionAsync(cancellationToken))
+            {
+                var accommodationItems = targetDay!.Items
+                    .Where(i => string.Equals(i.Place.PlaceCategory.Code, "ACCOMMODATION", StringComparison.OrdinalIgnoreCase) ||
+                                (i.Notes?.StartsWith("Accommodation:", StringComparison.OrdinalIgnoreCase) ?? false))
+                    .ToList();
+
+                var nonAccommodation = targetDay.Items.Except(accommodationItems).ToList();
+                _db.ItineraryItems.RemoveRange(nonAccommodation);
+                await _db.SaveChangesAsync(cancellationToken);
+
+                foreach (var itemDto in selectedDay.Items.OrderBy(i => i.OrderIndex))
+                {
+                    if (!placeLookup.TryGetValue(itemDto.PlaceName, out var place))
+                        continue;
+                    targetDay.Items.Add(new ItineraryItem
+                    {
+                        ItineraryDayId = targetDay.Id,
+                        PlaceId = place.Id,
+                        TimeSlot = itemDto.TimeSlot.ToUpperInvariant(),
+                        OrderIndex = itemDto.OrderIndex,
+                        EstimatedCost = place.ReferencePrice,
+                        Notes = itemDto.Notes,
+                        IsAiGenerated = true
+                    });
+                }
+
+                if (trip.Status is TripLifecycle.Generated or TripLifecycle.Saved)
+                    TripLifecycle.Transition(trip, TripLifecycle.Modified);
+                trip.UpdatedAt = DateTime.UtcNow;
+                trip.Version++;
+                aiGeneration.Status = "SUCCEEDED";
+                aiGeneration.CompletedAt = DateTime.UtcNow;
+
+                await _db.SaveChangesAsync(cancellationToken);
+                await transaction.CommitAsync(cancellationToken);
+            }
+
+            var dayCost = await _costAggregationService.GenerateFromItineraryAsync(tripId, cancellationToken);
+            return new AiGenerationResult
+            {
+                Success = true,
+                Status = "SUCCEEDED",
+                AiGenerationId = aiGeneration.Id,
+                AttemptsUsed = attempt,
+                Itinerary = ToItineraryResponse(itinerary, placeLookup),
+                Cost = dayCost
+            };
+        }
+
+        return new AiGenerationResult
+        {
+            Success = false,
+            Status = "FAILED_VALIDATION",
             AttemptsUsed = maxAttempts,
             Errors = allErrors
         };
