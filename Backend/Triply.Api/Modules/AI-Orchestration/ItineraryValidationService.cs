@@ -2,6 +2,7 @@ using Microsoft.EntityFrameworkCore;
 using Triply.Api.Data;
 using Triply.Api.Entities;
 using Triply.Api.Modules.AIOrchestration.Dtos;
+using TripEntity = Triply.Api.Entities.Trip;
 
 namespace Triply.Api.Modules.AIOrchestration;
 
@@ -20,7 +21,7 @@ namespace Triply.Api.Modules.AIOrchestration;
 public interface IItineraryValidator
 {
     Task<ItineraryValidationResult> ValidateAsync(
-        Trip trip,
+        TripEntity trip,
         GeminiItineraryOutputDto output,
         CancellationToken cancellationToken = default);
 }
@@ -40,7 +41,7 @@ public class ItineraryValidationService : IItineraryValidator
     }
 
     public async Task<ItineraryValidationResult> ValidateAsync(
-        Trip trip,
+        TripEntity trip,
         GeminiItineraryOutputDto output,
         CancellationToken cancellationToken = default)
     {
@@ -91,7 +92,7 @@ public class ItineraryValidationService : IItineraryValidator
     }
 
     private async Task ValidateDestinationOption(
-        Trip trip,
+        TripEntity trip,
         GeminiDestinationOptionDto option,
         int expectedDayCount,
         List<string> errors,
