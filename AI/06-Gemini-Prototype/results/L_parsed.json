@@ -1,0 +1,98 @@
+{
+  "planning_mode": "DESTINATION_FIRST",
+  "destination_options": [
+    {
+      "destination_name": "Paris",
+      "accommodation": {
+        "place_name": "Ritz Paris",
+        "nights": 2
+      },
+      "days": [
+        {
+          "day_number": 1,
+          "date": "2026-11-03",
+          "items": [
+            {
+              "time_slot": "MORNING",
+              "order_index": 1,
+              "place_name": "Airport Transfer – CDG to city centre",
+              "notes": null
+            },
+            {
+              "time_slot": "MORNING",
+              "order_index": 2,
+              "place_name": "Notre-Dame Cathedral",
+              "notes": null
+            },
+            {
+              "time_slot": "AFTERNOON",
+              "order_index": 1,
+              "place_name": "Louvre Museum",
+              "notes": null
+            },
+            {
+              "time_slot": "EVENING",
+              "order_index": 1,
+              "place_name": "Chez Le Libanais",
+              "notes": null
+            }
+          ]
+        },
+        {
+          "day_number": 2,
+          "date": "2026-11-04",
+          "items": [
+            {
+              "time_slot": "MORNING",
+              "order_index": 1,
+              "place_name": "Galeries Lafayette Haussmann",
+              "notes": null
+            },
+            {
+              "time_slot": "AFTERNOON",
+              "order_index": 1,
+              "place_name": "Eiffel Tower (2nd floor, lift)",
+              "notes": null
+            },
+            {
+              "time_slot": "EVENING",
+              "order_index": 1,
+              "place_name": "Bouillon Chartier Grands Boulevards",
+              "notes": null
+            },
+            {
+              "time_slot": "EVENING",
+              "order_index": 2,
+              "place_name": "Seine River Cruise",
+              "notes": null
+            }
+          ]
+        },
+        {
+          "day_number": 3,
+          "date": "2026-11-05",
+          "items": [
+            {
+              "time_slot": "MORNING",
+              "order_index": 1,
+              "place_name": "Paris Catacombs",
+              "notes": null
+            },
+            {
+              "time_slot": "AFTERNOON",
+              "order_index": 1,
+              "place_name": "Galeries Lafayette Champs-Élysées",
+              "notes": null
+            },
+            {
+              "time_slot": "EVENING",
+              "order_index": 1,
+              "place_name": "Epicure (Le Bristol Paris)",
+              "notes": null
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

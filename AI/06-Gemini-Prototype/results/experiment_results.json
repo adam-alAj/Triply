@@ -1,0 +1,161 @@
+{
+  "model": "gemini-3.6-flash",
+  "schema_version": "2.0.0",
+  "total_scenarios": 12,
+  "available_responses": 10,
+  "json_pass": 10,
+  "schema_pass": 10,
+  "grounding_pass": 10,
+  "contract_pass": 10,
+  "acceptance": "PASS",
+  "results": [
+    {
+      "scenario_id": "A",
+      "scenario_name": "Standard Amman 3-day",
+      "mode": "DESTINATION_FIRST",
+      "json_parse": "PASS",
+      "schema_valid": "PASS",
+      "grounding_valid": "PASS",
+      "contract_valid": "PASS",
+      "status": "PASS",
+      "failure_category": "SUCCESS",
+      "errors": []
+    },
+    {
+      "scenario_id": "B",
+      "scenario_name": "Budget-constrained Amman",
+      "mode": "DESTINATION_FIRST",
+      "json_parse": "PASS",
+      "schema_valid": "PASS",
+      "grounding_valid": "PASS",
+      "contract_valid": "PASS",
+      "status": "PASS",
+      "failure_category": "SUCCESS",
+      "errors": []
+    },
+    {
+      "scenario_id": "C",
+      "scenario_name": "Paris 4-day multi-interest",
+      "mode": "DESTINATION_FIRST",
+      "json_parse": "PASS",
+      "schema_valid": "PASS",
+      "grounding_valid": "PASS",
+      "contract_valid": "PASS",
+      "status": "PASS",
+      "failure_category": "SUCCESS",
+      "errors": []
+    },
+    {
+      "scenario_id": "D",
+      "scenario_name": "New York 3-day",
+      "mode": "DESTINATION_FIRST",
+      "json_parse": "PASS",
+      "schema_valid": "PASS",
+      "grounding_valid": "PASS",
+      "contract_valid": "PASS",
+      "status": "PASS",
+      "failure_category": "SUCCESS",
+      "errors": []
+    },
+    {
+      "scenario_id": "E",
+      "scenario_name": "Budget-first multi-destination",
+      "mode": "BUDGET_FIRST",
+      "json_parse": "PASS",
+      "schema_valid": "PASS",
+      "grounding_valid": "PASS",
+      "contract_valid": "PASS",
+      "status": "PASS",
+      "failure_category": "SUCCESS",
+      "errors": []
+    },
+    {
+      "scenario_id": "F",
+      "scenario_name": "Amman consistency test 1",
+      "mode": "DESTINATION_FIRST",
+      "json_parse": "NOT_AVAILABLE",
+      "schema_valid": "NOT_AVAILABLE",
+      "grounding_valid": "NOT_AVAILABLE",
+      "contract_valid": "NOT_AVAILABLE",
+      "status": "NOT_AVAILABLE",
+      "failure_category": "NO_RESPONSE",
+      "errors": [
+        "No saved response file"
+      ]
+    },
+    {
+      "scenario_id": "G",
+      "scenario_name": "Amman consistency test 2",
+      "mode": "DESTINATION_FIRST",
+      "json_parse": "PASS",
+      "schema_valid": "PASS",
+      "grounding_valid": "PASS",
+      "contract_valid": "PASS",
+      "status": "PASS",
+      "failure_category": "SUCCESS",
+      "errors": []
+    },
+    {
+      "scenario_id": "H",
+      "scenario_name": "Paris 2-day short trip",
+      "mode": "DESTINATION_FIRST",
+      "json_parse": "NOT_AVAILABLE",
+      "schema_valid": "NOT_AVAILABLE",
+      "grounding_valid": "NOT_AVAILABLE",
+      "contract_valid": "NOT_AVAILABLE",
+      "status": "NOT_AVAILABLE",
+      "failure_category": "NO_RESPONSE",
+      "errors": [
+        "No saved response file"
+      ]
+    },
+    {
+      "scenario_id": "I",
+      "scenario_name": "New York 5-day long trip",
+      "mode": "DESTINATION_FIRST",
+      "json_parse": "PASS",
+      "schema_valid": "PASS",
+      "grounding_valid": "PASS",
+      "contract_valid": "PASS",
+      "status": "PASS",
+      "failure_category": "SUCCESS",
+      "errors": []
+    },
+    {
+      "scenario_id": "J",
+      "scenario_name": "Budget-first tight budget",
+      "mode": "BUDGET_FIRST",
+      "json_parse": "PASS",
+      "schema_valid": "PASS",
+      "grounding_valid": "PASS",
+      "contract_valid": "PASS",
+      "status": "PASS",
+      "failure_category": "SUCCESS",
+      "errors": []
+    },
+    {
+      "scenario_id": "K",
+      "scenario_name": "Amman nature/adventure 5-day",
+      "mode": "DESTINATION_FIRST",
+      "json_parse": "PASS",
+      "schema_valid": "PASS",
+      "grounding_valid": "PASS",
+      "contract_valid": "PASS",
+      "status": "PASS",
+      "failure_category": "SUCCESS",
+      "errors": []
+    },
+    {
+      "scenario_id": "L",
+      "scenario_name": "Paris luxury 3-day",
+      "mode": "DESTINATION_FIRST",
+      "json_parse": "PASS",
+      "schema_valid": "PASS",
+      "grounding_valid": "PASS",
+      "contract_valid": "PASS",
+      "status": "PASS",
+      "failure_category": "SUCCESS",
+      "errors": []
+    }
+  ]
+}
