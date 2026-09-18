@@ -217,6 +217,51 @@ public class CostAggregationIntegrationTests
     }
 
     [Fact]
+    public async Task CostEstimate_UsesPersistedItinerarySnapshotCost()
+    {
+        var token = await RegisterAndGetTokenAsync();
+        var places = await SeedTwoPlacesAsync();
+        var tripId = await CreateTripAsync(token, places.destinationId);
+
+        using (var scope = _factory.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+            var itinerary = new Itinerary { TripId = tripId, GeneratedAt = DateTime.UtcNow };
+            var day = new ItineraryDay
+            {
+                Date = new DateOnly(2026, 9, 20),
+                DayNumber = 1
+            };
+            day.Items.Add(new ItineraryItem
+            {
+                PlaceId = places.firstPlaceId,
+                TimeSlot = "MORNING",
+                OrderIndex = 1,
+                EstimatedCost = 360m, // 3 nights x 120, persisted by AI orchestration
+                IsAiGenerated = true
+            });
+            itinerary.Days.Add(day);
+            db.Itineraries.Add(itinerary);
+            await db.SaveChangesAsync();
+        }
+
+        var response = await _client.GetAsync($"/api/trips/{tripId}/cost-estimate");
+        response.EnsureSuccessStatusCode();
+        var body = await response.Content.ReadFromJsonAsync<CostEstimateResponse>();
+
+        Assert.NotNull(body);
+        Assert.Equal(360m, body!.TotalEstimatedCost);
+
+        using var verifyScope = _factory.Services.CreateScope();
+        var verifyDb = verifyScope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+        var persisted = await verifyDb.CostEstimates
+            .Where(x => x.TripId == tripId)
+            .SumAsync(x => x.Amount);
+
+        Assert.Equal(360m, persisted);
+    }
+
+    [Fact]
     public async Task CostEstimate_ReturnsAllCategoriesWithZeroForMissingRows()
     {
         var token = await RegisterAndGetTokenAsync();

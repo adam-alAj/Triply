@@ -152,6 +152,7 @@ builder.Services.Configure<GeminiOptions>(
 builder.Services.AddHttpClient<IGeminiClient, GeminiClient>();
 builder.Services.AddScoped<IItineraryPromptBuilder, ItineraryPromptBuilder>();
 builder.Services.AddScoped<IItineraryValidator, ItineraryValidationService>();
+builder.Services.AddScoped<IExtraAiContextReader, ExtraAiContextReader>();
 builder.Services.AddScoped<IAiOrchestrationService, AiOrchestrationService>();
 
 builder.Services.AddControllers();
