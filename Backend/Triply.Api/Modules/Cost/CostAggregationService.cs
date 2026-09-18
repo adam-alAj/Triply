@@ -130,7 +130,7 @@ public class CostAggregationService : ICostAggregationService
 
         var grouped = items
             .GroupBy(item => item.Place.CostCategoryId)
-            .ToDictionary(group => group.Key, group => group.Sum(item => item.Place.ReferencePrice));
+            .ToDictionary(group => group.Key, group => group.Sum(item => item.EstimatedCost));
 
         var categoryAmounts = categories
             .Select(category => new

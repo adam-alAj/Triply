@@ -193,7 +193,7 @@ public class ItineraryPromptBuilder : IItineraryPromptBuilder
         foreach (var dest in destinations)
         {
             var destPlaces = places
-                .Where(p => true) // All places passed are already scoped correctly
+                .Where(p => string.Equals(p.DestinationName, dest.Name, StringComparison.Ordinal))
                 .GroupBy(p => p.Category)
                 .OrderBy(g => g.Key);
 

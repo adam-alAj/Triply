@@ -39,6 +39,8 @@ public class AiOrchestrationService : IAiOrchestrationService
     private readonly ICostAggregationService _costAggregationService;
     private readonly GeminiOptions _options;
     private readonly ILogger<AiOrchestrationService> _logger;
+    private readonly IExtraAiContextReader _extraAiContextReader;
+    private readonly IHostEnvironment _environment;
 
     public AiOrchestrationService(
         ApplicationDbContext db,
@@ -47,7 +49,9 @@ public class AiOrchestrationService : IAiOrchestrationService
         IItineraryValidator validator,
         ICostAggregationService costAggregationService,
         IOptions<GeminiOptions> options,
-        ILogger<AiOrchestrationService> logger)
+        ILogger<AiOrchestrationService> logger,
+        IExtraAiContextReader extraAiContextReader,
+        IHostEnvironment environment)
     {
         _db = db;
         _geminiClient = geminiClient;
@@ -56,6 +60,8 @@ public class AiOrchestrationService : IAiOrchestrationService
         _costAggregationService = costAggregationService;
         _options = options.Value;
         _logger = logger;
+        _extraAiContextReader = extraAiContextReader;
+        _environment = environment;
     }
 
     public async Task<AiGenerationResult> GenerateItineraryAsync(
@@ -71,9 +77,9 @@ public class AiOrchestrationService : IAiOrchestrationService
         if (trip is null)
             throw new KeyNotFoundException("Trip does not exist.");
 
-        if (trip.DestinationId is null)
+        if (trip.PlanningMode == "DESTINATION_FIRST" && trip.DestinationId is null)
             throw new InvalidOperationException(
-                "Trip has no confirmed destination yet - budget-first destination suggestion must run first.");
+                "Destination-first trips require a confirmed destination before generation.");
 
         if (!TripLifecycle.CanTransition(trip.Status, TripLifecycle.Generating) && trip.Status != TripLifecycle.Generating)
             throw new InvalidOperationException($"Trip in status '{trip.Status}' cannot start generation.");
@@ -83,22 +89,51 @@ public class AiOrchestrationService : IAiOrchestrationService
 
         await _db.SaveChangesAsync(cancellationToken);
 
-        // --- Fetch dataset context (places for this destination, active only) ---
-        var places = await _db.Places
+        // --- Fetch dataset context (active places; destination-scoped for destination-first) ---
+        var placeQuery = _db.Places
             .AsNoTracking()
             .Include(p => p.PlaceCategory)
             .Include(p => p.Currency)
-            .Where(p => p.DestinationId == trip.DestinationId.Value && p.IsActive)
+            .Include(p => p.Destination)
+            .Where(p => p.IsActive);
+
+        if (trip.PlanningMode == "DESTINATION_FIRST")
+            placeQuery = placeQuery.Where(p => p.DestinationId == trip.DestinationId!.Value);
+
+        var places = await placeQuery
             .Select(p => new PlaceContextDto
             {
                 Id = p.Id,
+                DestinationId = p.DestinationId,
+                DestinationName = p.Destination.Name,
                 Name = p.Name,
                 Category = p.PlaceCategory.Code,
                 ReferencePrice = p.ReferencePrice,
                 Currency = p.Currency.IsoCode,
-                BudgetTier = null // TODO: join with Extra_AI_Context.csv for budget_tier
+                BudgetTier = null
             })
             .ToListAsync(cancellationToken);
+
+        if (trip.PlanningMode == "BUDGET_FIRST")
+        {
+            var budgetTiers = await _extraAiContextReader.ReadBudgetTiersAsync(cancellationToken);
+            foreach (var place in places)
+            {
+                // Prefer stable Place.id keys; support place names for the AI team's CSV variant.
+                budgetTiers.TryGetValue(place.Id.ToString(), out var tier);
+                if (tier is null)
+                    budgetTiers.TryGetValue(place.Name, out tier);
+                place.BudgetTier = tier;
+            }
+
+            if (places.Any(p => string.IsNullOrWhiteSpace(p.BudgetTier)))
+            {
+                var missing = places.Count(p => string.IsNullOrWhiteSpace(p.BudgetTier));
+                throw new InvalidOperationException(
+                    $"Extra_AI_Context.csv does not provide budget_tier for {missing} active place(s). " +
+                    "BUDGET_FIRST generation cannot safely continue without complete budget context.");
+            }
+        }
 
         if (places.Count == 0)
         {
@@ -132,6 +167,23 @@ public class AiOrchestrationService : IAiOrchestrationService
             trip.PlanningMode
         });
 
+        var destinations = trip.PlanningMode == "BUDGET_FIRST"
+            ? await _db.Destinations
+                .AsNoTracking()
+                .Where(d => d.IsSupported)
+                .Select(d => new DestinationContextDto { Name = d.Name, Description = d.Description })
+                .OrderBy(d => d.Name)
+                .ToListAsync(cancellationToken)
+            : new List<DestinationContextDto>();
+
+        var schemaPath = Path.Combine(_environment.ContentRootPath, "AI-Schemas", "triply-trip-plan-generation.schema.json");
+        if (!File.Exists(schemaPath))
+            throw new InvalidOperationException($"AI response schema was not found at '{schemaPath}'.");
+
+        await using var schemaStream = File.OpenRead(schemaPath);
+        using var responseSchema = await JsonDocument.ParseAsync(schemaStream, cancellationToken: cancellationToken);
+        var systemInstruction = "You are Triply's backend itinerary generator. Return only data allowed by the supplied JSON schema. Never invent destinations or places, never output database IDs or prices, and use only the grounded dataset provided in the user prompt.";
+
         var maxAttempts = _options.MaxRetries + 1;
         var allErrors = new List<string>();
 
@@ -151,8 +203,12 @@ public class AiOrchestrationService : IAiOrchestrationService
             string rawText;
             try
             {
-                var prompt = _promptBuilder.Build(trip, places, interestLabels, dayCount);
-                rawText = await _geminiClient.GenerateJsonAsync(prompt, cancellationToken);
+                var prompt = trip.PlanningMode == "BUDGET_FIRST"
+                    ? _promptBuilder.BuildBudgetFirst(trip, places, destinations, interestLabels, dayCount)
+                    : _promptBuilder.Build(trip, places, interestLabels, dayCount);
+
+                rawText = await _geminiClient.GenerateJsonWithSchemaAsync(
+                    prompt, systemInstruction, responseSchema, cancellationToken);
             }
             catch (GeminiApiException ex)
             {
@@ -212,6 +268,26 @@ public class AiOrchestrationService : IAiOrchestrationService
             // Resolve place names to Place IDs for persistence
             var nameToPlace = places.ToDictionary(p => p.Name, p => p);
             var accommodationPlaceId = nameToPlace[selectedOption.Accommodation.PlaceName].Id;
+
+            var selectedDestination = await _db.Destinations
+                .FirstOrDefaultAsync(d => d.Name == selectedOption.DestinationName, cancellationToken);
+
+            if (selectedDestination is null)
+                throw new InvalidOperationException(
+                    $"Generated destination '{selectedOption.DestinationName}' could not be resolved to the internal dataset.");
+
+            if (trip.DestinationId is null)
+                trip.DestinationId = selectedDestination.Id;
+
+            var selectedPlaceLookup = places
+                .Where(p => p.DestinationId == selectedDestination.Id)
+                .ToDictionary(p => p.Name, p => p);
+
+            if (!selectedPlaceLookup.ContainsKey(selectedOption.Accommodation.PlaceName))
+                throw new InvalidOperationException(
+                    $"Accommodation '{selectedOption.Accommodation.PlaceName}' is not grounded to the selected destination.");
+
+            nameToPlace = selectedPlaceLookup;
 
             await using var transaction = await _db.Database.BeginTransactionAsync(cancellationToken);
 

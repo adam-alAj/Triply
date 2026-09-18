@@ -128,6 +128,8 @@ public sealed class GeminiItineraryItemDto
 public sealed class PlaceContextDto
 {
     public long Id { get; set; }
+    public long DestinationId { get; set; }
+    public string DestinationName { get; set; } = default!;
     public string Name { get; set; } = default!;
     public string Category { get; set; } = default!;
     public decimal ReferencePrice { get; set; }

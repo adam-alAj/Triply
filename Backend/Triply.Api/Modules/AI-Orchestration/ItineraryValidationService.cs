@@ -79,9 +79,23 @@ public class ItineraryValidationService : IItineraryValidator
             ? Math.Max(1, trip.EndDate.Value.DayNumber - trip.StartDate.Value.DayNumber + 1)
             : 3;
 
+        var optionDestinationNames = output.DestinationOptions
+            .Select(o => o.DestinationName)
+            .Where(n => !string.IsNullOrWhiteSpace(n))
+            .ToList();
+
+        var supportedDestinations = await _db.Destinations
+            .AsNoTracking()
+            .Where(d => optionDestinationNames.Contains(d.Name))
+            .Select(d => new DestinationValidationContext(d.Id, d.Name))
+            .ToListAsync(cancellationToken);
+
+        if (output.DestinationOptions.Count != optionDestinationNames.Distinct(StringComparer.Ordinal).Count())
+            errors.Add("destination_options must contain distinct destination_name values.");
+
         foreach (var option in output.DestinationOptions)
         {
-            await ValidateDestinationOption(trip, option, dayCount, errors, cancellationToken);
+            await ValidateDestinationOption(trip, option, dayCount, supportedDestinations, errors, cancellationToken);
         }
 
         return new ItineraryValidationResult
@@ -91,10 +105,13 @@ public class ItineraryValidationService : IItineraryValidator
         };
     }
 
+    private sealed record DestinationValidationContext(long Id, string Name);
+
     private async Task ValidateDestinationOption(
         TripEntity trip,
         GeminiDestinationOptionDto option,
         int expectedDayCount,
+        IReadOnlyList<DestinationValidationContext> supportedDestinations,
         List<string> errors,
         CancellationToken cancellationToken)
     {
@@ -223,6 +240,15 @@ public class ItineraryValidationService : IItineraryValidator
         }
         allPlaceNames.Remove(""); // remove empties
 
+        var destination = supportedDestinations.FirstOrDefault(d =>
+            string.Equals(d.Name, option.DestinationName, StringComparison.Ordinal));
+
+        if (destination is null)
+        {
+            errors.Add(
+                $"{optionPrefix}: destination_name '{option.DestinationName}' does not exist in the supported destination dataset.");
+        }
+
         // Resolve all names to Place rows
         var places = await _db.Places
             .AsNoTracking()
@@ -243,7 +269,15 @@ public class ItineraryValidationService : IItineraryValidator
                 continue;
             }
 
-            // Destination scoping (if trip has a destination set)
+            // Destination scoping: option destination is authoritative in BUDGET_FIRST;
+            // trip destination is additionally enforced when already selected.
+            if (destination is not null && place.DestinationId != destination.Id)
+            {
+                errors.Add(
+                    $"{optionPrefix}: place_name '{name}' belongs to destination_id {place.DestinationId}, " +
+                    $"not option destination '{destination.Name}' ({destination.Id}).");
+            }
+
             if (trip.DestinationId.HasValue && place.DestinationId != trip.DestinationId.Value)
             {
                 errors.Add(
