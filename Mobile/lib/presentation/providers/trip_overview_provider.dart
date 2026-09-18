@@ -44,12 +44,11 @@ class TripOverviewProvider extends ChangeNotifier {
   /// marks the item user-modified (`isAiGenerated = false`) and moves the
   /// trip out of a purely AI-generated state into MODIFIED.
   ///
-  /// NOTE: Trip Overview is still on mock data end-to-end (see progress.md),
-  /// so this only updates in-memory state — nothing is persisted to a
-  /// backend yet. When it is, the real endpoint is `POST /api/trips/{id}
-  /// /itinerary`, which re-writes the *whole* itinerary (no per-item PATCH
-  /// exists), so this method's shape (whole day back out) already matches
-  /// what that call will need.
+  /// NOTE: this only updates in-memory state — nothing is persisted to the
+  /// backend yet. The real endpoint is `POST /api/trips/{id}/itinerary`,
+  /// which re-writes the *whole* itinerary (no per-item PATCH exists), so
+  /// this method's shape (whole day back out) already matches what that
+  /// call will need.
   void updateItem(
     int dayIndex,
     int itemIndex,

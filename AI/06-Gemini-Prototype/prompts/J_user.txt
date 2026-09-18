@@ -1,0 +1,94 @@
+Suggest 1 to 3 destinations for a traveler with the following preferences:
+
+- Trip dates: 2026-11-10 to 2026-11-11
+- Budget: 200 USD for the whole trip (context only -- do not mention, estimate, or calculate any cost in your response)
+- Interests: Food
+
+Choose only from the supported destinations and places below. Do not use any destination or place that is not on this list:
+
+=== Paris ===
+  Capital of France, known for iconic landmarks, museums, and cuisine.
+
+  [ACCOMMODATION]
+  - Hôtel Le Clos Notre-Dame
+  - Novotel Paris 20 Belleville
+  - Ritz Paris
+  [RESTAURANT]
+  - Chez Le Libanais
+  - Bouillon Chartier Grands Boulevards
+  - Epicure (Le Bristol Paris)
+  [ATTRACTION]
+  - Eiffel Tower (2nd floor, lift)
+  - Louvre Museum
+  - Notre-Dame Cathedral
+  [ACTIVITY]
+  - Aqua Mundo – Villages Nature Paris
+  - Forest of Legends (Villages Nature)
+  - Galeries Lafayette Haussmann
+  - Galeries Lafayette Champs-Élysées
+  - Paris Catacombs
+  - Seine River Cruise
+  - Moulin Rouge Cabaret Show
+  [TRANSPORT]
+  - Airport Transfer – CDG to city centre
+  - Intra-city Metro/Bus Single Ticket
+  - Navigo Easy Weekly Pass
+
+=== Amman ===
+  Capital of Jordan, blending ancient Roman ruins with a modern Middle Eastern city.
+
+  [ACCOMMODATION]
+  - Jordan Tower Hotel
+  - AlQasr Metropole Hotel
+  - Four Seasons Hotel Amman
+  [RESTAURANT]
+  - Hashem Restaurant
+  - Jordan Heritage Restaurant
+  - Levant Restaurant
+  [ATTRACTION]
+  - Amman Citadel & Jordan Archaeological Museum
+  - Roman Theatre & Museum of Popular Traditions
+  - Jerash Archaeological Site & Museum
+  [ACTIVITY]
+  - Wadi Rum Protected Area
+  - Dead Sea Public Beach
+  - City Mall Amman
+  - Abdali Mall & Boulevard
+  - Wadi Rum Jeep Safari (2 hrs)
+  - Petra Day Trip (entrance)
+  - Rainbow Street Evening Walk
+  [TRANSPORT]
+  - Airport Transfer – QAIA to Amman
+  - Intra-city Taxi (short ride)
+  - Jordan Pass
+
+=== New York ===
+  Major US city known for iconic skyline, museums, and entertainment.
+
+  [ACCOMMODATION]
+  - Pod 51 Hotel
+  - Hampton Inn Manhattan Grand Central
+  - The Ritz-Carlton New York, Central Park
+  [RESTAURANT]
+  - Joe's Pizza
+  - Wo Hop
+  - Le Bernardin
+  [ATTRACTION]
+  - Empire State Building (86th floor)
+  - Top of the Rock Observation Deck
+  - Statue of Liberty & Ellis Island Ferry
+  [ACTIVITY]
+  - Central Park
+  - Saks Fifth Avenue
+  - MUJI Fifth Avenue
+  - SUMMIT One Vanderbilt
+  - Brooklyn Bridge Walk
+  - Times Square
+  - Broadway Show (standard ticket)
+  [TRANSPORT]
+  - Airport Transfer – JFK to Manhattan
+  - Subway/Bus Single Ride (OMNY)
+  - Weekly Fare Cap (OMNY)
+
+
+Return your response as JSON matching the required response schema exactly.

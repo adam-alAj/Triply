@@ -1,0 +1,686 @@
+{
+  "summary": {
+    "total_generations": 10,
+    "valid_json": 10,
+    "schema_valid": 10,
+    "overall_pass": 10,
+    "overall_fail": 0,
+    "total_place_refs": 138,
+    "invalid_place_refs": 0,
+    "invented_place_rate": 0.0,
+    "generations_passing_place": 13,
+    "generations_failing_place": 0,
+    "budget_checked": 13,
+    "budget_pass": 13,
+    "budget_fail": 0,
+    "v001_requirement_met": true
+  },
+  "generation_results": [
+    {
+      "test_id": "A",
+      "source_file": "A_parsed.json",
+      "planning_mode": "DESTINATION_FIRST",
+      "overall_passed": true,
+      "failure_codes": [],
+      "schema_validation": {
+        "passed": true,
+        "errors": []
+      },
+      "options": [
+        {
+          "destination_name": "Amman",
+          "passed": true,
+          "place_grounding": {
+            "passed": true,
+            "generated_place_count": 12,
+            "resolved_place_count": 12,
+            "invalid_place_count": 0,
+            "invented_place_rate": 0.0,
+            "invalid_places": [],
+            "failure_codes": []
+          },
+          "budget_feasibility": {
+            "checked": true,
+            "passed": true,
+            "options_total": 1,
+            "options_within_budget": 1,
+            "over_budget_options": [],
+            "option_costs": [
+              {
+                "destination": "Amman",
+                "cost": "141",
+                "budget": "400",
+                "currency": "JOD",
+                "within_budget": true
+              }
+            ],
+            "failure_codes": []
+          },
+          "errors": []
+        }
+      ]
+    },
+    {
+      "test_id": "B",
+      "source_file": "B_parsed.json",
+      "planning_mode": "DESTINATION_FIRST",
+      "overall_passed": true,
+      "failure_codes": [],
+      "schema_validation": {
+        "passed": true,
+        "errors": []
+      },
+      "options": [
+        {
+          "destination_name": "Amman",
+          "passed": true,
+          "place_grounding": {
+            "passed": true,
+            "generated_place_count": 10,
+            "resolved_place_count": 10,
+            "invalid_place_count": 0,
+            "invented_place_rate": 0.0,
+            "invalid_places": [],
+            "failure_codes": []
+          },
+          "budget_feasibility": {
+            "checked": true,
+            "passed": true,
+            "options_total": 1,
+            "options_within_budget": 1,
+            "over_budget_options": [],
+            "option_costs": [
+              {
+                "destination": "Amman",
+                "cost": "141",
+                "budget": "400",
+                "currency": "JOD",
+                "within_budget": true
+              }
+            ],
+            "failure_codes": []
+          },
+          "errors": []
+        }
+      ]
+    },
+    {
+      "test_id": "C",
+      "source_file": "C_parsed.json",
+      "planning_mode": "DESTINATION_FIRST",
+      "overall_passed": true,
+      "failure_codes": [],
+      "schema_validation": {
+        "passed": true,
+        "errors": []
+      },
+      "options": [
+        {
+          "destination_name": "Paris",
+          "passed": true,
+          "place_grounding": {
+            "passed": true,
+            "generated_place_count": 12,
+            "resolved_place_count": 12,
+            "invalid_place_count": 0,
+            "invented_place_rate": 0.0,
+            "invalid_places": [],
+            "failure_codes": []
+          },
+          "budget_feasibility": {
+            "checked": true,
+            "passed": true,
+            "options_total": 1,
+            "options_within_budget": 0,
+            "over_budget_options": [
+              {
+                "destination": "Paris",
+                "cost": "848.5",
+                "budget": "400",
+                "currency": "EUR",
+                "within_budget": false
+              }
+            ],
+            "option_costs": [
+              {
+                "destination": "Paris",
+                "cost": "848.5",
+                "budget": "400",
+                "currency": "EUR",
+                "within_budget": false
+              }
+            ],
+            "failure_codes": []
+          },
+          "errors": []
+        }
+      ]
+    },
+    {
+      "test_id": "D",
+      "source_file": "D_parsed.json",
+      "planning_mode": "DESTINATION_FIRST",
+      "overall_passed": true,
+      "failure_codes": [],
+      "schema_validation": {
+        "passed": true,
+        "errors": []
+      },
+      "options": [
+        {
+          "destination_name": "New York",
+          "passed": true,
+          "place_grounding": {
+            "passed": true,
+            "generated_place_count": 10,
+            "resolved_place_count": 10,
+            "invalid_place_count": 0,
+            "invented_place_rate": 0.0,
+            "invalid_places": [],
+            "failure_codes": []
+          },
+          "budget_feasibility": {
+            "checked": true,
+            "passed": true,
+            "options_total": 1,
+            "options_within_budget": 0,
+            "over_budget_options": [
+              {
+                "destination": "New York",
+                "cost": "743.5",
+                "budget": "400",
+                "currency": "USD",
+                "within_budget": false
+              }
+            ],
+            "option_costs": [
+              {
+                "destination": "New York",
+                "cost": "743.5",
+                "budget": "400",
+                "currency": "USD",
+                "within_budget": false
+              }
+            ],
+            "failure_codes": []
+          },
+          "errors": []
+        }
+      ]
+    },
+    {
+      "test_id": "E",
+      "source_file": "E_parsed.json",
+      "planning_mode": "BUDGET_FIRST",
+      "overall_passed": true,
+      "failure_codes": [],
+      "schema_validation": {
+        "passed": true,
+        "errors": []
+      },
+      "options": [
+        {
+          "destination_name": "Paris",
+          "passed": true,
+          "place_grounding": {
+            "passed": true,
+            "generated_place_count": 10,
+            "resolved_place_count": 10,
+            "invalid_place_count": 0,
+            "invented_place_rate": 0.0,
+            "invalid_places": [],
+            "failure_codes": []
+          },
+          "budget_feasibility": {
+            "checked": true,
+            "passed": true,
+            "options_total": 3,
+            "options_within_budget": 1,
+            "over_budget_options": [
+              {
+                "destination": "Paris",
+                "cost": "835.5",
+                "budget": "400",
+                "currency": "EUR",
+                "within_budget": false
+              },
+              {
+                "destination": "New York",
+                "cost": "743.5",
+                "budget": "400",
+                "currency": "USD",
+                "within_budget": false
+              }
+            ],
+            "option_costs": [
+              {
+                "destination": "Paris",
+                "cost": "835.5",
+                "budget": "400",
+                "currency": "EUR",
+                "within_budget": false
+              },
+              {
+                "destination": "Amman",
+                "cost": "183",
+                "budget": "400",
+                "currency": "JOD",
+                "within_budget": true
+              },
+              {
+                "destination": "New York",
+                "cost": "743.5",
+                "budget": "400",
+                "currency": "USD",
+                "within_budget": false
+              }
+            ],
+            "failure_codes": []
+          },
+          "errors": []
+        },
+        {
+          "destination_name": "Amman",
+          "passed": true,
+          "place_grounding": {
+            "passed": true,
+            "generated_place_count": 10,
+            "resolved_place_count": 10,
+            "invalid_place_count": 0,
+            "invented_place_rate": 0.0,
+            "invalid_places": [],
+            "failure_codes": []
+          },
+          "budget_feasibility": {
+            "checked": true,
+            "passed": true,
+            "options_total": 3,
+            "options_within_budget": 1,
+            "over_budget_options": [
+              {
+                "destination": "Paris",
+                "cost": "835.5",
+                "budget": "400",
+                "currency": "EUR",
+                "within_budget": false
+              },
+              {
+                "destination": "New York",
+                "cost": "743.5",
+                "budget": "400",
+                "currency": "USD",
+                "within_budget": false
+              }
+            ],
+            "option_costs": [
+              {
+                "destination": "Paris",
+                "cost": "835.5",
+                "budget": "400",
+                "currency": "EUR",
+                "within_budget": false
+              },
+              {
+                "destination": "Amman",
+                "cost": "183",
+                "budget": "400",
+                "currency": "JOD",
+                "within_budget": true
+              },
+              {
+                "destination": "New York",
+                "cost": "743.5",
+                "budget": "400",
+                "currency": "USD",
+                "within_budget": false
+              }
+            ],
+            "failure_codes": []
+          },
+          "errors": []
+        },
+        {
+          "destination_name": "New York",
+          "passed": true,
+          "place_grounding": {
+            "passed": true,
+            "generated_place_count": 10,
+            "resolved_place_count": 10,
+            "invalid_place_count": 0,
+            "invented_place_rate": 0.0,
+            "invalid_places": [],
+            "failure_codes": []
+          },
+          "budget_feasibility": {
+            "checked": true,
+            "passed": true,
+            "options_total": 3,
+            "options_within_budget": 1,
+            "over_budget_options": [
+              {
+                "destination": "Paris",
+                "cost": "835.5",
+                "budget": "400",
+                "currency": "EUR",
+                "within_budget": false
+              },
+              {
+                "destination": "New York",
+                "cost": "743.5",
+                "budget": "400",
+                "currency": "USD",
+                "within_budget": false
+              }
+            ],
+            "option_costs": [
+              {
+                "destination": "Paris",
+                "cost": "835.5",
+                "budget": "400",
+                "currency": "EUR",
+                "within_budget": false
+              },
+              {
+                "destination": "Amman",
+                "cost": "183",
+                "budget": "400",
+                "currency": "JOD",
+                "within_budget": true
+              },
+              {
+                "destination": "New York",
+                "cost": "743.5",
+                "budget": "400",
+                "currency": "USD",
+                "within_budget": false
+              }
+            ],
+            "failure_codes": []
+          },
+          "errors": []
+        }
+      ]
+    },
+    {
+      "test_id": "G",
+      "source_file": "G_parsed.json",
+      "planning_mode": "DESTINATION_FIRST",
+      "overall_passed": true,
+      "failure_codes": [],
+      "schema_validation": {
+        "passed": true,
+        "errors": []
+      },
+      "options": [
+        {
+          "destination_name": "Amman",
+          "passed": true,
+          "place_grounding": {
+            "passed": true,
+            "generated_place_count": 10,
+            "resolved_place_count": 10,
+            "invalid_place_count": 0,
+            "invented_place_rate": 0.0,
+            "invalid_places": [],
+            "failure_codes": []
+          },
+          "budget_feasibility": {
+            "checked": true,
+            "passed": true,
+            "options_total": 1,
+            "options_within_budget": 1,
+            "over_budget_options": [],
+            "option_costs": [
+              {
+                "destination": "Amman",
+                "cost": "141",
+                "budget": "400",
+                "currency": "JOD",
+                "within_budget": true
+              }
+            ],
+            "failure_codes": []
+          },
+          "errors": []
+        }
+      ]
+    },
+    {
+      "test_id": "I",
+      "source_file": "I_parsed.json",
+      "planning_mode": "DESTINATION_FIRST",
+      "overall_passed": true,
+      "failure_codes": [],
+      "schema_validation": {
+        "passed": true,
+        "errors": []
+      },
+      "options": [
+        {
+          "destination_name": "New York",
+          "passed": true,
+          "place_grounding": {
+            "passed": true,
+            "generated_place_count": 14,
+            "resolved_place_count": 14,
+            "invalid_place_count": 0,
+            "invented_place_rate": 0.0,
+            "invalid_places": [],
+            "failure_codes": []
+          },
+          "budget_feasibility": {
+            "checked": true,
+            "passed": true,
+            "options_total": 1,
+            "options_within_budget": 0,
+            "over_budget_options": [
+              {
+                "destination": "New York",
+                "cost": "1117.5",
+                "budget": "400",
+                "currency": "USD",
+                "within_budget": false
+              }
+            ],
+            "option_costs": [
+              {
+                "destination": "New York",
+                "cost": "1117.5",
+                "budget": "400",
+                "currency": "USD",
+                "within_budget": false
+              }
+            ],
+            "failure_codes": []
+          },
+          "errors": []
+        }
+      ]
+    },
+    {
+      "test_id": "J",
+      "source_file": "J_parsed.json",
+      "planning_mode": "BUDGET_FIRST",
+      "overall_passed": true,
+      "failure_codes": [],
+      "schema_validation": {
+        "passed": true,
+        "errors": []
+      },
+      "options": [
+        {
+          "destination_name": "Paris",
+          "passed": true,
+          "place_grounding": {
+            "passed": true,
+            "generated_place_count": 7,
+            "resolved_place_count": 7,
+            "invalid_place_count": 0,
+            "invented_place_rate": 0.0,
+            "invalid_places": [],
+            "failure_codes": []
+          },
+          "budget_feasibility": {
+            "checked": true,
+            "passed": true,
+            "options_total": 2,
+            "options_within_budget": 2,
+            "over_budget_options": [],
+            "option_costs": [
+              {
+                "destination": "Paris",
+                "cost": "241.5",
+                "budget": "400",
+                "currency": "EUR",
+                "within_budget": true
+              },
+              {
+                "destination": "Amman",
+                "cost": "68",
+                "budget": "400",
+                "currency": "JOD",
+                "within_budget": true
+              }
+            ],
+            "failure_codes": []
+          },
+          "errors": []
+        },
+        {
+          "destination_name": "Amman",
+          "passed": true,
+          "place_grounding": {
+            "passed": true,
+            "generated_place_count": 7,
+            "resolved_place_count": 7,
+            "invalid_place_count": 0,
+            "invented_place_rate": 0.0,
+            "invalid_places": [],
+            "failure_codes": []
+          },
+          "budget_feasibility": {
+            "checked": true,
+            "passed": true,
+            "options_total": 2,
+            "options_within_budget": 2,
+            "over_budget_options": [],
+            "option_costs": [
+              {
+                "destination": "Paris",
+                "cost": "241.5",
+                "budget": "400",
+                "currency": "EUR",
+                "within_budget": true
+              },
+              {
+                "destination": "Amman",
+                "cost": "68",
+                "budget": "400",
+                "currency": "JOD",
+                "within_budget": true
+              }
+            ],
+            "failure_codes": []
+          },
+          "errors": []
+        }
+      ]
+    },
+    {
+      "test_id": "K",
+      "source_file": "K_parsed.json",
+      "planning_mode": "DESTINATION_FIRST",
+      "overall_passed": true,
+      "failure_codes": [],
+      "schema_validation": {
+        "passed": true,
+        "errors": []
+      },
+      "options": [
+        {
+          "destination_name": "Amman",
+          "passed": true,
+          "place_grounding": {
+            "passed": true,
+            "generated_place_count": 14,
+            "resolved_place_count": 14,
+            "invalid_place_count": 0,
+            "invented_place_rate": 0.0,
+            "invalid_places": [],
+            "failure_codes": []
+          },
+          "budget_feasibility": {
+            "checked": true,
+            "passed": true,
+            "options_total": 1,
+            "options_within_budget": 1,
+            "over_budget_options": [],
+            "option_costs": [
+              {
+                "destination": "Amman",
+                "cost": "285",
+                "budget": "400",
+                "currency": "JOD",
+                "within_budget": true
+              }
+            ],
+            "failure_codes": []
+          },
+          "errors": []
+        }
+      ]
+    },
+    {
+      "test_id": "L",
+      "source_file": "L_parsed.json",
+      "planning_mode": "DESTINATION_FIRST",
+      "overall_passed": true,
+      "failure_codes": [],
+      "schema_validation": {
+        "passed": true,
+        "errors": []
+      },
+      "options": [
+        {
+          "destination_name": "Paris",
+          "passed": true,
+          "place_grounding": {
+            "passed": true,
+            "generated_place_count": 12,
+            "resolved_place_count": 12,
+            "invalid_place_count": 0,
+            "invented_place_rate": 0.0,
+            "invalid_places": [],
+            "failure_codes": []
+          },
+          "budget_feasibility": {
+            "checked": true,
+            "passed": true,
+            "options_total": 1,
+            "options_within_budget": 0,
+            "over_budget_options": [
+              {
+                "destination": "Paris",
+                "cost": "3355.5",
+                "budget": "400",
+                "currency": "EUR",
+                "within_budget": false
+              }
+            ],
+            "option_costs": [
+              {
+                "destination": "Paris",
+                "cost": "3355.5",
+                "budget": "400",
+                "currency": "EUR",
+                "within_budget": false
+              }
+            ],
+            "failure_codes": []
+          },
+          "errors": []
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,134 @@
+{
+  "planning_mode": "DESTINATION_FIRST",
+  "destination_options": [
+    {
+      "destination_name": "New York",
+      "accommodation": {
+        "place_name": "Pod 51 Hotel",
+        "nights": 4
+      },
+      "days": [
+        {
+          "day_number": 1,
+          "date": "2026-12-20",
+          "items": [
+            {
+              "time_slot": "MORNING",
+              "order_index": 1,
+              "place_name": "Airport Transfer – JFK to Manhattan",
+              "notes": "Arrival transport"
+            },
+            {
+              "time_slot": "AFTERNOON",
+              "order_index": 1,
+              "place_name": "Times Square",
+              "notes": "Explore the city"
+            },
+            {
+              "time_slot": "EVENING",
+              "order_index": 1,
+              "place_name": "Joe's Pizza",
+              "notes": "Classic NYC dinner"
+            }
+          ]
+        },
+        {
+          "day_number": 2,
+          "date": "2026-12-21",
+          "items": [
+            {
+              "time_slot": "MORNING",
+              "order_index": 1,
+              "place_name": "Statue of Liberty & Ellis Island Ferry",
+              "notes": "Morning sightseeing"
+            },
+            {
+              "time_slot": "AFTERNOON",
+              "order_index": 1,
+              "place_name": "Brooklyn Bridge Walk",
+              "notes": "Afternoon adventure"
+            },
+            {
+              "time_slot": "EVENING",
+              "order_index": 1,
+              "place_name": "Wo Hop",
+              "notes": "Dinner in Chinatown"
+            }
+          ]
+        },
+        {
+          "day_number": 3,
+          "date": "2026-12-22",
+          "items": [
+            {
+              "time_slot": "MORNING",
+              "order_index": 1,
+              "place_name": "Central Park",
+              "notes": "Morning walk"
+            },
+            {
+              "time_slot": "AFTERNOON",
+              "order_index": 1,
+              "place_name": "Saks Fifth Avenue",
+              "notes": "Shopping"
+            },
+            {
+              "time_slot": "EVENING",
+              "order_index": 1,
+              "place_name": "Le Bernardin",
+              "notes": "Fine dining experience"
+            }
+          ]
+        },
+        {
+          "day_number": 4,
+          "date": "2026-12-23",
+          "items": [
+            {
+              "time_slot": "MORNING",
+              "order_index": 1,
+              "place_name": "MUJI Fifth Avenue",
+              "notes": "Shopping"
+            },
+            {
+              "time_slot": "AFTERNOON",
+              "order_index": 1,
+              "place_name": "Empire State Building (86th floor)",
+              "notes": "Iconic city view"
+            },
+            {
+              "time_slot": "EVENING",
+              "order_index": 1,
+              "place_name": "Joe's Pizza",
+              "notes": "Evening meal"
+            }
+          ]
+        },
+        {
+          "day_number": 5,
+          "date": "2026-12-24",
+          "items": [
+            {
+              "time_slot": "MORNING",
+              "order_index": 1,
+              "place_name": "Top of the Rock Observation Deck",
+              "notes": "Morning view"
+            },
+            {
+              "time_slot": "AFTERNOON",
+              "order_index": 1,
+              "place_name": "SUMMIT One Vanderbilt",
+              "notes": "Interactive experience"
+            },
+            {
+              "time_slot": "EVENING",
+              "order_index": 1,
+              "place_name": "Wo Hop",
+              "notes": "Final dinner"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

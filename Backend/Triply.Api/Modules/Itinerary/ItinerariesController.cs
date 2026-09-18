@@ -146,7 +146,7 @@ var itinerary = new Triply.Api.Entities.Itinerary
                     PlaceId = itemRequest.PlaceId,
                     TimeSlot = itemRequest.TimeSlot.ToUpperInvariant(),
                     OrderIndex = itemRequest.OrderIndex,
-                    EstimatedCost = itemRequest.EstimatedCost,
+                    EstimatedCost = places.Single(place => place.Id == itemRequest.PlaceId).ReferencePrice,
                     Notes = itemRequest.Notes,
                     IsAiGenerated = itemRequest.IsAiGenerated,
                     ModifiedAt = itemRequest.IsAiGenerated ? null : DateTime.UtcNow
