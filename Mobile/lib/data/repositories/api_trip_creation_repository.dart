@@ -4,11 +4,6 @@ import 'trip_creation_repository.dart';
 
 /// Real backend-backed implementation, calling the Trip and Destination
 /// modules (see Backend/Triply.Api/Modules/{Trip,Destination}).
-///
-/// NOTE: destination-first suggestions still need `GET /api/destinations`
-/// (a plain supported-destinations list), which doesn't exist on the
-/// backend yet — flagged separately. Only the budget-first path
-/// (`POST /api/destinations/suggestions`) is wired to real data here.
 class ApiTripCreationRepository implements TripCreationRepository {
   ApiTripCreationRepository({required ApiClient apiClient})
       : _apiClient = apiClient;
@@ -16,12 +11,25 @@ class ApiTripCreationRepository implements TripCreationRepository {
   final ApiClient _apiClient;
 
   @override
+  Future<List<Map<String, dynamic>>> getDestinations() async {
+    final response = await _apiClient.get<List<dynamic>>('/api/destinations');
+
+    return response.cast<Map<String, dynamic>>().map((destination) {
+      return <String, dynamic>{
+        'id': destination['id'].toString(),
+        'destinationId': destination['id'] as int,
+        'name': destination['name'] as String,
+        'country': destination['countryName'] as String,
+        'description': destination['description'] as String? ?? '',
+      };
+    }).toList();
+  }
+
+  @override
   Future<List<Map<String, dynamic>>> getDestinationSuggestions(
     TripCreationData data,
   ) async {
     if (data.planningMode != PlanningMode.budgetFirst) {
-      // PENDING BACKEND: GET /api/destinations. Destination-first still
-      // renders the local placeholder list in budget_destination_screen.dart.
       return [];
     }
 

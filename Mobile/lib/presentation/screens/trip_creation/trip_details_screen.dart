@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_text_styles.dart';
+import '../../../core/validation/trip_validators.dart';
 import '../../providers/trip_creation_provider.dart';
 import '../../widgets/app_scaffold.dart';
 import '../../widgets/primary_button.dart';
@@ -103,47 +104,57 @@ class _TripDetailsScreenState extends State<TripDetailsScreen> {
     final controller = TextEditingController(
       text: _budget?.toStringAsFixed(0) ?? '',
     );
+    String? errorText;
 
     final result = await showDialog<double>(
       context: context,
       builder: (context) {
-        return AlertDialog(
-          title: const Text('Target Budget'),
-          content: TextField(
-            controller: controller,
-            autofocus: true,
-            keyboardType: const TextInputType.numberWithOptions(
-              decimal: true,
-            ),
-            decoration: InputDecoration(
-              prefixText: '\$ ',
-              hintText: '2500',
-              filled: true,
-              fillColor: AppColors.surfaceContainerLow,
-              border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(14),
-                borderSide: BorderSide.none,
+        return StatefulBuilder(
+          builder: (context, setState) {
+            return AlertDialog(
+              title: const Text('Target Budget'),
+              content: TextField(
+                controller: controller,
+                autofocus: true,
+                keyboardType: const TextInputType.numberWithOptions(
+                  decimal: true,
+                ),
+                decoration: InputDecoration(
+                  prefixText: '\$ ',
+                  hintText: '2500',
+                  filled: true,
+                  fillColor: AppColors.surfaceContainerLow,
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(14),
+                    borderSide: BorderSide.none,
+                  ),
+                  errorText: errorText,
+                ),
               ),
-            ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: const Text('Cancel'),
-            ),
-            ElevatedButton(
-              onPressed: () {
-                final value = double.tryParse(controller.text.trim());
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(context),
+                  child: const Text('Cancel'),
+                ),
+                ElevatedButton(
+                  onPressed: () {
+                    final error = TripValidators.budgetInput(
+                      controller.text,
+                      required: true,
+                    );
 
-                if (value == null || value <= 0) {
-                  return;
-                }
+                    if (error != null) {
+                      setState(() => errorText = error);
+                      return;
+                    }
 
-                Navigator.pop(context, value);
-              },
-              child: const Text('Save'),
-            ),
-          ],
+                    Navigator.pop(context, double.parse(controller.text.trim()));
+                  },
+                  child: const Text('Save'),
+                ),
+              ],
+            );
+          },
         );
       },
     );
@@ -157,6 +168,35 @@ class _TripDetailsScreenState extends State<TripDetailsScreen> {
     });
 
     context.read<TripCreationProvider>().setBudget(result);
+  }
+
+  void _continue(TripCreationProvider provider) {
+    final travelerError = TripValidators.travelerCount(_travelers);
+    if (travelerError != null) {
+      _showError(travelerError);
+      return;
+    }
+
+    final dateError = TripValidators.dateRange(_startDate, _endDate);
+    if (dateError != null) {
+      _showError(dateError);
+      return;
+    }
+
+    provider.setDates(startDate: _startDate, endDate: _endDate);
+    provider.setTravelers(_travelers);
+
+    if (_budget != null) {
+      provider.setBudget(_budget!);
+    }
+
+    provider.next();
+  }
+
+  void _showError(String message) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(message), behavior: SnackBarBehavior.floating),
+    );
   }
 
   String _formatDate(DateTime date) {
@@ -263,20 +303,7 @@ class _TripDetailsScreenState extends State<TripDetailsScreen> {
                   PrimaryButton(
                     label: 'Continue to Interests',
                     fullWidth: true,
-                    onPressed: () {
-                      provider.setDates(
-                        startDate: _startDate,
-                        endDate: _endDate,
-                      );
-
-                      provider.setTravelers(_travelers);
-
-                      if (_budget != null) {
-                        provider.setBudget(_budget!);
-                      }
-
-                      provider.next();
-                    },
+                    onPressed: () => _continue(provider),
                   ),
 
                   const SizedBox(height: 8),

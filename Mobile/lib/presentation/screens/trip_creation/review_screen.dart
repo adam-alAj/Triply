@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_text_styles.dart';
+import '../../../core/validation/trip_validators.dart';
 import '../../providers/trip_creation_provider.dart';
 import '../../widgets/app_scaffold.dart';
 import '../../widgets/primary_button.dart';
@@ -72,7 +73,7 @@ class ReviewScreen extends StatelessWidget {
                   PrimaryButton(
                     label: 'Generate My Trip',
                     fullWidth: true,
-                    onPressed: () => provider.goToGenerating(),
+                    onPressed: () => _generate(context, provider),
                   ),
 
                   const SizedBox(height: 8),
@@ -93,6 +94,43 @@ class ReviewScreen extends StatelessWidget {
         ],
       ),
     );
+  }
+
+  /// Final gate before submission (this task's acceptance criteria): catches
+  /// anything that slipped through the per-step checks — e.g. a step was
+  /// jumped to directly, or state was restored mid-flow — with the same
+  /// backend-consistent messaging used everywhere else.
+  void _generate(BuildContext context, TripCreationProvider provider) {
+    final errors = TripValidators.validateAll(provider.data);
+
+    if (errors.isNotEmpty) {
+      showDialog<void>(
+        context: context,
+        builder: (dialogContext) => AlertDialog(
+          title: const Text('Please fix the following'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              for (final error in errors)
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 4),
+                  child: Text('•  $error'),
+                ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(),
+              child: const Text('OK'),
+            ),
+          ],
+        ),
+      );
+      return;
+    }
+
+    provider.goToGenerating();
   }
 
   Widget _buildHeader(TripCreationProvider provider) {

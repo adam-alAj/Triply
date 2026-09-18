@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_text_styles.dart';
+import '../../../core/validation/trip_validators.dart';
 import '../../../data/models/trip_creation_data.dart';
 import '../../providers/trip_creation_provider.dart';
 import '../../widgets/primary_button.dart';
@@ -109,31 +110,15 @@ class _DestinationFirstContent extends StatelessWidget {
     final provider = context.watch<TripCreationProvider>();
     final selectedDestination = provider.data.destination;
 
-    // PENDING BACKEND: GET /api/destinations (a plain supported-destinations
-    // list) doesn't exist yet — only the two seeded destinations (Jerusalem,
-    // Amman) currently exist for real. This list stays local placeholder
-    // data until that endpoint ships; selecting one leaves
-    // TripCreationData.destinationId null, which submitTrip() cannot use.
-    const destinations = [
-      _DestinationOption(
-        name: 'Japan',
-        country: 'Japan',
-        description: 'Culture, food & tradition',
-        icon: Icons.temple_buddhist_outlined,
-      ),
-      _DestinationOption(
-        name: 'Italy',
-        country: 'Italy',
-        description: 'History, art & coastal escapes',
-        icon: Icons.account_balance_outlined,
-      ),
-      _DestinationOption(
-        name: 'Turkey',
-        country: 'Turkey',
-        description: 'Food, nature & heritage',
-        icon: Icons.landscape_outlined,
-      ),
-    ];
+    final destinations = provider.destinations.map((destination) {
+      return _DestinationOption(
+        name: destination['name'] as String,
+        country: destination['country'] as String,
+        description: destination['description'] as String? ?? '',
+        icon: Icons.place_outlined,
+        destinationId: destination['destinationId'] as int?,
+      );
+    }).toList();
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -170,21 +155,36 @@ class _DestinationFirstContent extends StatelessWidget {
 
         const SizedBox(height: 12),
 
-        ...destinations.map(
-              (destination) => Padding(
-            padding: const EdgeInsets.only(bottom: 12),
-            child: _DestinationCard(
-              option: destination,
-              selected: selectedDestination == destination.name,
-              onTap: () {
-                provider.selectDestination(
-                  name: destination.name,
-                  country: destination.country,
-                );
-              },
+        if (provider.destinationsLoading && destinations.isEmpty)
+          const Padding(
+            padding: EdgeInsets.symmetric(vertical: 24),
+            child: Center(child: CircularProgressIndicator()),
+          )
+        else if (destinations.isEmpty)
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: 24),
+            child: Text(
+              'No destinations available right now.',
+              style: AppTextStyles.bodyMd.copyWith(color: AppColors.secondary),
+            ),
+          )
+        else
+          ...destinations.map(
+            (destination) => Padding(
+              padding: const EdgeInsets.only(bottom: 12),
+              child: _DestinationCard(
+                option: destination,
+                selected: selectedDestination == destination.name,
+                onTap: () {
+                  provider.selectDestination(
+                    name: destination.name,
+                    country: destination.country,
+                    destinationId: destination.destinationId,
+                  );
+                },
+              ),
             ),
           ),
-        ),
 
         const SizedBox(height: 8),
 
@@ -326,12 +326,14 @@ class _DestinationOption {
     required this.country,
     required this.description,
     required this.icon,
+    this.destinationId,
   });
 
   final String name;
   final String country;
   final String description;
   final IconData icon;
+  final int? destinationId;
 }
 
 class _DestinationCard extends StatelessWidget {
@@ -653,42 +655,56 @@ void _showMockSearchMessage(BuildContext context) {
 
 void _showCustomBudgetDialog(BuildContext context) {
   final controller = TextEditingController();
+  final tripCreationProvider = context.read<TripCreationProvider>();
+  String? errorText;
 
   showDialog<void>(
     context: context,
     builder: (dialogContext) {
-      return AlertDialog(
-        title: const Text('Custom budget'),
-        content: TextField(
-          controller: controller,
-          keyboardType: TextInputType.number,
-          decoration: const InputDecoration(
-            prefixText: '\$ ',
-            hintText: '2500',
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () {
-              Navigator.pop(dialogContext);
-            },
-            child: const Text('Cancel'),
-          ),
-          FilledButton(
-            onPressed: () {
-              final value = double.tryParse(controller.text);
+      return StatefulBuilder(
+        builder: (dialogContext, setState) {
+          return AlertDialog(
+            title: const Text('Custom budget'),
+            content: TextField(
+              controller: controller,
+              keyboardType: TextInputType.number,
+              autofocus: true,
+              decoration: InputDecoration(
+                prefixText: '\$ ',
+                hintText: '2500',
+                errorText: errorText,
+              ),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () {
+                  Navigator.pop(dialogContext);
+                },
+                child: const Text('Cancel'),
+              ),
+              FilledButton(
+                onPressed: () {
+                  final error = TripValidators.budgetInput(
+                    controller.text,
+                    required: true,
+                  );
 
-              if (value == null || value <= 0) {
-                return;
-              }
+                  if (error != null) {
+                    setState(() => errorText = error);
+                    return;
+                  }
 
-              context.read<TripCreationProvider>().setBudget(value);
+                  tripCreationProvider.setBudget(
+                    double.parse(controller.text.trim()),
+                  );
 
-              Navigator.pop(dialogContext);
-            },
-            child: const Text('Save'),
-          ),
-        ],
+                  Navigator.pop(dialogContext);
+                },
+                child: const Text('Save'),
+              ),
+            ],
+          );
+        },
       );
     },
   );

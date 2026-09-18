@@ -26,6 +26,9 @@ class TripCreationProvider extends ChangeNotifier {
 
   List<Map<String, dynamic>> _suggestions = [];
 
+  List<Map<String, dynamic>> _destinations = [];
+  bool _destinationsLoading = false;
+
   String? _errorMessage;
 
   String? _createdTripId;
@@ -37,6 +40,10 @@ class TripCreationProvider extends ChangeNotifier {
   TripCreationStatus get status => _status;
 
   List<Map<String, dynamic>> get suggestions => _suggestions;
+
+  List<Map<String, dynamic>> get destinations => _destinations;
+
+  bool get destinationsLoading => _destinationsLoading;
 
   String? get errorMessage => _errorMessage;
 
@@ -73,6 +80,24 @@ class TripCreationProvider extends ChangeNotifier {
     _data.destinationId = null;
     _data.budget = null;
 
+    notifyListeners();
+
+    if (mode == PlanningMode.destinationFirst && _destinations.isEmpty) {
+      loadDestinations();
+    }
+  }
+
+  Future<void> loadDestinations() async {
+    _destinationsLoading = true;
+    notifyListeners();
+
+    try {
+      _destinations = await _repository.getDestinations();
+    } catch (_) {
+      _destinations = [];
+    }
+
+    _destinationsLoading = false;
     notifyListeners();
   }
 

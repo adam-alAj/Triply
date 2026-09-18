@@ -1,7 +1,28 @@
+import '../models/home_region.dart';
 import '../models/home_trip.dart';
 import 'home_repository.dart';
 
 class MockHomeRepository implements HomeRepository {
+  @override
+  Future<List<HomeRegion>> getFeaturedRegions() async {
+    await Future.delayed(const Duration(milliseconds: 300));
+
+    return const [
+      HomeRegion(
+        name: 'Japan',
+        country: 'Japan',
+        description: 'Culture, Gastronomy, Rail',
+        imageAsset: 'assets/images/home_japan.jpg',
+      ),
+      HomeRegion(
+        name: 'Italy',
+        country: 'Italy',
+        description: 'Coastal, History, Wine',
+        imageAsset: 'assets/images/home_italy.jpg',
+      ),
+    ];
+  }
+
   @override
   Future<List<HomeTrip>> getRecentTrips() async {
     await Future.delayed(const Duration(milliseconds: 400));
