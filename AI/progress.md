@@ -63,9 +63,34 @@ traceability.
 
 ---
 
-## 4. Not Yet Started
+## 4. Gemini JSON Output Schema Finalization (TASK46) — ✅ Complete
 
-- Validation harness (`AI/03-Validation/place-existence-check/` — currently empty)
+**Task objective:** Validate and lock the Gemini JSON output schema against the agreed contract, dataset, and prompt templates. Align Backend with v2.0.0.
+
+| Step | Detail | Status |
+| --- | --- | --- |
+| Phase 1-2: Repository & dependency audit | Inspected all artifacts: contract v2.0.0, schema.json, prompt templates, dataset CSVs, Backend entities/DTOs | ✅ Done |
+| Phase 3-6: Consistency matrix | Identified 7 critical misalignments between Backend (v1-era) and contract v2.0.0 | ✅ Done |
+| Phase 7-8: Schema validation | Confirmed `triply-trip-plan-generation.schema.json` is valid JSON Schema draft 2020-12, all $refs resolve | ✅ Done |
+| Phase 10: Backend DTO alignment | Rewrote `AiOrchestrationDtos.cs` — root shape `{planning_mode, destination_options[]}`, `place_name` replaces `PlaceId`, `accommodation` object added | ✅ Done |
+| Phase 10b: Validation service | Rewrote `ItineraryValidationService.cs` — name-based grounding, category rules, 0% tolerance | ✅ Done |
+| Phase 10c: Prompt builder | Rewrote `ItineraryPromptBuilder.cs` — `place_name` grounding, category-grouped lists, BUDGET_FIRST support | ✅ Done |
+| Phase 10d: Orchestration service | Updated `AiOrchestrationService.cs` — handles new DTO structure, name-to-ID resolution for persistence | ✅ Done |
+| Phase 10e: Gemini client | Updated `GeminiClient.cs` — added `GenerateJsonWithSchemaAsync` with `responseJsonSchema` | ✅ Done |
+| Phase 11: Validation harness | Created `AI/03-Validation/validate_schema.py` — 15 test cases covering valid/invalid/edge scenarios | ✅ Done |
+| Phase 12: Test results | All 15/15 test cases pass: valid itineraries, missing fields, wrong types, invalid enums, unexpected fields, realistic dataset values | ✅ Done |
+| Phase 9: Schema changelog | Created `AI/docs/SCHEMA_CHANGELOG.md` — documents all changes, reasons, and integration notes | ✅ Done |
+
+**Key findings:**
+- The schema JSON file was already correct at v2.0.0 — no schema changes needed
+- The Backend was the source of drift: DTOs used `PlaceId` (numeric), flat structure, no `planning_mode`/`accommodation`
+- All 5 Backend files in AI-Orchestration were updated to align with the contract
+- `Extra_AI_Context.csv` budget_tier not yet joined in the place query (marked as TODO)
+
+---
+
+## 5. Not Yet Started
+
 - `PlaceInterest` seed file + seeder update (blocked on Backend decision, §2 above)
 
 ---
