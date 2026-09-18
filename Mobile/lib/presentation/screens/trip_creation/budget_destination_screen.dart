@@ -653,59 +653,75 @@ void _showMockSearchMessage(BuildContext context) {
   );
 }
 
-void _showCustomBudgetDialog(BuildContext context) {
-  final controller = TextEditingController();
+Future<void> _showCustomBudgetDialog(BuildContext context) async {
   final tripCreationProvider = context.read<TripCreationProvider>();
-  String? errorText;
 
-  showDialog<void>(
+  final value = await showDialog<double>(
     context: context,
-    builder: (dialogContext) {
-      return StatefulBuilder(
-        builder: (dialogContext, setState) {
-          return AlertDialog(
-            title: const Text('Custom budget'),
-            content: TextField(
-              controller: controller,
-              keyboardType: TextInputType.number,
-              autofocus: true,
-              decoration: InputDecoration(
-                prefixText: '\$ ',
-                hintText: '2500',
-                errorText: errorText,
-              ),
-            ),
-            actions: [
-              TextButton(
-                onPressed: () {
-                  Navigator.pop(dialogContext);
-                },
-                child: const Text('Cancel'),
-              ),
-              FilledButton(
-                onPressed: () {
-                  final error = TripValidators.budgetInput(
-                    controller.text,
-                    required: true,
-                  );
-
-                  if (error != null) {
-                    setState(() => errorText = error);
-                    return;
-                  }
-
-                  tripCreationProvider.setBudget(
-                    double.parse(controller.text.trim()),
-                  );
-
-                  Navigator.pop(dialogContext);
-                },
-                child: const Text('Save'),
-              ),
-            ],
-          );
-        },
-      );
-    },
+    builder: (_) => const _CustomBudgetDialog(),
   );
+
+  if (value != null) {
+    tripCreationProvider.setBudget(value);
+  }
+}
+
+/// A dedicated StatefulWidget (not an ad-hoc StatefulBuilder + a
+/// TextEditingController manually created around showDialog) so Flutter's
+/// own widget lifecycle owns the controller — see trip_details_screen.dart's
+/// `_BudgetDialog` for the crash this pattern avoids.
+class _CustomBudgetDialog extends StatefulWidget {
+  const _CustomBudgetDialog();
+
+  @override
+  State<_CustomBudgetDialog> createState() => _CustomBudgetDialogState();
+}
+
+class _CustomBudgetDialogState extends State<_CustomBudgetDialog> {
+  final _controller = TextEditingController();
+  String? _errorText;
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  void _save() {
+    final error = TripValidators.budgetInput(_controller.text, required: true);
+
+    if (error != null) {
+      setState(() => _errorText = error);
+      return;
+    }
+
+    Navigator.pop(context, double.parse(_controller.text.trim()));
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: const Text('Custom budget'),
+      content: TextField(
+        controller: _controller,
+        keyboardType: TextInputType.number,
+        autofocus: true,
+        decoration: InputDecoration(
+          prefixText: '\$ ',
+          hintText: '2500',
+          errorText: _errorText,
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: const Text('Cancel'),
+        ),
+        FilledButton(
+          onPressed: _save,
+          child: const Text('Save'),
+        ),
+      ],
+    );
+  }
 }
