@@ -63,7 +63,7 @@ traceability.
 
 ---
 
-## 4. Gemini JSON Output Schema Finalization (TASK46) — ✅ Complete
+## 4. Gemini JSON Output Schema Finalization (TASK36) — ✅ Complete
 
 **Task objective:** Validate and lock the Gemini JSON output schema against the agreed contract, dataset, and prompt templates. Align Backend with v2.0.0.
 
@@ -89,7 +89,7 @@ traceability.
 
 ---
 
-## 5. Gemini Prototype Experiments (TASK45) — ✅ Complete
+## 5. Gemini Prototype Experiments (TASK37) — ✅ Complete
 
 **Task objective:** Run controlled prototype experiments against Gemini Flash-family models to verify prompt + schema + dataset context can reliably produce structured itinerary output.
 
@@ -118,7 +118,7 @@ traceability.
 
 ---
 
-## 6. AI-Output Validation Rules Specification (TASK46b) — ✅ Complete
+## 6. AI-Output Validation Rules Specification (TASK38) — ✅ Complete
 
 **Task objective:** Convert FR-AI-002 validation requirements into explicit, deterministic, codeable rules for Backend implementation.
 
@@ -144,7 +144,7 @@ traceability.
 
 ---
 
-## 7. Python Validation Harness (TASK46c) — ✅ Complete
+## 7. Python Validation Harness (TASK39) — ✅ Complete
 
 **Task objective:** Implement a systematic, reproducible Python validation harness that implements V-001 and V-002 per the validation specification.
 
