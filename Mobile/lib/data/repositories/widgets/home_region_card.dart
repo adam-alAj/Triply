@@ -22,8 +22,7 @@ class HomeRegionCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Expanded(
-      child: Container(
+    return Container(
         decoration: BoxDecoration(
           color: AppColors.surfaceContainerLowest,
           borderRadius: BorderRadius.circular(20),
@@ -106,7 +105,6 @@ class HomeRegionCard extends StatelessWidget {
             ),
           ],
         ),
-      ),
     );
   }
 }

@@ -234,17 +234,13 @@ class _HomeViewState extends State<_HomeView>
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               for (final region in provider.regions) ...[
-                                // HomeRegionCard already wraps itself in
-                                // Expanded — do not add a second one here
-                                // (two Expandeds writing FlexParentData to
-                                // the same RenderObject throws "Incorrect
-                                // use of ParentDataWidget" and cascades into
-                                // unrelated-looking framework assertions).
-                                HomeRegionCard(
-                                  name: region.name,
-                                  imageAsset: region.imageAsset,
-                                  badge: region.country,
-                                  description: region.description,
+                                Expanded(
+                                  child: HomeRegionCard(
+                                    name: region.name,
+                                    imageAsset: region.imageAsset,
+                                    badge: region.country,
+                                    description: region.description,
+                                  ),
                                 ),
                                 if (region != provider.regions.last)
                                   const SizedBox(width: 10),
