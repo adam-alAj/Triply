@@ -1,14 +1,16 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import '../../../core/network/api_client.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_text_styles.dart';
-import '../../../data/repositories/mock_home_repository.dart';
+import '../../../data/repositories/api_home_repository.dart';
 import '../../../data/repositories/widgets/home_active_trip_card.dart';
 import '../../../data/repositories/widgets/home_region_card.dart';
 import '../../providers/home_provider.dart';
 import '../../widgets/app_bottom_navigation.dart';
 import '../../widgets/empty_state.dart';
+import '../../widgets/loading_skeleton.dart';
 
 class HomeScreen extends StatelessWidget {
   const HomeScreen({super.key});
@@ -17,7 +19,7 @@ class HomeScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     return ChangeNotifierProvider(
       create: (_) => HomeProvider(
-        repository: MockHomeRepository(),
+        repository: ApiHomeRepository(apiClient: context.read<ApiClient>()),
       )..loadHome(),
       child: const _HomeView(),
     );
@@ -78,9 +80,7 @@ class _HomeViewState extends State<_HomeView>
         child: Consumer<HomeProvider>(
           builder: (context, provider, _) {
             if (provider.status == HomeStatus.loading) {
-              return const Center(
-                child: CircularProgressIndicator(),
-              );
+              return const _HomeLoadingSkeleton();
             }
 
             if (provider.status == HomeStatus.failure) {
@@ -232,30 +232,19 @@ class _HomeViewState extends State<_HomeView>
                           ),
                           child: Row(
                             crossAxisAlignment: CrossAxisAlignment.start,
-                            children: const [
-                              Expanded(
-                                child: HomeRegionCard(
-                                  name: 'Japan',
-                                  imageAsset:
-                                  'assets/images/home_japan.jpg',
-                                  badge: 'Top Pick',
-                                  guides: '14 Guides',
-                                  description:
-                                  'Culture, Gastronomy, Rail',
+                            children: [
+                              for (final region in provider.regions) ...[
+                                Expanded(
+                                  child: HomeRegionCard(
+                                    name: region.name,
+                                    imageAsset: region.imageAsset,
+                                    badge: region.country,
+                                    description: region.description,
+                                  ),
                                 ),
-                              ),
-                              SizedBox(width: 10),
-                              Expanded(
-                                child: HomeRegionCard(
-                                  name: 'Italy',
-                                  imageAsset:
-                                  'assets/images/home_italy.jpg',
-                                  badge: 'Scenic',
-                                  guides: '18 Guides',
-                                  description:
-                                  'Coastal, History, Wine',
-                                ),
-                              ),
+                                if (region != provider.regions.last)
+                                  const SizedBox(width: 10),
+                              ],
                             ],
                           ),
                         ),
@@ -281,6 +270,31 @@ class _HomeViewState extends State<_HomeView>
         ),
       ),
       bottomNavigationBar: const AppBottomNavigation(selected: AppNavTab.home),
+    );
+  }
+}
+
+/// Mirrors Home's actual layout (08_SYSTEM_DESIGN.md §34: "skeletons when
+/// content structure is known" — avoid a bare spinner when we do).
+class _HomeLoadingSkeleton extends StatelessWidget {
+  const _HomeLoadingSkeleton();
+
+  @override
+  Widget build(BuildContext context) {
+    return const Padding(
+      padding: EdgeInsets.fromLTRB(16, 10, 16, 0),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          LoadingSkeleton(height: 24, width: 220, borderRadius: 6),
+          SizedBox(height: 24),
+          LoadingSkeleton(height: 160, borderRadius: 24),
+          SizedBox(height: 20),
+          LoadingSkeleton(height: 18, width: 140, borderRadius: 6),
+          SizedBox(height: 10),
+          LoadingSkeleton(height: 130, borderRadius: 20),
+        ],
+      ),
     );
   }
 }

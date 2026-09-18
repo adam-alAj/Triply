@@ -447,12 +447,18 @@ class _ActionBar extends StatelessWidget {
     if (!confirmed || !context.mounted) return;
 
     final provider = context.read<TripOverviewProvider>();
-    await provider.archiveTrip(context.read<ApiClient>());
-    if (context.mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Trip archived.')),
-      );
-    }
+    final succeeded = await provider.archiveTrip(context.read<ApiClient>());
+    if (!context.mounted) return;
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          succeeded
+              ? 'Trip archived.'
+              : provider.errorMessage ?? 'Unable to archive this trip.',
+        ),
+      ),
+    );
   }
 }
 
@@ -1175,11 +1181,9 @@ class _BudgetHealthCard
 
     final fraction = health.spentFraction;
 
-    final spentPercent =
-    (health.spentUsd /
-        health.targetCapUsd *
-        100)
-        .round();
+    final spentPercent = health.targetCapUsd <= 0
+        ? 0
+        : (health.spentUsd / health.targetCapUsd * 100).round();
 
     final remainingPercent =
         100 - spentPercent;

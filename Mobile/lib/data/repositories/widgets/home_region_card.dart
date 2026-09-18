@@ -10,20 +10,19 @@ class HomeRegionCard extends StatelessWidget {
     required this.name,
     required this.imageAsset,
     required this.badge,
-    required this.guides,
+    this.guides,
     required this.description,
   });
 
   final String name;
   final String imageAsset;
   final String badge;
-  final String guides;
+  final String? guides;
   final String description;
 
   @override
   Widget build(BuildContext context) {
-    return Expanded(
-      child: Container(
+    return Container(
         decoration: BoxDecoration(
           color: AppColors.surfaceContainerLowest,
           borderRadius: BorderRadius.circular(20),
@@ -88,11 +87,13 @@ class HomeRegionCard extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(
-                    guides,
-                    style: AppTextStyles.labelSm,
-                  ),
-                  const SizedBox(height: 3),
+                  if (guides != null) ...[
+                    Text(
+                      guides!,
+                      style: AppTextStyles.labelSm,
+                    ),
+                    const SizedBox(height: 3),
+                  ],
                   Text(
                     description,
                     maxLines: 1,
@@ -104,7 +105,6 @@ class HomeRegionCard extends StatelessWidget {
             ),
           ],
         ),
-      ),
     );
   }
 }

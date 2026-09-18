@@ -88,12 +88,31 @@ class TripOverviewProvider extends ChangeNotifier {
     notifyListeners();
   }
 
-  /// Real backend call — `POST /api/trips/{id}/archive` exists and works.
-  Future<void> archiveTrip(ApiClient apiClient) async {
-    await apiClient.post<Map<String, dynamic>>('/api/trips/$_tripId/archive');
-    if (_trip != null) {
-      _trip = _trip!.copyWith(status: 'ARCHIVED');
+  /// Real backend call — `POST /api/trips/{id}/archive`. Returns whether it
+  /// succeeded; check [errorMessage] on failure. A 409 means someone else
+  /// (or another device) changed this trip since it was loaded here —
+  /// surfaced as a distinct "stale version" message rather than a generic
+  /// failure, per UI Pages §8's optimistic-concurrency special state.
+  Future<bool> archiveTrip(ApiClient apiClient) async {
+    try {
+      await apiClient.post<Map<String, dynamic>>('/api/trips/$_tripId/archive');
+
+      if (_trip != null) {
+        _trip = _trip!.copyWith(status: 'ARCHIVED');
+      }
       notifyListeners();
+      return true;
+    } catch (error) {
+      if (error is ApiException && error.statusCode == 409) {
+        _errorMessage = 'This trip changed elsewhere — reload to see the '
+            'latest version before archiving.';
+      } else {
+        _errorMessage = error is ApiException
+            ? error.message
+            : 'Unable to archive this trip. Please try again.';
+      }
+      notifyListeners();
+      return false;
     }
   }
 
