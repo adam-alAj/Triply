@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using Triply.Api.Data;
+using Triply.Api.Entities;
 using Triply.Api.Modules.Cost.Dtos;
 
 namespace Triply.Api.Modules.Cost;
@@ -28,56 +29,79 @@ public class CostAggregationService : ICostAggregationService
         var categories = await _db.CostCategories
             .AsNoTracking()
             .OrderBy(c => c.Id)
-            .Select(c => new CostCategoryEstimateResponse
-            {
-                CostCategoryId = c.Id,
-                CategoryCode = c.Code,
-                CategoryName = c.Label,
-                Amount = 0,
-                Currency = string.Empty,
-                IsEstimated = true
-            })
             .ToListAsync(cancellationToken);
 
-        var rows = await _db.CostEstimates
+        // Cost aggregation is deterministic Backend logic. Resolve the
+        // itinerary places against the internal dataset and aggregate the
+        // authoritative/snapshotted item costs by CostCategory.
+        var items = await _db.ItineraryItems
             .AsNoTracking()
-            .Where(x => x.TripId == tripId)
-            .Select(x => new
-            {
-                x.CostCategoryId,
-                x.Amount,
-                Currency = x.Currency.IsoCode
-            })
+            .Where(item => item.ItineraryDay.Itinerary.TripId == tripId)
+            .Include(item => item.Place)
+                .ThenInclude(place => place.Currency)
             .ToListAsync(cancellationToken);
 
-        var currencies = rows
-            .Select(x => x.Currency)
+        var currencies = items
+            .Select(item => item.Place.Currency.IsoCode)
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .ToList();
 
         if (currencies.Count > 1)
         {
             throw new InvalidOperationException(
-                "Cost estimates for a trip must use the same currency before they can be aggregated.");
+                "Itinerary places for a trip must use the same currency before costs can be aggregated.");
         }
 
         var currency = currencies.FirstOrDefault()
             ?? trip.BudgetCurrency?.IsoCode
             ?? string.Empty;
-        var grouped = rows
-            .GroupBy(x => x.CostCategoryId)
-            .ToDictionary(g => g.Key, g => g.Sum(x => x.Amount));
 
-        foreach (var category in categories)
+        var grouped = items
+            .GroupBy(item => item.Place.CostCategoryId)
+            .ToDictionary(group => group.Key, group => group.Sum(item => item.Place.ReferencePrice));
+
+        var categoryAmounts = categories
+            .Select(category => new
+            {
+                Category = category,
+                Amount = grouped.TryGetValue(category.Id, out var amount)
+                    ? amount
+                    : 0m
+            })
+            .ToList();
+
+        var total = categoryAmounts.Sum(x => x.Amount);
+
+        await using var transaction =
+            await _db.Database.BeginTransactionAsync(cancellationToken);
+
+        var existingEstimates = await _db.CostEstimates
+            .Where(x => x.TripId == tripId)
+            .ToListAsync(cancellationToken);
+
+        _db.CostEstimates.RemoveRange(existingEstimates);
+
+        foreach (var item in categoryAmounts.Where(x => x.Amount > 0))
         {
-            if (grouped.TryGetValue(category.CostCategoryId, out var amount))
-                category.Amount = amount;
+            var currencyId = items
+                .Where(x => x.Place.CostCategoryId == item.Category.Id)
+                .Select(x => x.Place.CurrencyId)
+                .FirstOrDefault();
 
-            category.Currency = currency;
-            category.IsEstimated = true;
+            if (currencyId == 0)
+                currencyId = trip.BudgetCurrencyId
+                    ?? throw new InvalidOperationException(
+                        "A currency is required to persist a cost estimate.");
+
+            _db.CostEstimates.Add(new CostEstimate
+            {
+                TripId = tripId,
+                CostCategoryId = item.Category.Id,
+                Amount = item.Amount,
+                CurrencyId = currencyId,
+                ComputedAt = DateTime.UtcNow
+            });
         }
-
-        var total = categories.Sum(x => x.Amount);
 
         await _db.Trips
             .Where(t => t.Id == tripId)
@@ -87,10 +111,23 @@ public class CostAggregationService : ICostAggregationService
                     .SetProperty(t => t.UpdatedAt, DateTime.UtcNow),
                 cancellationToken);
 
+        await _db.SaveChangesAsync(cancellationToken);
+        await transaction.CommitAsync(cancellationToken);
+
         return new CostEstimateResponse
         {
             TripId = tripId,
-            Categories = categories,
+            Categories = categoryAmounts
+                .Select(x => new CostCategoryEstimateResponse
+                {
+                    CostCategoryId = x.Category.Id,
+                    CategoryCode = x.Category.Code,
+                    CategoryName = x.Category.Label,
+                    Amount = x.Amount,
+                    Currency = currency,
+                    IsEstimated = true
+                })
+                .ToList(),
             TotalEstimatedCost = total,
             Currency = currency,
             IsEstimated = true
