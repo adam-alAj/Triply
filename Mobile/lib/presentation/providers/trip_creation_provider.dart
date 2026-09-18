@@ -153,22 +153,25 @@ class TripCreationProvider extends ChangeNotifier {
   Future<void> next() async {
     if (_currentStep >= 5) return;
 
-    // Fire the suggestions request right as the user leaves the step just
-    // before the suggestions screen (Budget for destination-first is
-    // already picked directly, so it never routes through here for that
-    // mode's real data — see suggestionsStepIndex).
-    if (_currentStep == suggestionsStepIndex - 1) {
+    // Budget-first only: fire the suggestions request right as the user
+    // leaves the step just before the suggestions screen. Destination-first
+    // skips the suggestions screen entirely below — a real Destination
+    // (from GET /api/destinations) is already an exact, specific pick, so
+    // there's nothing left to "suggest" once one is chosen.
+    if (_isBudgetFirst && _currentStep == suggestionsStepIndex - 1) {
       await loadSuggestions();
     }
 
-    _currentStep++;
+    _currentStep +=
+        (!_isBudgetFirst && _currentStep + 1 == suggestionsStepIndex) ? 2 : 1;
     notifyListeners();
   }
 
   void back() {
     if (_currentStep <= 0) return;
 
-    _currentStep--;
+    _currentStep -=
+        (!_isBudgetFirst && _currentStep - 1 == suggestionsStepIndex) ? 2 : 1;
     notifyListeners();
   }
 
