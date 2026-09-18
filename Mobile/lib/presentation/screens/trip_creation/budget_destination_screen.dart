@@ -6,6 +6,8 @@ import '../../../core/theme/app_text_styles.dart';
 import '../../../core/validation/trip_validators.dart';
 import '../../../data/models/trip_creation_data.dart';
 import '../../providers/trip_creation_provider.dart';
+import '../../widgets/error_state.dart';
+import '../../widgets/loading_skeleton.dart';
 import '../../widgets/primary_button.dart';
 
 class BudgetDestinationScreen extends StatelessWidget {
@@ -157,8 +159,20 @@ class _DestinationFirstContent extends StatelessWidget {
 
         if (provider.destinationsLoading && destinations.isEmpty)
           const Padding(
-            padding: EdgeInsets.symmetric(vertical: 24),
-            child: Center(child: CircularProgressIndicator()),
+            padding: EdgeInsets.symmetric(vertical: 12),
+            child: Column(
+              children: [
+                LoadingSkeleton(height: 96, borderRadius: 20),
+                SizedBox(height: 12),
+                LoadingSkeleton(height: 96, borderRadius: 20),
+              ],
+            ),
+          )
+        else if (provider.destinationsError != null)
+          ErrorState(
+            title: "Couldn't load destinations",
+            description: provider.destinationsError!,
+            onAction: provider.loadDestinations,
           )
         else if (destinations.isEmpty)
           Padding(

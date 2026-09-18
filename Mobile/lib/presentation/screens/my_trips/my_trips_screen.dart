@@ -9,6 +9,7 @@ import '../../../data/repositories/api_my_trips_repository.dart';
 import '../../providers/my_trips_provider.dart';
 import '../../widgets/app_bottom_navigation.dart';
 import '../../widgets/empty_state.dart';
+import '../../widgets/loading_skeleton.dart';
 
 class MyTripsScreen extends StatelessWidget {
   const MyTripsScreen({super.key});
@@ -65,6 +66,28 @@ class _MyTripsView extends StatelessWidget {
   }
 }
 
+/// Mirrors _TripCard's shape (08_SYSTEM_DESIGN.md §34: skeletons over a
+/// bare spinner when content structure is known).
+class _MyTripsLoadingSkeleton extends StatelessWidget {
+  const _MyTripsLoadingSkeleton();
+
+  @override
+  Widget build(BuildContext context) {
+    return ListView(
+      padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+      children: const [
+        LoadingSkeleton(height: 160, borderRadius: 24),
+        SizedBox(height: 12),
+        LoadingSkeleton(height: 18, width: 180, borderRadius: 6),
+        SizedBox(height: 8),
+        LoadingSkeleton(height: 14, width: 220, borderRadius: 6),
+        SizedBox(height: 24),
+        LoadingSkeleton(height: 160, borderRadius: 24),
+      ],
+    );
+  }
+}
+
 class _Body extends StatelessWidget {
   const _Body({required this.provider, required this.images});
 
@@ -74,7 +97,7 @@ class _Body extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     if (provider.status == MyTripsStatus.loading) {
-      return const Center(child: CircularProgressIndicator());
+      return const _MyTripsLoadingSkeleton();
     }
 
     if (provider.status == MyTripsStatus.failure) {

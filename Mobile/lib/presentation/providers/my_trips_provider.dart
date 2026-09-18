@@ -1,5 +1,6 @@
 import 'package:flutter/foundation.dart';
 
+import '../../core/network/api_client.dart';
 import '../../data/models/trip_summary.dart';
 import '../../data/repositories/my_trips_repository.dart';
 
@@ -37,7 +38,10 @@ class MyTripsProvider extends ChangeNotifier {
       _trips = await _repository.getMyTrips();
       status = MyTripsStatus.success;
     } catch (error) {
-      errorMessage = error.toString();
+      // Never show a raw exception (08_SYSTEM_DESIGN.md §36).
+      errorMessage = error is ApiException
+          ? error.message
+          : 'Unable to load your trips. Please try again.';
       status = MyTripsStatus.failure;
     }
 

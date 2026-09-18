@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import '../../core/storage/token_storage.dart';
+
 class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key});
 
@@ -48,12 +50,20 @@ class _SplashScreenState extends State<SplashScreen>
 
     _controller.forward();
 
-    Future.delayed(const Duration(milliseconds: 4500), () {
+    Future.delayed(const Duration(milliseconds: 4500), () async {
+      if (!mounted) return;
+
+      // Session restore (UI Pages §8): a saved token means the user already
+      // logged in on this device — skip Onboarding/Login and go straight to
+      // Home. There's no `GET /api/users/me` yet (flagged separately), so
+      // this only restores the *session*, not the profile fields; Profile
+      // still shows a generic name until that endpoint exists.
+      final hasSession = await TokenStorage().readToken() != null;
       if (!mounted) return;
 
       Navigator.pushReplacementNamed(
         context,
-        '/onboarding',
+        hasSession ? '/home' : '/onboarding',
       );
     });
   }

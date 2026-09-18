@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_text_styles.dart';
 import '../../providers/trip_creation_provider.dart';
+import '../../widgets/error_state.dart';
 import '../../widgets/primary_button.dart';
 
 class DestinationSuggestionsScreen extends StatelessWidget {
@@ -23,7 +24,14 @@ class DestinationSuggestionsScreen extends StatelessWidget {
             const _Header(),
 
             Expanded(
-              child: suggestions.isEmpty
+              child: provider.status == TripCreationStatus.failure
+                  ? ErrorState(
+                      title: "Couldn't load suggestions",
+                      description: provider.errorMessage ??
+                          'Something went wrong. Please try again.',
+                      onAction: provider.loadSuggestions,
+                    )
+                  : suggestions.isEmpty
                   ? const _EmptySuggestions()
                   : ListView(
                 padding: const EdgeInsets.fromLTRB(

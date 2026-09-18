@@ -449,12 +449,18 @@ class _ActionBar extends StatelessWidget {
     if (!confirmed || !context.mounted) return;
 
     final provider = context.read<TripOverviewProvider>();
-    await provider.archiveTrip(context.read<ApiClient>());
-    if (context.mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Trip archived.')),
-      );
-    }
+    final succeeded = await provider.archiveTrip(context.read<ApiClient>());
+    if (!context.mounted) return;
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          succeeded
+              ? 'Trip archived.'
+              : provider.errorMessage ?? 'Unable to archive this trip.',
+        ),
+      ),
+    );
   }
 }
 
