@@ -79,4 +79,7 @@ class ApiAuthRepository implements AuthRepository {
     final atIndex = email.indexOf('@');
     return atIndex > 0 ? email.substring(0, atIndex) : email;
   }
+
+  @override
+  Future<void> logout() => _tokenStorage.clearToken();
 }

@@ -21,13 +21,14 @@ class AppBottomNavigation extends StatelessWidget {
     Navigator.of(context).pushNamedAndRemoveUntil('/home', (route) => false);
   }
 
-  void _placeholder(BuildContext context, String feature) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text('$feature is coming soon.'),
-        behavior: SnackBarBehavior.floating,
-      ),
-    );
+  void _goMyTrips(BuildContext context) {
+    if (selected == AppNavTab.myTrips) return;
+    Navigator.of(context).pushNamedAndRemoveUntil('/my-trips', (route) => false);
+  }
+
+  void _goProfile(BuildContext context) {
+    if (selected == AppNavTab.profile) return;
+    Navigator.of(context).pushNamedAndRemoveUntil('/profile', (route) => false);
   }
 
   @override
@@ -50,7 +51,7 @@ class AppBottomNavigation extends StatelessWidget {
               icon: Icons.luggage_outlined,
               label: 'My Trips',
               selected: selected == AppNavTab.myTrips,
-              onTap: () => _placeholder(context, 'My Trips'),
+              onTap: () => _goMyTrips(context),
             ),
             _CreateNavButton(
               onTap: () => Navigator.pushNamed(context, '/create-trip'),
@@ -59,7 +60,7 @@ class AppBottomNavigation extends StatelessWidget {
               icon: Icons.person_outline,
               label: 'Profile',
               selected: selected == AppNavTab.profile,
-              onTap: () => _placeholder(context, 'Profile'),
+              onTap: () => _goProfile(context),
             ),
           ],
         ),
