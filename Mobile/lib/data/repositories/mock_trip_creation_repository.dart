@@ -3,6 +3,32 @@ import 'trip_creation_repository.dart';
 
 class MockTripCreationRepository implements TripCreationRepository {
   @override
+  Future<List<Map<String, dynamic>>> getDestinations() async {
+    await Future.delayed(const Duration(milliseconds: 400));
+
+    return const [
+      {
+        'id': 'japan',
+        'name': 'Japan',
+        'country': 'Japan',
+        'description': 'Culture, food & tradition',
+      },
+      {
+        'id': 'italy',
+        'name': 'Italy',
+        'country': 'Italy',
+        'description': 'History, art & coastal escapes',
+      },
+      {
+        'id': 'turkey',
+        'name': 'Turkey',
+        'country': 'Turkey',
+        'description': 'Food, nature & heritage',
+      },
+    ];
+  }
+
+  @override
   Future<List<Map<String, dynamic>>> getDestinationSuggestions(
       TripCreationData data,
       ) async {
