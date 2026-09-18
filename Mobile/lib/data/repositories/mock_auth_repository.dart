@@ -44,4 +44,7 @@ class MockAuthRepository implements AuthRepository {
       token: 'mock-jwt-token',
     );
   }
+
+  @override
+  Future<void> logout() async {}
 }
