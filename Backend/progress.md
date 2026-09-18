@@ -30,9 +30,10 @@
 
 ### Cost
 - [x] Cost aggregation service
-- [x] Calculate itinerary estimated costs
+- [x] Calculate category costs from the persisted itinerary using internal dataset prices
+- [x] Persist CostEstimate rows by cost category
 - [x] Update Trip total estimated cost
-- [ ] Complete CostEstimate end-to-end verification
+- [x] Add integration coverage for itinerary → CostEstimate → Trip total
 
 ### Flutter Integration
 - [x] `GET /api/destinations`
