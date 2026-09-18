@@ -40,6 +40,64 @@ class TripOverviewProvider extends ChangeNotifier {
 
   Future<void> reload() => _load();
 
+  /// Applies an edit to one itinerary item. Per the Edit Item Modal's spec:
+  /// marks the item user-modified (`isAiGenerated = false`) and moves the
+  /// trip out of a purely AI-generated state into MODIFIED.
+  ///
+  /// NOTE: Trip Overview is still on mock data end-to-end (see progress.md),
+  /// so this only updates in-memory state — nothing is persisted to a
+  /// backend yet. When it is, the real endpoint is `POST /api/trips/{id}
+  /// /itinerary`, which re-writes the *whole* itinerary (no per-item PATCH
+  /// exists), so this method's shape (whole day back out) already matches
+  /// what that call will need.
+  void updateItem(
+    int dayIndex,
+    int itemIndex,
+    ItineraryItemData updated,
+  ) {
+    final trip = _trip;
+    if (trip == null) return;
+
+    final day = trip.days[dayIndex];
+    final items = [...day.items];
+    items[itemIndex] = updated.copyWith(isAiGenerated: false);
+
+    final days = [...trip.days];
+    days[dayIndex] = day.copyWith(items: items);
+
+    final nextStatus = trip.status == 'ARCHIVED' ? trip.status : 'MODIFIED';
+    _trip = trip.copyWith(days: days, status: nextStatus);
+    notifyListeners();
+  }
+
+  /// Removes an item entirely — the Place Detail Sheet's "Remove" action.
+  /// Same status-transition rule as [updateItem]: the trip moves to
+  /// MODIFIED once a human has touched the AI-generated plan.
+  void removeItem(int dayIndex, int itemIndex) {
+    final trip = _trip;
+    if (trip == null) return;
+
+    final day = trip.days[dayIndex];
+    final items = [...day.items]..removeAt(itemIndex);
+
+    final days = [...trip.days];
+    days[dayIndex] = day.copyWith(items: items);
+
+    final nextStatus = trip.status == 'ARCHIVED' ? trip.status : 'MODIFIED';
+    _trip = trip.copyWith(days: days, status: nextStatus);
+    notifyListeners();
+  }
+
+  /// Real backend call — `POST /api/trips/{id}/archive` exists and works.
+  Future<void> archiveTrip(ApiClient apiClient) async {
+    await apiClient.post<Map<String, dynamic>>('/api/trips/$_tripId/archive');
+    if (_trip != null) {
+      _trip = _trip!.copyWith(status: 'ARCHIVED');
+      notifyListeners();
+    }
+  }
+
+
   Future<void> _load() async {
     _status = TripOverviewStatus.loading;
     _errorMessage = null;

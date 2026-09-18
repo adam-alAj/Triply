@@ -16,4 +16,8 @@ class AuthUser {
       email: json['email'] as String,
     );
   }
+
+  AuthUser copyWith({String? name}) {
+    return AuthUser(id: id, name: name ?? this.name, email: email);
+  }
 }
