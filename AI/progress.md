@@ -118,7 +118,33 @@ traceability.
 
 ---
 
-## 6. Not Yet Started
+## 6. AI-Output Validation Rules Specification (TASK46b) — ✅ Complete
+
+**Task objective:** Convert FR-AI-002 validation requirements into explicit, deterministic, codeable rules for Backend implementation.
+
+| Step | Detail | Status |
+| --- | --- | --- |
+| Requirement traceability | Traced FR-AI-002 through SRS, Database Design, Contract v2.0.0 | ✅ Done |
+| Cost tolerance analysis | Found D1 (±15%) is **proposed, not decided**; resolved: N/A in v2.0.0 (no AI-reported costs) | ✅ Done |
+| Place identity definition | Defined `Place.name` (exact string match) as authoritative identity | ✅ Done |
+| V-001 (0%-Invented-Place) | Full algorithm, edge cases, failure codes, examples | ✅ Done |
+| V-002 (Budget Feasibility) | Budget comparison from `Place.reference_price`, mode-specific behavior | ✅ Done |
+| Validation order | 5-step pipeline: Schema → Structural → Grounding → Category → Budget | ✅ Done |
+| Result contract | Machine-readable structure with per-rule pass/fail | ✅ Done |
+| Backend readiness | Specification is implementation-ready; existing Backend code aligned | ✅ Done |
+| Prototype findings incorporated | 10/10 zero-hallucination rate documented as safety-net context | ✅ Done |
+| Spec artifact | `AI/03-Validation/AI_OUTPUT_VALIDATION_RULES.md` | ✅ Done |
+
+**Key decisions:**
+- V-001: `Place.name` exact match only — no fuzzy matching, no normalization
+- V-002: No tolerance check needed — v2.0.0 removes all cost fields from model output
+- Budget check is deterministic Backend computation, never compared against AI output
+- `DESTINATION_FIRST` over-budget is flagged but not auto-failed (per contract §5 step 4)
+- `BUDGET_FIRST` over-budget options are dropped; zero surviving = attempt failure
+
+---
+
+## 7. Not Yet Started
 
 - `PlaceInterest` seed file + seeder update (blocked on Backend decision, §2 above)
 
