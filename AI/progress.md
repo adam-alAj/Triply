@@ -144,7 +144,37 @@ traceability.
 
 ---
 
-## 7. Not Yet Started
+## 7. Python Validation Harness (TASK46c) — ✅ Complete
+
+**Task objective:** Implement a systematic, reproducible Python validation harness that implements V-001 and V-002 per the validation specification.
+
+| Step | Detail | Status |
+| --- | --- | --- |
+| Validation spec read | Loaded AI_OUTPUT_VALIDATION_RULES.md v2.0.0 as source of truth | ✅ Done |
+| Dataset loaded | 57 active places, 3 supported destinations, 5 categories | ✅ Done |
+| Schema loaded | triply-trip-plan-generation.schema.json v2.0.0, draft 2020-12 | ✅ Done |
+| V-001 implemented | 0%-Invented-Place: exact Place.name match, destination-scoped, 0% tolerance | ✅ Done |
+| V-001 category rules | ACCOMMODATION placement, RESTAURANT per day, TRANSPORT per option | ✅ Done |
+| V-002 implemented | Budget feasibility: deterministic cost from Place.reference_price | ✅ Done |
+| V-002 mode-specific | DESTINATION_FIRST: flag over-budget; BUDGET_FIRST: drop + fail if zero | ✅ Done |
+| Decimal precision | Uses Python Decimal for monetary calculations (no float) | ✅ Done |
+| Fixture tests | 10/10 deterministic fixtures pass | ✅ Done |
+| Real generation batch | 10/10 real Gemini generations pass (138 place refs, 0 invalid) | ✅ Done |
+| Invented-place rate | 0.00% across 138 references | ✅ Done |
+| Machine-readable report | JSON report at reports/validation_results.json | ✅ Done |
+| Human-readable report | Markdown report at reports/VALIDATION_REPORT.md | ✅ Done |
+| Harness artifact | `AI/03-Validation/harness.py` | ✅ Done |
+
+**Key results:**
+- 10/10 real Gemini generations are fully contract-valid
+- 138 place references across all generations, 0 invalid
+- V-001 0% requirement: PASS
+- V-002 budget check: all options within budget (400 JOD test budget)
+- Fixture tests cover: valid, invented place, budget over, accommodation in days, missing restaurant, missing transport, schema failure, budget-first mixed, unknown destination
+
+---
+
+## 8. Not Yet Started
 
 - `PlaceInterest` seed file + seeder update (blocked on Backend decision, §2 above)
 
