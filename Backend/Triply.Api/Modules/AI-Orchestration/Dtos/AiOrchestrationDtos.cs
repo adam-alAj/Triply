@@ -137,6 +137,7 @@ public sealed class AiGenerationResult
     public Guid AiGenerationId { get; set; }
     public string Status { get; set; } = default!; // SUCCEEDED | FAILED_VALIDATION | FAILED_ERROR
     public int AttemptsUsed { get; set; }
+    public int? TripVersion { get; set; }
     public List<string> Errors { get; set; } = new();
     public ItineraryResponse? Itinerary { get; set; }
     public CostEstimateResponse? Cost { get; set; }
@@ -148,4 +149,11 @@ public sealed class GenerateItineraryRequest
     public string Scope { get; set; } = "FULL";
     public int? DayNumber { get; set; }
     public Guid? ItemId { get; set; }
+
+    /// <summary>
+    /// Client-observed Trip.Version used for optimistic concurrency.
+    /// Required for partial regeneration so a stale regenerate-sheet request
+    /// cannot overwrite a newer trip state.
+    /// </summary>
+    public int? ExpectedVersion { get; set; }
 }
