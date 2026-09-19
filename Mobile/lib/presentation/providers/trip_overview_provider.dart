@@ -22,6 +22,7 @@ class TripOverviewProvider extends ChangeNotifier {
   TripOverviewData? _trip;
   String? _errorMessage;
   int _selectedDayIndex = 0;
+  bool _isRegenerating = false;
 
   TripOverviewStatus get status => _status;
 
@@ -30,6 +31,8 @@ class TripOverviewProvider extends ChangeNotifier {
   String? get errorMessage => _errorMessage;
 
   int get selectedDayIndex => _selectedDayIndex;
+
+  bool get isRegenerating => _isRegenerating;
 
   void selectDay(int index) {
     if (_trip == null || index < 0 || index >= _trip!.days.length) return;
@@ -40,38 +43,67 @@ class TripOverviewProvider extends ChangeNotifier {
 
   Future<void> reload() => _load();
 
-  /// Applies an edit to one itinerary item. Per the Edit Item Modal's spec:
-  /// marks the item user-modified (`isAiGenerated = false`) and moves the
-  /// trip out of a purely AI-generated state into MODIFIED.
+  /// Applies an edit to one itinerary item via `PATCH /api/trips/{tripId}
+  /// /itinerary/items/{itemId}` (marks it user-modified server-side too).
+  /// Returns whether it succeeded; check [errorMessage] on failure.
   ///
-  /// NOTE: this only updates in-memory state — nothing is persisted to the
-  /// backend yet. The real endpoint is `POST /api/trips/{id}/itinerary`,
-  /// which re-writes the *whole* itinerary (no per-item PATCH exists), so
-  /// this method's shape (whole day back out) already matches what that
-  /// call will need.
-  void updateItem(
+  /// The backend always recomputes `EstimatedCost` from the place's
+  /// reference price (it doesn't accept a client-supplied cost), so the
+  /// edited item's cost label is refreshed from the server response rather
+  /// than from whatever the Edit Item Modal showed.
+  Future<bool> updateItem(
+    ApiClient apiClient,
     int dayIndex,
     int itemIndex,
     ItineraryItemData updated,
-  ) {
+  ) async {
     final trip = _trip;
-    if (trip == null) return;
+    if (trip == null) return false;
 
-    final day = trip.days[dayIndex];
-    final items = [...day.items];
-    items[itemIndex] = updated.copyWith(isAiGenerated: false);
+    try {
+      final response = await apiClient.patch<Map<String, dynamic>>(
+        '/api/trips/$_tripId/itinerary/items/${updated.id}',
+        data: {
+          'placeId': updated.placeId,
+          'timeSlot': updated.timeSlot,
+          'orderIndex': updated.orderIndex,
+          'notes': updated.notes,
+        },
+      );
 
-    final days = [...trip.days];
-    days[dayIndex] = day.copyWith(items: items);
+      final cost = (response['estimatedCost'] as num?)?.toDouble() ?? 0;
+      final saved = updated.copyWith(
+        isAiGenerated: response['isAiGenerated'] as bool? ?? false,
+        estimatedCostLabel: 'Est. \$${cost.round()}',
+        notes: response['notes'] as String?,
+      );
 
-    final nextStatus = trip.status == 'ARCHIVED' ? trip.status : 'MODIFIED';
-    _trip = trip.copyWith(days: days, status: nextStatus);
-    notifyListeners();
+      final day = trip.days[dayIndex];
+      final items = [...day.items];
+      items[itemIndex] = saved;
+
+      final days = [...trip.days];
+      days[dayIndex] = day.copyWith(items: items);
+
+      final nextStatus = trip.status == 'ARCHIVED' ? trip.status : 'MODIFIED';
+      _trip = trip.copyWith(days: days, status: nextStatus);
+      notifyListeners();
+      return true;
+    } catch (error) {
+      _errorMessage = error is ApiException
+          ? error.message
+          : 'Unable to save this change. Please try again.';
+      notifyListeners();
+      return false;
+    }
   }
 
   /// Removes an item entirely — the Place Detail Sheet's "Remove" action.
-  /// Same status-transition rule as [updateItem]: the trip moves to
-  /// MODIFIED once a human has touched the AI-generated plan.
+  ///
+  /// PENDING BACKEND: there is no delete-itinerary-item endpoint yet, so
+  /// this stays in-memory only until one exists — flagged separately to the
+  /// backend track. Same status-transition rule as [updateItem]: the trip
+  /// moves to MODIFIED once a human has touched the AI-generated plan.
   void removeItem(int dayIndex, int itemIndex) {
     final trip = _trip;
     if (trip == null) return;
@@ -115,6 +147,45 @@ class TripOverviewProvider extends ChangeNotifier {
     }
   }
 
+  /// Partial regeneration — `POST /api/trips/{id}/generate` with
+  /// `scope: DAY` (whole day re-planned) or `ITEM` (one item re-planned).
+  /// Reloads the trip afterward rather than trying to splice the response's
+  /// partial itinerary shape into local state. Returns whether it succeeded;
+  /// check [errorMessage] on failure.
+  Future<bool> regenerateDay(ApiClient apiClient, int dayNumber) =>
+      _regenerate(apiClient, {'scope': 'DAY', 'dayNumber': dayNumber});
+
+  Future<bool> regenerateItem(ApiClient apiClient, String itemId) =>
+      _regenerate(apiClient, {'scope': 'ITEM', 'itemId': itemId});
+
+  Future<bool> _regenerate(
+    ApiClient apiClient,
+    Map<String, dynamic> body,
+  ) async {
+    _isRegenerating = true;
+    _errorMessage = null;
+    notifyListeners();
+
+    try {
+      await apiClient.post<Map<String, dynamic>>(
+        '/api/trips/$_tripId/generate',
+        data: body,
+      );
+      await _load();
+      _isRegenerating = false;
+      notifyListeners();
+      return true;
+    } catch (error) {
+      _isRegenerating = false;
+      _errorMessage = error is ApiException && error.statusCode == 409
+          ? 'This trip changed elsewhere — reload before regenerating.'
+          : error is ApiException
+              ? error.message
+              : 'Unable to regenerate right now. Please try again.';
+      notifyListeners();
+      return false;
+    }
+  }
 
   Future<void> _load() async {
     _status = TripOverviewStatus.loading;

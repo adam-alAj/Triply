@@ -16,6 +16,8 @@ class ApiTripOverviewRepository implements TripOverviewRepository {
     final trip = await _apiClient.get<Map<String, dynamic>>('/api/trips/$tripId');
 
     final destinationName = trip['destinationName'] as String? ?? 'Your Trip';
+    final title = trip['title'] as String? ?? destinationName;
+    final coverImageUrl = trip['coverImageUrl'] as String?;
     final startDate = _parseDate(trip['startDate']);
     final endDate = _parseDate(trip['endDate']);
     final travelerCount = trip['travelerCount'] as int? ?? 1;
@@ -45,7 +47,7 @@ class ApiTripOverviewRepository implements TripOverviewRepository {
 
     return TripOverviewData(
       id: trip['id'] as String,
-      tripTitle: destinationName,
+      tripTitle: title,
       // PENDING BACKEND: no country/region breakdown beyond the
       // destination's own name — see progress.md's Place Detail gap.
       regionLabel: destinationName,
@@ -62,6 +64,7 @@ class ApiTripOverviewRepository implements TripOverviewRepository {
       ),
       days: days,
       costCategories: costCategories,
+      coverImageUrl: coverImageUrl,
     );
   }
 
@@ -81,6 +84,8 @@ class ApiTripOverviewRepository implements TripOverviewRepository {
         items: items.map((item) {
           final cost = (item['estimatedCost'] as num?)?.toDouble() ?? 0;
           return ItineraryItemData(
+            id: item['id'] as String? ?? '',
+            placeId: (item['placeId'] as num?)?.toInt() ?? 0,
             timeSlot: item['timeSlot'] as String? ?? 'MORNING',
             orderIndex: item['orderIndex'] as int? ?? 0,
             placeName: item['placeName'] as String? ?? 'Activity',

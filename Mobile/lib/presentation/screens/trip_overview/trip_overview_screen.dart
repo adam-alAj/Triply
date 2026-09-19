@@ -432,16 +432,21 @@ class _ActionBar extends StatelessWidget {
     );
   }
 
+  /// Header-level regenerate: no single item is in context here, so "this
+  /// item" isn't a meaningful choice — only "this day" (the currently
+  /// selected day) is honored.
   Future<void> _handleRegenerate(BuildContext context) async {
     final scope = await showRegenerateSheet(context);
-    if (scope != null && context.mounted) {
-      _placeholder(
-        context,
-        scope == RegenerateScope.item
-            ? 'Regenerating this item'
-            : 'Regenerating this day',
-      );
-    }
+    if (scope != RegenerateScope.day || !context.mounted) return;
+
+    final provider = context.read<TripOverviewProvider>();
+    final dayNumber = provider.trip?.days[provider.selectedDayIndex].dayNumber;
+    if (dayNumber == null) return;
+
+    await _runRegenerate(
+      context,
+      provider.regenerateDay(context.read<ApiClient>(), dayNumber),
+    );
   }
 
   Future<void> _handleArchive(BuildContext context) async {
@@ -518,6 +523,29 @@ void _placeholder(
         '$feature is coming soon.',
       ),
       behavior: SnackBarBehavior.floating,
+    ),
+  );
+}
+
+/// Shared by header- and item-level regenerate actions: shows a snackbar
+/// while [future] (a `TripOverviewProvider.regenerateDay/Item` call) runs,
+/// then reports success or [TripOverviewProvider.errorMessage].
+Future<void> _runRegenerate(BuildContext context, Future<bool> future) async {
+  ScaffoldMessenger.of(context).showSnackBar(
+    const SnackBar(content: Text('Regenerating…')),
+  );
+
+  final provider = context.read<TripOverviewProvider>();
+  final succeeded = await future;
+  if (!context.mounted) return;
+
+  ScaffoldMessenger.of(context).showSnackBar(
+    SnackBar(
+      content: Text(
+        succeeded
+            ? 'Done regenerating.'
+            : provider.errorMessage ?? 'Unable to regenerate right now.',
+      ),
     ),
   );
 }
@@ -912,14 +940,19 @@ class _ItineraryBody extends StatelessWidget {
                 ),
                 onRegenerate: () async {
                   final scope = await showRegenerateSheet(context);
-                  if (scope != null && context.mounted) {
-                    _placeholder(
-                      context,
-                      scope == RegenerateScope.item
-                          ? 'Regenerating this item'
-                          : 'Regenerating this day',
-                    );
-                  }
+                  if (scope == null || !context.mounted) return;
+
+                  final future = scope == RegenerateScope.item
+                      ? provider.regenerateItem(
+                          context.read<ApiClient>(),
+                          item.id,
+                        )
+                      : provider.regenerateDay(
+                          context.read<ApiClient>(),
+                          selectedDay.dayNumber,
+                        );
+
+                  await _runRegenerate(context, future);
                 },
               );
             },
@@ -936,9 +969,22 @@ class _ItineraryBody extends StatelessWidget {
     ItineraryItemData item,
   ) async {
     final edited = await showEditItemModal(context, item);
-    if (edited != null && context.mounted) {
-      context.read<TripOverviewProvider>().updateItem(dayIndex, itemIndex, edited);
-    }
+    if (edited == null || !context.mounted) return;
+
+    final provider = context.read<TripOverviewProvider>();
+    final succeeded = await provider.updateItem(
+      context.read<ApiClient>(),
+      dayIndex,
+      itemIndex,
+      edited,
+    );
+    if (!context.mounted || succeeded) return;
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(provider.errorMessage ?? 'Unable to save this change.'),
+      ),
+    );
   }
 
   List<ItineraryItemData> _orderedByTimeSlot(

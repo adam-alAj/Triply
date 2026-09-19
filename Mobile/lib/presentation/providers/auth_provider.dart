@@ -1,7 +1,6 @@
 import 'package:flutter/foundation.dart';
 
 import '../../core/network/api_client.dart';
-import '../../core/storage/profile_local_storage.dart';
 import '../../data/models/auth_user.dart';
 import '../../data/repositories/auth_repository.dart';
 
@@ -15,12 +14,12 @@ enum AuthStatus {
 class AuthProvider extends ChangeNotifier {
   AuthProvider({
     required AuthRepository repository,
-    ProfileLocalStorage? profileStorage,
+    required ApiClient apiClient,
   })  : _repository = repository,
-        _profileStorage = profileStorage ?? ProfileLocalStorage();
+        _apiClient = apiClient;
 
   final AuthRepository _repository;
-  final ProfileLocalStorage _profileStorage;
+  final ApiClient _apiClient;
 
   AuthStatus _status = AuthStatus.idle;
   AuthUser? _user;
@@ -48,7 +47,7 @@ class AuthProvider extends ChangeNotifier {
         password: password,
       );
 
-      _user = await _withLocalNameOverride(result.user);
+      _user = await _fetchProfileOr(result.user);
       _status = AuthStatus.success;
     } catch (error) {
       _errorMessage = _cleanMessage(error);
@@ -76,7 +75,7 @@ class AuthProvider extends ChangeNotifier {
         password: password,
       );
 
-      _user = result.user;
+      _user = await _fetchProfileOr(result.user);
       _status = AuthStatus.success;
     } catch (error) {
       _errorMessage = _cleanMessage(error);
@@ -109,23 +108,59 @@ class AuthProvider extends ChangeNotifier {
     notifyListeners();
   }
 
-  /// Applies a locally-saved display-name edit (see [ProfileLocalStorage])
-  /// on top of whatever the login response returned, since the backend
-  /// doesn't persist name edits yet.
-  Future<AuthUser> _withLocalNameOverride(AuthUser user) async {
-    final savedName = await _profileStorage.readDisplayName(user.id);
-    return savedName == null ? user : user.copyWith(name: savedName);
+  /// `GET /api/auth/login|register` doesn't return a display name (only
+  /// `{ token, expiresAtUtc, userId, email }`), so the freshly-logged-in
+  /// user is a guess (email local-part, or whatever was just typed at
+  /// registration). Fetching `GET /api/users/me` right after gets the real,
+  /// previously-saved name; if that call fails for any reason, the guess
+  /// from [fallback] is still good enough to not block login.
+  Future<AuthUser> _fetchProfileOr(AuthUser fallback) async {
+    try {
+      final json = await _apiClient.get<Map<String, dynamic>>('/api/users/me');
+      return AuthUser.fromProfileJson(json);
+    } catch (_) {
+      return fallback;
+    }
   }
 
-  /// Profile screen's "Edit name" — kept on-device only (see
-  /// [ProfileLocalStorage] for why) until the backend supports it.
-  Future<void> updateDisplayName(String name) async {
-    final user = _user;
-    if (user == null || name.trim().isEmpty) return;
+  /// Session restore (splash screen): a saved token means the user already
+  /// logged in on this device — fetch their real profile via
+  /// `GET /api/users/me` rather than just trusting the token exists.
+  /// Returns whether the session is actually valid; a stale/expired token
+  /// (401) clears itself out via [logout] so the caller can route to
+  /// onboarding instead of a broken Home.
+  Future<bool> restoreSession() async {
+    try {
+      final json = await _apiClient.get<Map<String, dynamic>>('/api/users/me');
+      _user = AuthUser.fromProfileJson(json);
+      _status = AuthStatus.success;
+      notifyListeners();
+      return true;
+    } catch (_) {
+      await logout();
+      return false;
+    }
+  }
 
-    _user = user.copyWith(name: name.trim());
-    await _profileStorage.saveDisplayName(user.id, name.trim());
-    notifyListeners();
+  /// Profile screen's "Edit name" — `PATCH /api/users/me`.
+  Future<bool> updateDisplayName(String name) async {
+    final user = _user;
+    final trimmed = name.trim();
+    if (user == null || trimmed.isEmpty) return false;
+
+    try {
+      final json = await _apiClient.patch<Map<String, dynamic>>(
+        '/api/users/me',
+        data: {'displayName': trimmed},
+      );
+      _user = AuthUser.fromProfileJson(json);
+      notifyListeners();
+      return true;
+    } catch (error) {
+      _errorMessage = _cleanMessage(error);
+      notifyListeners();
+      return false;
+    }
   }
 
   Future<void> logout() async {

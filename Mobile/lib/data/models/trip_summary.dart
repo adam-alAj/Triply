@@ -11,6 +11,8 @@ class TripSummary {
     required this.travelerCount,
     required this.budgetAmount,
     required this.budgetCurrencyId,
+    this.tripTitle,
+    this.coverImageUrl,
   });
 
   factory TripSummary.fromJson(Map<String, dynamic> json) {
@@ -23,6 +25,8 @@ class TripSummary {
       travelerCount: json['travelerCount'] as int? ?? 1,
       budgetAmount: (json['budgetAmount'] as num?)?.toDouble(),
       budgetCurrencyId: json['budgetCurrencyId'] as int?,
+      tripTitle: json['title'] as String?,
+      coverImageUrl: json['coverImageUrl'] as String?,
     );
   }
 
@@ -39,10 +43,12 @@ class TripSummary {
   final int travelerCount;
   final double? budgetAmount;
   final int? budgetCurrencyId;
+  final String? tripTitle;
+  final String? coverImageUrl;
 
-  /// The backend has no separate trip-title field yet — the destination
-  /// name doubles as the title until one is added.
-  String get title => destinationName ?? 'Untitled Trip';
+  /// Falls back to the destination name, then a generic label, for trips
+  /// that predate the backend's `Title` field or never had one set.
+  String get title => tripTitle ?? destinationName ?? 'Untitled Trip';
 
   bool get isArchived => status == 'ARCHIVED';
 
