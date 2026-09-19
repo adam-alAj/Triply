@@ -1,0 +1,8 @@
+{
+  "raw_text": "{\"planning_mode\":\"DESTINATION_FIRST\",\"destination_options\":[{\"destination_name\":\"New York\",\"accommodation\":{\"place_name\":\"Pod 51 Hotel\",\"nights\":2},\"days\":[{\"day_number\":1,\"date\":\"2026-12-20\",\"items\":[{\"time_slot\":\"MORNING\",\"order_index\":1,\"place_name\":\"Airport Transfer – JFK to Manhattan\",\"notes\":null},{\"time_slot\":\"AFTERNOON\",\"order_index\":1,\"place_name\":\"Empire State Building (86th floor)\",\"notes\":null},{\"time_slot\":\"EVENING\",\"order_index\":1,\"place_name\":\"Joe's Pizza\",\"notes\":null}]},{\"day_number\":2,\"date\":\"2026-12-21\",\"items\":[{\"time_slot\":\"MORNING\",\"order_index\":1,\"place_name\":\"Central Park\",\"notes\":null},{\"time_slot\":\"AFTERNOON\",\"order_index\":1,\"place_name\":\"Wo Hop\",\"notes\":null},{\"time_slot\":\"EVENING\",\"order_index\":1,\"place_name\":\"Top of the Rock Observation Deck\",\"notes\":null}]},{\"day_number\":3,\"date\":\"2026-12-22\",\"items\":[{\"time_slot\":\"MORNING\",\"order_index\":1,\"place_name\":\"Statue of Liberty & Ellis Island Ferry\",\"notes\":null},{\"time_slot\":\"AFTERNOON\",\"order_index\":1,\"place_name\":\"Brooklyn Bridge Walk\",\"notes\":null},{\"time_slot\":\"EVENING\",\"order_index\":1,\"place_name\":\"Le Bernardin\",\"notes\":null}]}]}]}",
+  "usage": {
+    "prompt_tokens": 678,
+    "candidates_tokens": 350,
+    "total_tokens": 2815
+  }
+}

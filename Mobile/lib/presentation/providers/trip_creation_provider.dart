@@ -26,6 +26,10 @@ class TripCreationProvider extends ChangeNotifier {
 
   List<Map<String, dynamic>> _suggestions = [];
 
+  List<Map<String, dynamic>> _destinations = [];
+  bool _destinationsLoading = false;
+  String? _destinationsError;
+
   String? _errorMessage;
 
   String? _createdTripId;
@@ -37,6 +41,12 @@ class TripCreationProvider extends ChangeNotifier {
   TripCreationStatus get status => _status;
 
   List<Map<String, dynamic>> get suggestions => _suggestions;
+
+  List<Map<String, dynamic>> get destinations => _destinations;
+
+  bool get destinationsLoading => _destinationsLoading;
+
+  String? get destinationsError => _destinationsError;
 
   String? get errorMessage => _errorMessage;
 
@@ -73,6 +83,29 @@ class TripCreationProvider extends ChangeNotifier {
     _data.destinationId = null;
     _data.budget = null;
 
+    notifyListeners();
+
+    if (mode == PlanningMode.destinationFirst && _destinations.isEmpty) {
+      loadDestinations();
+    }
+  }
+
+  Future<void> loadDestinations() async {
+    _destinationsLoading = true;
+    _destinationsError = null;
+    notifyListeners();
+
+    try {
+      _destinations = await _repository.getDestinations();
+    } catch (error) {
+      _destinations = [];
+      // Never show a raw exception (08_SYSTEM_DESIGN.md §36).
+      _destinationsError = error is ApiException
+          ? error.message
+          : 'Unable to load destinations. Please try again.';
+    }
+
+    _destinationsLoading = false;
     notifyListeners();
   }
 
@@ -128,22 +161,25 @@ class TripCreationProvider extends ChangeNotifier {
   Future<void> next() async {
     if (_currentStep >= 5) return;
 
-    // Fire the suggestions request right as the user leaves the step just
-    // before the suggestions screen (Budget for destination-first is
-    // already picked directly, so it never routes through here for that
-    // mode's real data — see suggestionsStepIndex).
-    if (_currentStep == suggestionsStepIndex - 1) {
+    // Budget-first only: fire the suggestions request right as the user
+    // leaves the step just before the suggestions screen. Destination-first
+    // skips the suggestions screen entirely below — a real Destination
+    // (from GET /api/destinations) is already an exact, specific pick, so
+    // there's nothing left to "suggest" once one is chosen.
+    if (_isBudgetFirst && _currentStep == suggestionsStepIndex - 1) {
       await loadSuggestions();
     }
 
-    _currentStep++;
+    _currentStep +=
+        (!_isBudgetFirst && _currentStep + 1 == suggestionsStepIndex) ? 2 : 1;
     notifyListeners();
   }
 
   void back() {
     if (_currentStep <= 0) return;
 
-    _currentStep--;
+    _currentStep -=
+        (!_isBudgetFirst && _currentStep - 1 == suggestionsStepIndex) ? 2 : 1;
     notifyListeners();
   }
 
@@ -187,16 +223,13 @@ class TripCreationProvider extends ChangeNotifier {
   /// succeeded; check [errorMessage] on failure and [createdTripId] on
   /// success.
   Future<bool> submitTrip() async {
-    // Destination-first still runs on local placeholder destinations
-    // (no real Destination.Id) until GET /api/destinations exists — see
-    // budget_destination_screen.dart. Fail clearly instead of silently
-    // creating a trip with no real destination attached.
+    // Defensive guard: destinations now come from GET /api/destinations
+    // with a real id, so this should only trip if the user somehow reached
+    // Review without picking one.
     if (_data.planningMode == PlanningMode.destinationFirst &&
         _data.destinationId == null) {
       _status = TripCreationStatus.failure;
-      _errorMessage =
-          'This destination isn\'t connected to the backend yet — pick a '
-          'budget-first suggestion instead, or wait for the destinations API.';
+      _errorMessage = 'Please go back and pick a destination first.';
       notifyListeners();
       return false;
     }

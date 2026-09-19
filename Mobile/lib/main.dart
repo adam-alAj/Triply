@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:triply_project/presentation/screens/home/home_screen.dart';
+import 'package:triply_project/presentation/screens/my_trips/my_trips_screen.dart';
 import 'package:triply_project/presentation/screens/onboarding/onboarding_flow.dart';
+import 'package:triply_project/presentation/screens/profile/profile_screen.dart';
 import 'package:triply_project/presentation/screens/splash_screen.dart';
 import 'package:triply_project/presentation/screens/trip_creation/trip_creation_wizard.dart';
 import 'package:triply_project/presentation/screens/trip_overview/trip_overview_screen.dart';
@@ -59,6 +61,7 @@ class MyApp extends StatelessWidget {
         ChangeNotifierProvider(
           create: (_) => AuthProvider(
             repository: authRepository,
+            apiClient: apiClient,
           ),
         ),
       ],
@@ -78,6 +81,8 @@ class MyApp extends StatelessWidget {
           '/login': (_) => const LoginScreen(),
           '/register': (_) => const RegisterScreen(),
           '/home': (_) => const HomeScreen(),
+          '/my-trips': (_) => const MyTripsScreen(),
+          '/profile': (_) => const ProfileScreen(),
           '/create-trip': (_) => const TripCreationWizard(),
           // Expects a String tripId passed as the route argument, e.g.
           // Navigator.pushNamed(context, '/trip-overview', arguments: tripId).

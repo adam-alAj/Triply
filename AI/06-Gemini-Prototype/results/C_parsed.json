@@ -1,0 +1,110 @@
+{
+  "planning_mode": "DESTINATION_FIRST",
+  "destination_options": [
+    {
+      "destination_name": "Paris",
+      "accommodation": {
+        "place_name": "Hôtel Le Clos Notre-Dame",
+        "nights": 3
+      },
+      "days": [
+        {
+          "day_number": 1,
+          "date": "2026-11-03",
+          "items": [
+            {
+              "time_slot": "MORNING",
+              "order_index": 1,
+              "place_name": "Airport Transfer – CDG to city centre",
+              "notes": "Arrival and transfer to central Paris."
+            },
+            {
+              "time_slot": "AFTERNOON",
+              "order_index": 1,
+              "place_name": "Notre-Dame Cathedral",
+              "notes": "Exploring historic landmark."
+            },
+            {
+              "time_slot": "EVENING",
+              "order_index": 1,
+              "place_name": "Chez Le Libanais",
+              "notes": "Dinner near the Latin Quarter."
+            }
+          ]
+        },
+        {
+          "day_number": 2,
+          "date": "2026-11-04",
+          "items": [
+            {
+              "time_slot": "MORNING",
+              "order_index": 1,
+              "place_name": "Louvre Museum",
+              "notes": "Classic art and history museum visit."
+            },
+            {
+              "time_slot": "AFTERNOON",
+              "order_index": 1,
+              "place_name": "Galeries Lafayette Haussmann",
+              "notes": "Shopping and culture."
+            },
+            {
+              "time_slot": "EVENING",
+              "order_index": 1,
+              "place_name": "Bouillon Chartier Grands Boulevards",
+              "notes": "Traditional Parisian dining experience."
+            }
+          ]
+        },
+        {
+          "day_number": 3,
+          "date": "2026-11-05",
+          "items": [
+            {
+              "time_slot": "MORNING",
+              "order_index": 1,
+              "place_name": "Eiffel Tower (2nd floor, lift)",
+              "notes": "Iconic sights and city views."
+            },
+            {
+              "time_slot": "AFTERNOON",
+              "order_index": 1,
+              "place_name": "Seine River Cruise",
+              "notes": "Scenic boat tour along the river."
+            },
+            {
+              "time_slot": "EVENING",
+              "order_index": 1,
+              "place_name": "Epicure (Le Bristol Paris)",
+              "notes": "Fine dining experience."
+            }
+          ]
+        },
+        {
+          "day_number": 4,
+          "date": "2026-11-06",
+          "items": [
+            {
+              "time_slot": "MORNING",
+              "order_index": 1,
+              "place_name": "Paris Catacombs",
+              "notes": "Historic underground exploration."
+            },
+            {
+              "time_slot": "AFTERNOON",
+              "order_index": 1,
+              "place_name": "Galeries Lafayette Champs-Élysées",
+              "notes": "Final shopping stroll."
+            },
+            {
+              "time_slot": "EVENING",
+              "order_index": 1,
+              "place_name": "Chez Le Libanais",
+              "notes": "Farewell dinner."
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

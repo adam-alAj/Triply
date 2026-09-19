@@ -3,6 +3,8 @@
 /// later is a pure data-source change, not a model rewrite.
 class ItineraryItemData {
   const ItineraryItemData({
+    required this.id,
+    required this.placeId,
     required this.timeSlot,
     required this.orderIndex,
     required this.placeName,
@@ -10,8 +12,15 @@ class ItineraryItemData {
     required this.estimatedCostLabel,
     required this.isAiGenerated,
     this.tipText,
+    this.notes,
   });
 
+  /// The itinerary item's own GUID — needed for `PATCH .../items/{itemId}`.
+  final String id;
+
+  /// The place this item currently points at — resent unchanged on edit
+  /// since there's no place picker UI yet.
+  final int placeId;
   final String timeSlot; // MORNING, AFTERNOON, EVENING
   final int orderIndex;
   final String placeName;
@@ -19,6 +28,28 @@ class ItineraryItemData {
   final String estimatedCostLabel;
   final bool isAiGenerated;
   final String? tipText;
+  final String? notes;
+
+  ItineraryItemData copyWith({
+    String? timeSlot,
+    String? subtitle,
+    String? estimatedCostLabel,
+    bool? isAiGenerated,
+    String? notes,
+  }) {
+    return ItineraryItemData(
+      id: id,
+      placeId: placeId,
+      timeSlot: timeSlot ?? this.timeSlot,
+      orderIndex: orderIndex,
+      placeName: placeName,
+      subtitle: subtitle ?? this.subtitle,
+      estimatedCostLabel: estimatedCostLabel ?? this.estimatedCostLabel,
+      isAiGenerated: isAiGenerated ?? this.isAiGenerated,
+      tipText: tipText,
+      notes: notes ?? this.notes,
+    );
+  }
 }
 
 /// Mirrors `ItineraryDayResponse`.
@@ -32,6 +63,14 @@ class ItineraryDayData {
   final int dayNumber;
   final String dateLabel; // e.g. "Oct 15"
   final List<ItineraryItemData> items;
+
+  ItineraryDayData copyWith({List<ItineraryItemData>? items}) {
+    return ItineraryDayData(
+      dayNumber: dayNumber,
+      dateLabel: dateLabel,
+      items: items ?? this.items,
+    );
+  }
 }
 
 /// A booked/planned line under a cost category, e.g. "4 nights Kyoto
@@ -128,6 +167,7 @@ class TripOverviewData {
     required this.days,
     required this.costCategories,
     this.stayHighlight,
+    this.coverImageUrl,
   });
 
   final String id;
@@ -144,4 +184,28 @@ class TripOverviewData {
   final List<ItineraryDayData> days;
   final List<CostCategoryEstimateData> costCategories;
   final StayHighlightData? stayHighlight;
+  final String? coverImageUrl;
+
+  TripOverviewData copyWith({
+    String? status,
+    List<ItineraryDayData>? days,
+  }) {
+    return TripOverviewData(
+      id: id,
+      tripTitle: tripTitle,
+      regionLabel: regionLabel,
+      dateRangeLabel: dateRangeLabel,
+      totalDays: totalDays,
+      travelerCount: travelerCount,
+      status: status ?? this.status,
+      totalEstimatedCostUsd: totalEstimatedCostUsd,
+      avgPerDayPerTravelerUsd: avgPerDayPerTravelerUsd,
+      isOnTarget: isOnTarget,
+      budgetHealth: budgetHealth,
+      days: days ?? this.days,
+      costCategories: costCategories,
+      stayHighlight: stayHighlight,
+      coverImageUrl: coverImageUrl,
+    );
+  }
 }

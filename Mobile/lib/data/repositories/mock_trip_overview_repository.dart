@@ -133,6 +133,8 @@ class MockTripOverviewRepository implements TripOverviewRepository {
           dateLabel: 'Oct 14',
           items: const [
             ItineraryItemData(
+              id: 'mock-item-1',
+              placeId: 1,
               timeSlot: 'MORNING',
               orderIndex: 1,
               placeName: 'Old City Walking Tour',
@@ -142,6 +144,8 @@ class MockTripOverviewRepository implements TripOverviewRepository {
               tipText: 'Wear comfortable shoes',
             ),
             ItineraryItemData(
+              id: 'mock-item-2',
+              placeId: 2,
               timeSlot: 'AFTERNOON',
               orderIndex: 1,
               placeName: 'Local Market Lunch',
@@ -150,6 +154,8 @@ class MockTripOverviewRepository implements TripOverviewRepository {
               isAiGenerated: true,
             ),
             ItineraryItemData(
+              id: 'mock-item-3',
+              placeId: 3,
               timeSlot: 'EVENING',
               orderIndex: 1,
               placeName: 'Sunset at the Ramparts',
@@ -164,6 +170,8 @@ class MockTripOverviewRepository implements TripOverviewRepository {
           dateLabel: 'Oct 15',
           items: const [
             ItineraryItemData(
+              id: 'mock-item-4',
+              placeId: 4,
               timeSlot: 'MORNING',
               orderIndex: 1,
               placeName: 'Museum Visit',
@@ -173,6 +181,8 @@ class MockTripOverviewRepository implements TripOverviewRepository {
               tipText: 'Edited by you',
             ),
             ItineraryItemData(
+              id: 'mock-item-5',
+              placeId: 5,
               timeSlot: 'AFTERNOON',
               orderIndex: 1,
               placeName: 'Botanical Gardens',
@@ -187,6 +197,8 @@ class MockTripOverviewRepository implements TripOverviewRepository {
           dateLabel: 'Oct 16',
           items: const [
             ItineraryItemData(
+              id: 'mock-item-6',
+              placeId: 6,
               timeSlot: 'MORNING',
               orderIndex: 1,
               placeName: 'Day Trip Departure',

@@ -5,6 +5,11 @@ abstract class TripCreationRepository {
     TripCreationData data,
   );
 
+  /// Plain supported-destinations list for the destination-first path
+  /// (`GET /api/destinations`) — no budget/interest filtering, unlike
+  /// [getDestinationSuggestions].
+  Future<List<Map<String, dynamic>>> getDestinations();
+
   /// Creates the trip on the backend and returns its id.
   Future<String> createTrip(TripCreationData data);
 

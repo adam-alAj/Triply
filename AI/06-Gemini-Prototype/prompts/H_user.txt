@@ -1,0 +1,39 @@
+Plan a trip to Paris for a traveler with the following preferences:
+
+- Trip dates: 2026-11-03 to 2026-11-04
+- Budget: 300 EUR (context only -- do not mention, estimate, or calculate any cost in your response)
+- Interests: Food, Relaxation
+
+Only use places from the list below. Do not use any place that is not on this list, and do not use a place from a different destination:
+
+[ACCOMMODATION]
+- Hôtel Le Clos Notre-Dame
+- Novotel Paris 20 Belleville
+- Ritz Paris
+
+[RESTAURANT]
+- Chez Le Libanais
+- Bouillon Chartier Grands Boulevards
+- Epicure (Le Bristol Paris)
+
+[ATTRACTION]
+- Eiffel Tower (2nd floor, lift)
+- Louvre Museum
+- Notre-Dame Cathedral
+
+[ACTIVITY]
+- Aqua Mundo – Villages Nature Paris
+- Forest of Legends (Villages Nature)
+- Galeries Lafayette Haussmann
+- Galeries Lafayette Champs-Élysées
+- Paris Catacombs
+- Seine River Cruise
+- Moulin Rouge Cabaret Show
+
+[TRANSPORT]
+- Airport Transfer – CDG to city centre
+- Intra-city Metro/Bus Single Ticket
+- Navigo Easy Weekly Pass
+
+
+Return your response as JSON matching the required response schema exactly.

@@ -1,4 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+
+import '../../core/storage/token_storage.dart';
+import '../providers/auth_provider.dart';
 
 class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key});
@@ -48,12 +52,22 @@ class _SplashScreenState extends State<SplashScreen>
 
     _controller.forward();
 
-    Future.delayed(const Duration(milliseconds: 4500), () {
+    Future.delayed(const Duration(milliseconds: 4500), () async {
+      if (!mounted) return;
+
+      // Session restore (UI Pages §8): a saved token means the user already
+      // logged in on this device. Confirm it's still valid (and load the
+      // real profile) via GET /api/users/me before committing to Home —
+      // an expired/revoked token routes to Onboarding instead of a broken
+      // Home screen.
+      final hasToken = await TokenStorage().readToken() != null;
+      final sessionValid =
+          hasToken && await context.read<AuthProvider>().restoreSession();
       if (!mounted) return;
 
       Navigator.pushReplacementNamed(
         context,
-        '/onboarding',
+        sessionValid ? '/home' : '/onboarding',
       );
     });
   }

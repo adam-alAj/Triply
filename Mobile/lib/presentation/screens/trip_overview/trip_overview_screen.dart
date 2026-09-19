@@ -1,10 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import '../../../core/network/api_client.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_text_styles.dart';
 import '../../../data/models/trip_overview_data.dart';
-import '../../../data/repositories/mock_trip_overview_repository.dart';
+import '../../../data/repositories/api_trip_overview_repository.dart';
 import '../../providers/trip_overview_provider.dart';
 import '../../widgets/app_bottom_navigation.dart';
 import '../../widgets/day_selector.dart';
@@ -14,6 +15,10 @@ import '../../widgets/loading_skeleton.dart';
 import '../../widgets/primary_button.dart';
 import '../../widgets/secondary_button.dart';
 import '../../widgets/status_badge.dart';
+import '../../widgets/trip_overview/archive_delete_dialog.dart';
+import '../../widgets/trip_overview/edit_item_modal.dart';
+import '../../widgets/trip_overview/place_detail_sheet.dart';
+import '../../widgets/trip_overview/regenerate_sheet.dart';
 
 /// MOB-TRIP-09 — Trip Overview
 ///
@@ -34,7 +39,7 @@ class TripOverviewScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     return ChangeNotifierProvider(
       create: (_) => TripOverviewProvider(
-        repository: MockTripOverviewRepository(),
+        repository: ApiTripOverviewRepository(apiClient: context.read<ApiClient>()),
         tripId: tripId,
       ),
       child: const _TripOverviewView(),
@@ -404,7 +409,86 @@ class _ActionBar extends StatelessWidget {
               );
             },
           ),
+
+          const SizedBox(width: 8),
+
+          _CircleIconButton(
+            tooltip: 'Regenerate',
+            icon: Icons.autorenew,
+            onPressed: () => _handleRegenerate(context),
+          ),
+
+          // Only a SAVED trip can be archived (backend's TripLifecycle only
+          // allows Saved -> Archived) — Save shows for anything before that.
+          if (status != 'SAVED' && status != 'ARCHIVED') ...[
+            const SizedBox(width: 8),
+            _CircleIconButton(
+              tooltip: 'Save trip',
+              icon: Icons.bookmark_border,
+              onPressed: () => _handleSave(context),
+            ),
+          ],
+
+          const SizedBox(width: 8),
+
+          _CircleIconButton(
+            tooltip: 'Archive trip',
+            icon: Icons.archive_outlined,
+            onPressed: () => _handleArchive(context),
+          ),
         ],
+      ),
+    );
+  }
+
+  Future<void> _handleSave(BuildContext context) async {
+    final provider = context.read<TripOverviewProvider>();
+    final succeeded = await provider.saveTrip(context.read<ApiClient>());
+    if (!context.mounted) return;
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          succeeded
+              ? 'Trip saved.'
+              : provider.errorMessage ?? 'Unable to save this trip.',
+        ),
+      ),
+    );
+  }
+
+  /// Header-level regenerate: no single item is in context here, so "this
+  /// item" isn't a meaningful choice — only "this day" (the currently
+  /// selected day) is honored.
+  Future<void> _handleRegenerate(BuildContext context) async {
+    final scope = await showRegenerateSheet(context);
+    if (scope != RegenerateScope.day || !context.mounted) return;
+
+    final provider = context.read<TripOverviewProvider>();
+    final dayNumber = provider.trip?.days[provider.selectedDayIndex].dayNumber;
+    if (dayNumber == null) return;
+
+    await _runRegenerate(
+      context,
+      provider.regenerateDay(context.read<ApiClient>(), dayNumber),
+    );
+  }
+
+  Future<void> _handleArchive(BuildContext context) async {
+    final confirmed = await showArchiveTripDialog(context);
+    if (!confirmed || !context.mounted) return;
+
+    final provider = context.read<TripOverviewProvider>();
+    final succeeded = await provider.archiveTrip(context.read<ApiClient>());
+    if (!context.mounted) return;
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          succeeded
+              ? 'Trip archived.'
+              : provider.errorMessage ?? 'Unable to archive this trip.',
+        ),
       ),
     );
   }
@@ -464,6 +548,29 @@ void _placeholder(
         '$feature is coming soon.',
       ),
       behavior: SnackBarBehavior.floating,
+    ),
+  );
+}
+
+/// Shared by header- and item-level regenerate actions: shows a snackbar
+/// while [future] (a `TripOverviewProvider.regenerateDay/Item` call) runs,
+/// then reports success or [TripOverviewProvider.errorMessage].
+Future<void> _runRegenerate(BuildContext context, Future<bool> future) async {
+  ScaffoldMessenger.of(context).showSnackBar(
+    const SnackBar(content: Text('Regenerating…')),
+  );
+
+  final provider = context.read<TripOverviewProvider>();
+  final succeeded = await future;
+  if (!context.mounted) return;
+
+  ScaffoldMessenger.of(context).showSnackBar(
+    SnackBar(
+      content: Text(
+        succeeded
+            ? 'Done regenerating.'
+            : provider.errorMessage ?? 'Unable to regenerate right now.',
+      ),
     ),
   );
 }
@@ -836,11 +943,72 @@ class _ItineraryBody extends StatelessWidget {
                 item.isAiGenerated,
                 isUserModified:
                 !item.isAiGenerated,
+                onTap: () async {
+                  final action = await showPlaceDetailSheet(context, item);
+                  if (!context.mounted) return;
+
+                  final itemIndex = selectedDay.items.indexOf(item);
+                  if (action == PlaceDetailAction.edit) {
+                    await _editItem(context, provider.selectedDayIndex, itemIndex, item);
+                  } else if (action == PlaceDetailAction.remove) {
+                    context.read<TripOverviewProvider>().removeItem(
+                          provider.selectedDayIndex,
+                          itemIndex,
+                        );
+                  }
+                },
+                onEdit: () => _editItem(
+                  context,
+                  provider.selectedDayIndex,
+                  selectedDay.items.indexOf(item),
+                  item,
+                ),
+                onRegenerate: () async {
+                  final scope = await showRegenerateSheet(context);
+                  if (scope == null || !context.mounted) return;
+
+                  final future = scope == RegenerateScope.item
+                      ? provider.regenerateItem(
+                          context.read<ApiClient>(),
+                          item.id,
+                        )
+                      : provider.regenerateDay(
+                          context.read<ApiClient>(),
+                          selectedDay.dayNumber,
+                        );
+
+                  await _runRegenerate(context, future);
+                },
               );
             },
           ),
         ),
       ],
+    );
+  }
+
+  Future<void> _editItem(
+    BuildContext context,
+    int dayIndex,
+    int itemIndex,
+    ItineraryItemData item,
+  ) async {
+    final edited = await showEditItemModal(context, item);
+    if (edited == null || !context.mounted) return;
+
+    final provider = context.read<TripOverviewProvider>();
+    final succeeded = await provider.updateItem(
+      context.read<ApiClient>(),
+      dayIndex,
+      itemIndex,
+      edited,
+    );
+    if (!context.mounted || succeeded) return;
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(provider.errorMessage ?? 'Unable to save this change.'),
+      ),
     );
   }
 
@@ -1086,11 +1254,9 @@ class _BudgetHealthCard
 
     final fraction = health.spentFraction;
 
-    final spentPercent =
-    (health.spentUsd /
-        health.targetCapUsd *
-        100)
-        .round();
+    final spentPercent = health.targetCapUsd <= 0
+        ? 0
+        : (health.spentUsd / health.targetCapUsd * 100).round();
 
     final remainingPercent =
         100 - spentPercent;

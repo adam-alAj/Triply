@@ -7,11 +7,25 @@ namespace Triply.Api.Modules.AIOrchestration;
 /// <summary>
 /// Thin, testable wrapper around the raw Gemini REST call.
 /// Architecture §4 ADR-01: the Backend module makes the live HTTPS call to Gemini.
+///
+/// v2.0.0 — supports responseJsonSchema for structured output enforcement.
+/// The schema is loaded from the finalized triply-trip-plan-generation.schema.json
+/// and passed to Gemini's generationConfig to guarantee JSON structure.
 /// </summary>
 public interface IGeminiClient
 {
     /// <summary>Sends a prompt to Gemini and returns the raw JSON text of its response.</summary>
     Task<string> GenerateJsonAsync(string prompt, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Sends a prompt with a response schema to Gemini for structured output.
+    /// The schema enforces the JSON shape Gemini must return.
+    /// </summary>
+    Task<string> GenerateJsonWithSchemaAsync(
+        string prompt,
+        string systemInstruction,
+        JsonDocument schema,
+        CancellationToken cancellationToken = default);
 }
 
 public class GeminiClient : IGeminiClient
@@ -20,14 +34,20 @@ public class GeminiClient : IGeminiClient
     private readonly GeminiOptions _options;
     private readonly ILogger<GeminiClient> _logger;
 
+    private static readonly JsonSerializerOptions JsonOptions = new()
+    {
+        PropertyNameCaseInsensitive = true,
+        DefaultIgnoreCondition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull
+    };
+
     public GeminiClient(HttpClient http, IOptions<GeminiOptions> options, ILogger<GeminiClient> logger)
     {
         _http = http;
         _options = options.Value;
         _logger = logger;
 
-       if (_http.Timeout == Timeout.InfiniteTimeSpan)
-    _http.Timeout = TimeSpan.FromSeconds(_options.TimeoutSeconds);
+        if (_http.Timeout == Timeout.InfiniteTimeSpan)
+            _http.Timeout = TimeSpan.FromSeconds(_options.TimeoutSeconds);
     }
 
     public async Task<string> GenerateJsonAsync(string prompt, CancellationToken cancellationToken = default)
@@ -60,10 +80,67 @@ public class GeminiClient : IGeminiClient
             }
         };
 
+        return await SendRequestAsync(url, requestBody, cancellationToken);
+    }
+
+    /// <summary>
+    /// Sends a prompt with a responseJsonSchema to Gemini.
+    /// This enforces structured output matching the v2.0.0 contract schema.
+    ///
+    /// Per Gemini API docs, responseJsonSchema accepts a full JSON Schema (draft 2020-12)
+    /// including $defs, $ref, and all standard keywords.
+    /// The maxItems for destination_options should be set on the schema before calling
+    /// this method (per contract §5, step 0).
+    /// </summary>
+    public async Task<string> GenerateJsonWithSchemaAsync(
+        string prompt,
+        string systemInstruction,
+        JsonDocument schema,
+        CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(_options.ApiKey) ||
+            _options.ApiKey.StartsWith("REPLACE_WITH", StringComparison.OrdinalIgnoreCase))
+        {
+            throw new InvalidOperationException(
+                "Gemini:ApiKey is not configured. Set it via environment variable / secrets, never commit it.");
+        }
+
+        var url = $"{_options.BaseUrl}/{_options.Model}:generateContent?key={_options.ApiKey}";
+
+        var requestBody = new
+        {
+            system_instruction = new
+            {
+                parts = new[] { new { text = systemInstruction } }
+            },
+            contents = new[]
+            {
+                new
+                {
+                    role = "user",
+                    parts = new[] { new { text = prompt } }
+                }
+            },
+            generationConfig = new
+            {
+                responseMimeType = "application/json",
+                responseJsonSchema = schema.RootElement,
+                temperature = 0.4
+            }
+        };
+
+        return await SendRequestAsync(url, requestBody, cancellationToken);
+    }
+
+    private async Task<string> SendRequestAsync(
+        string url,
+        object requestBody,
+        CancellationToken cancellationToken)
+    {
         HttpResponseMessage response;
         try
         {
-            response = await _http.PostAsJsonAsync(url, requestBody, cancellationToken);
+            response = await _http.PostAsJsonAsync(url, requestBody, JsonOptions, cancellationToken);
         }
         catch (TaskCanceledException ex) when (!cancellationToken.IsCancellationRequested)
         {

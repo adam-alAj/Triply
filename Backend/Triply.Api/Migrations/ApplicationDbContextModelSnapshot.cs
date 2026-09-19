@@ -801,6 +801,32 @@ namespace Triply.Api.Migrations
                     b.ToTable("PlaceInterests");
                 });
 
+            modelBuilder.Entity("Triply.Api.Entities.UserPreferences", b =>
+                {
+                    b.Property<Guid>("UserId")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("DistanceUnit")
+                        .IsRequired()
+                        .HasMaxLength(10)
+                        .HasColumnType("nvarchar(10)");
+
+                    b.Property<string>("Pacing")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)");
+
+                    b.Property<long?>("PreferredCurrencyId")
+                        .HasColumnType("bigint");
+
+                    b.HasKey("UserId");
+
+                    b.HasIndex("PreferredCurrencyId");
+
+                    b.ToTable("UserPreferences");
+                });
+
             modelBuilder.Entity("Triply.Api.Entities.Trip", b =>
                 {
                     b.Property<Guid>("Id")
@@ -822,6 +848,10 @@ namespace Triply.Api.Migrations
                     b.Property<long?>("DestinationId")
                         .HasColumnType("bigint");
 
+                    b.Property<string>("CoverImageUrl")
+                        .HasMaxLength(1000)
+                        .HasColumnType("nvarchar(1000)");
+
                     b.Property<DateOnly?>("EndDate")
                         .HasColumnType("date");
 
@@ -837,6 +867,10 @@ namespace Triply.Api.Migrations
                         .IsRequired()
                         .HasMaxLength(20)
                         .HasColumnType("nvarchar(20)");
+
+                    b.Property<string>("Title")
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
 
                     b.Property<decimal?>("TotalEstimatedCost")
                         .HasColumnType("decimal(10,2)");
@@ -1082,6 +1116,23 @@ namespace Triply.Api.Migrations
                     b.Navigation("InterestCategory");
 
                     b.Navigation("Place");
+                });
+
+            modelBuilder.Entity("Triply.Api.Entities.UserPreferences", b =>
+                {
+                    b.HasOne("ApplicationUser", "User")
+                        .WithOne()
+                        .HasForeignKey("Triply.Api.Entities.UserPreferences", "UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("Triply.Api.Entities.Currency", "PreferredCurrency")
+                        .WithMany()
+                        .HasForeignKey("PreferredCurrencyId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.Navigation("PreferredCurrency");
+                    b.Navigation("User");
                 });
 
             modelBuilder.Entity("Triply.Api.Entities.Trip", b =>

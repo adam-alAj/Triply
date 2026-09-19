@@ -3,8 +3,11 @@ import 'package:provider/provider.dart';
 
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_text_styles.dart';
+import '../../../core/validation/trip_validators.dart';
 import '../../../data/models/trip_creation_data.dart';
 import '../../providers/trip_creation_provider.dart';
+import '../../widgets/error_state.dart';
+import '../../widgets/loading_skeleton.dart';
 import '../../widgets/primary_button.dart';
 
 class BudgetDestinationScreen extends StatelessWidget {
@@ -109,31 +112,15 @@ class _DestinationFirstContent extends StatelessWidget {
     final provider = context.watch<TripCreationProvider>();
     final selectedDestination = provider.data.destination;
 
-    // PENDING BACKEND: GET /api/destinations (a plain supported-destinations
-    // list) doesn't exist yet — only the two seeded destinations (Jerusalem,
-    // Amman) currently exist for real. This list stays local placeholder
-    // data until that endpoint ships; selecting one leaves
-    // TripCreationData.destinationId null, which submitTrip() cannot use.
-    const destinations = [
-      _DestinationOption(
-        name: 'Japan',
-        country: 'Japan',
-        description: 'Culture, food & tradition',
-        icon: Icons.temple_buddhist_outlined,
-      ),
-      _DestinationOption(
-        name: 'Italy',
-        country: 'Italy',
-        description: 'History, art & coastal escapes',
-        icon: Icons.account_balance_outlined,
-      ),
-      _DestinationOption(
-        name: 'Turkey',
-        country: 'Turkey',
-        description: 'Food, nature & heritage',
-        icon: Icons.landscape_outlined,
-      ),
-    ];
+    final destinations = provider.destinations.map((destination) {
+      return _DestinationOption(
+        name: destination['name'] as String,
+        country: destination['country'] as String,
+        description: destination['description'] as String? ?? '',
+        icon: Icons.place_outlined,
+        destinationId: destination['destinationId'] as int?,
+      );
+    }).toList();
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -170,21 +157,48 @@ class _DestinationFirstContent extends StatelessWidget {
 
         const SizedBox(height: 12),
 
-        ...destinations.map(
-              (destination) => Padding(
-            padding: const EdgeInsets.only(bottom: 12),
-            child: _DestinationCard(
-              option: destination,
-              selected: selectedDestination == destination.name,
-              onTap: () {
-                provider.selectDestination(
-                  name: destination.name,
-                  country: destination.country,
-                );
-              },
+        if (provider.destinationsLoading && destinations.isEmpty)
+          const Padding(
+            padding: EdgeInsets.symmetric(vertical: 12),
+            child: Column(
+              children: [
+                LoadingSkeleton(height: 96, borderRadius: 20),
+                SizedBox(height: 12),
+                LoadingSkeleton(height: 96, borderRadius: 20),
+              ],
+            ),
+          )
+        else if (provider.destinationsError != null)
+          ErrorState(
+            title: "Couldn't load destinations",
+            description: provider.destinationsError!,
+            onAction: provider.loadDestinations,
+          )
+        else if (destinations.isEmpty)
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: 24),
+            child: Text(
+              'No destinations available right now.',
+              style: AppTextStyles.bodyMd.copyWith(color: AppColors.secondary),
+            ),
+          )
+        else
+          ...destinations.map(
+            (destination) => Padding(
+              padding: const EdgeInsets.only(bottom: 12),
+              child: _DestinationCard(
+                option: destination,
+                selected: selectedDestination == destination.name,
+                onTap: () {
+                  provider.selectDestination(
+                    name: destination.name,
+                    country: destination.country,
+                    destinationId: destination.destinationId,
+                  );
+                },
+              ),
             ),
           ),
-        ),
 
         const SizedBox(height: 8),
 
@@ -326,12 +340,14 @@ class _DestinationOption {
     required this.country,
     required this.description,
     required this.icon,
+    this.destinationId,
   });
 
   final String name;
   final String country;
   final String description;
   final IconData icon;
+  final int? destinationId;
 }
 
 class _DestinationCard extends StatelessWidget {
@@ -651,45 +667,75 @@ void _showMockSearchMessage(BuildContext context) {
   );
 }
 
-void _showCustomBudgetDialog(BuildContext context) {
-  final controller = TextEditingController();
+Future<void> _showCustomBudgetDialog(BuildContext context) async {
+  final tripCreationProvider = context.read<TripCreationProvider>();
 
-  showDialog<void>(
+  final value = await showDialog<double>(
     context: context,
-    builder: (dialogContext) {
-      return AlertDialog(
-        title: const Text('Custom budget'),
-        content: TextField(
-          controller: controller,
-          keyboardType: TextInputType.number,
-          decoration: const InputDecoration(
-            prefixText: '\$ ',
-            hintText: '2500',
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () {
-              Navigator.pop(dialogContext);
-            },
-            child: const Text('Cancel'),
-          ),
-          FilledButton(
-            onPressed: () {
-              final value = double.tryParse(controller.text);
-
-              if (value == null || value <= 0) {
-                return;
-              }
-
-              context.read<TripCreationProvider>().setBudget(value);
-
-              Navigator.pop(dialogContext);
-            },
-            child: const Text('Save'),
-          ),
-        ],
-      );
-    },
+    builder: (_) => const _CustomBudgetDialog(),
   );
+
+  if (value != null) {
+    tripCreationProvider.setBudget(value);
+  }
+}
+
+/// A dedicated StatefulWidget (not an ad-hoc StatefulBuilder + a
+/// TextEditingController manually created around showDialog) so Flutter's
+/// own widget lifecycle owns the controller — see trip_details_screen.dart's
+/// `_BudgetDialog` for the crash this pattern avoids.
+class _CustomBudgetDialog extends StatefulWidget {
+  const _CustomBudgetDialog();
+
+  @override
+  State<_CustomBudgetDialog> createState() => _CustomBudgetDialogState();
+}
+
+class _CustomBudgetDialogState extends State<_CustomBudgetDialog> {
+  final _controller = TextEditingController();
+  String? _errorText;
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  void _save() {
+    final error = TripValidators.budgetInput(_controller.text, required: true);
+
+    if (error != null) {
+      setState(() => _errorText = error);
+      return;
+    }
+
+    Navigator.pop(context, double.parse(_controller.text.trim()));
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: const Text('Custom budget'),
+      content: TextField(
+        controller: _controller,
+        keyboardType: TextInputType.number,
+        autofocus: true,
+        decoration: InputDecoration(
+          prefixText: '\$ ',
+          hintText: '2500',
+          errorText: _errorText,
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: const Text('Cancel'),
+        ),
+        FilledButton(
+          onPressed: _save,
+          child: const Text('Save'),
+        ),
+      ],
+    );
+  }
 }

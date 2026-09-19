@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_text_styles.dart';
+import '../../../core/validation/trip_validators.dart';
 import '../../providers/trip_creation_provider.dart';
 import '../../widgets/app_scaffold.dart';
 import '../../widgets/primary_button.dart';
@@ -100,55 +101,10 @@ class _TripDetailsScreenState extends State<TripDetailsScreen> {
   }
 
   Future<void> _editBudget() async {
-    final controller = TextEditingController(
-      text: _budget?.toStringAsFixed(0) ?? '',
-    );
-
     final result = await showDialog<double>(
       context: context,
-      builder: (context) {
-        return AlertDialog(
-          title: const Text('Target Budget'),
-          content: TextField(
-            controller: controller,
-            autofocus: true,
-            keyboardType: const TextInputType.numberWithOptions(
-              decimal: true,
-            ),
-            decoration: InputDecoration(
-              prefixText: '\$ ',
-              hintText: '2500',
-              filled: true,
-              fillColor: AppColors.surfaceContainerLow,
-              border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(14),
-                borderSide: BorderSide.none,
-              ),
-            ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: const Text('Cancel'),
-            ),
-            ElevatedButton(
-              onPressed: () {
-                final value = double.tryParse(controller.text.trim());
-
-                if (value == null || value <= 0) {
-                  return;
-                }
-
-                Navigator.pop(context, value);
-              },
-              child: const Text('Save'),
-            ),
-          ],
-        );
-      },
+      builder: (context) => _BudgetDialog(initialValue: _budget),
     );
-
-    controller.dispose();
 
     if (result == null) return;
 
@@ -157,6 +113,35 @@ class _TripDetailsScreenState extends State<TripDetailsScreen> {
     });
 
     context.read<TripCreationProvider>().setBudget(result);
+  }
+
+  void _continue(TripCreationProvider provider) {
+    final travelerError = TripValidators.travelerCount(_travelers);
+    if (travelerError != null) {
+      _showError(travelerError);
+      return;
+    }
+
+    final dateError = TripValidators.dateRange(_startDate, _endDate);
+    if (dateError != null) {
+      _showError(dateError);
+      return;
+    }
+
+    provider.setDates(startDate: _startDate, endDate: _endDate);
+    provider.setTravelers(_travelers);
+
+    if (_budget != null) {
+      provider.setBudget(_budget!);
+    }
+
+    provider.next();
+  }
+
+  void _showError(String message) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(message), behavior: SnackBarBehavior.floating),
+    );
   }
 
   String _formatDate(DateTime date) {
@@ -263,20 +248,7 @@ class _TripDetailsScreenState extends State<TripDetailsScreen> {
                   PrimaryButton(
                     label: 'Continue to Interests',
                     fullWidth: true,
-                    onPressed: () {
-                      provider.setDates(
-                        startDate: _startDate,
-                        endDate: _endDate,
-                      );
-
-                      provider.setTravelers(_travelers);
-
-                      if (_budget != null) {
-                        provider.setBudget(_budget!);
-                      }
-
-                      provider.next();
-                    },
+                    onPressed: () => _continue(provider),
                   ),
 
                   const SizedBox(height: 8),
@@ -717,6 +689,78 @@ class _TripDetailsScreenState extends State<TripDetailsScreen> {
           ),
         ],
       ),
+    );
+  }
+}
+
+/// A dedicated StatefulWidget (not an ad-hoc StatefulBuilder + a
+/// TextEditingController manually created/disposed around showDialog) so
+/// Flutter's own widget lifecycle owns the controller — the manual version
+/// of this dialog caused a real "TextEditingController used after being
+/// disposed" crash (which cascades into unrelated-looking framework
+/// assertions) under certain dismiss timings.
+class _BudgetDialog extends StatefulWidget {
+  const _BudgetDialog({this.initialValue});
+
+  final double? initialValue;
+
+  @override
+  State<_BudgetDialog> createState() => _BudgetDialogState();
+}
+
+class _BudgetDialogState extends State<_BudgetDialog> {
+  late final _controller = TextEditingController(
+    text: widget.initialValue?.toStringAsFixed(0) ?? '',
+  );
+  String? _errorText;
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  void _save() {
+    final error = TripValidators.budgetInput(_controller.text, required: true);
+
+    if (error != null) {
+      setState(() => _errorText = error);
+      return;
+    }
+
+    Navigator.pop(context, double.parse(_controller.text.trim()));
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: const Text('Target Budget'),
+      content: TextField(
+        controller: _controller,
+        autofocus: true,
+        keyboardType: const TextInputType.numberWithOptions(decimal: true),
+        decoration: InputDecoration(
+          prefixText: '\$ ',
+          hintText: '2500',
+          filled: true,
+          fillColor: AppColors.surfaceContainerLow,
+          border: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(14),
+            borderSide: BorderSide.none,
+          ),
+          errorText: _errorText,
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: const Text('Cancel'),
+        ),
+        ElevatedButton(
+          onPressed: _save,
+          child: const Text('Save'),
+        ),
+      ],
     );
   }
 }
