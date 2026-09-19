@@ -43,6 +43,7 @@ public class ItineraryPromptBuilder : IItineraryPromptBuilder
 
         // Build the place list grouped by category, using names only (no IDs)
         var placeList = BuildPlaceList(places);
+        var dateRule = BuildDateRule(trip.StartDate, trip.EndDate, dayCount);
 
         return $$"""
         You are Triply's trip-planning assistant. You generate a structured trip
@@ -69,8 +70,7 @@ public class ItineraryPromptBuilder : IItineraryPromptBuilder
         7. Return exactly one entry in `destination_options`, for the destination
            given below.
         8. `days` must have exactly {{dayCount}} entries, `day_number`
-           1-indexed with no gaps, and each `date` consistent with the trip's
-           date range.
+           1-indexed with no gaps. {{dateRule}}
         9. Set `planning_mode` to `"DESTINATION_FIRST"`.
 
         Trip preferences:
@@ -102,6 +102,7 @@ public class ItineraryPromptBuilder : IItineraryPromptBuilder
             destinations.Select(d => $"- {d.Name}: {d.Description ?? "N/A"}"));
 
         var placeList = BuildPlaceListByDestination(places, destinations);
+        var dateRule = BuildDateRule(trip.StartDate, trip.EndDate, dayCount);
 
         return $$"""
         You are Triply's trip-planning assistant. You generate 1 to 3 candidate
@@ -135,8 +136,7 @@ public class ItineraryPromptBuilder : IItineraryPromptBuilder
            implied by each place's `budget_tier` in the list below - never state
            or calculate an exact total.
         8. Within each destination option, `days` must have exactly {{dayCount}} entries,
-           `day_number` 1-indexed with no gaps, and each `date` consistent with
-           the trip's date range.
+           `day_number` 1-indexed with no gaps. {{dateRule}}
         9. Set `planning_mode` to `"BUDGET_FIRST"`.
 
         Trip preferences:
@@ -155,6 +155,37 @@ public class ItineraryPromptBuilder : IItineraryPromptBuilder
 
         Return your response as JSON matching the required response schema exactly.
         """;
+    }
+
+    /// <summary>
+    /// Builds the explicit date instruction and, when the trip's start date is
+    /// known, spells out the exact ISO date required for every day so the
+    /// model has no ambiguity (it has no other way to know "today"/the trip's
+    /// actual dates - previously this rule referenced "the trip's date range"
+    /// without ever stating what that range was, which caused Gemini to
+    /// hallucinate unrelated dates on every attempt).
+    /// </summary>
+    private static string BuildDateRule(DateOnly? startDate, DateOnly? endDate, int dayCount)
+    {
+        if (startDate is null)
+        {
+            return "Each `date` must be a valid ISO 8601 date (yyyy-MM-dd), " +
+                   "with day 1 followed by consecutive calendar days.";
+        }
+
+        var lines = new List<string>();
+        for (var i = 0; i < dayCount; i++)
+        {
+            var date = startDate.Value.AddDays(i);
+            lines.Add($"day_number {i + 1} => date \"{date:yyyy-MM-dd}\"");
+        }
+
+        var mapping = string.Join(", ", lines);
+        var endDateNote = endDate.HasValue ? $" (trip ends {endDate.Value:yyyy-MM-dd})" : "";
+
+        return $"The trip starts on {startDate.Value:yyyy-MM-dd}{endDateNote}. " +
+               $"Use exactly these dates, one per day_number: {mapping}. " +
+               "Do not use any other date.";
     }
 
     /// <summary>
