@@ -403,14 +403,21 @@ class _TripCard extends StatelessWidget {
               child: Stack(
                 fit: StackFit.expand,
                 children: [
-                  Image.asset(
-                    image,
-                    fit: BoxFit.cover,
-                    errorBuilder: (_, __, ___) => Container(
-                      color: AppColors.surfaceContainer,
-                      child: const Icon(Icons.image_outlined, size: 32, color: AppColors.textMuted),
+                  if (trip.coverImageUrl != null)
+                    Image.network(
+                      trip.coverImageUrl!,
+                      fit: BoxFit.cover,
+                      errorBuilder: (_, __, ___) => Image.asset(image, fit: BoxFit.cover),
+                    )
+                  else
+                    Image.asset(
+                      image,
+                      fit: BoxFit.cover,
+                      errorBuilder: (_, __, ___) => Container(
+                        color: AppColors.surfaceContainer,
+                        child: const Icon(Icons.image_outlined, size: 32, color: AppColors.textMuted),
+                      ),
                     ),
-                  ),
                   Positioned(
                     top: 10,
                     left: 10,

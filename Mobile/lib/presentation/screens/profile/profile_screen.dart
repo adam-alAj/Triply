@@ -1,22 +1,42 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import '../../../core/network/api_client.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_text_styles.dart';
+import '../../../data/models/user_settings_data.dart';
+import '../../../data/repositories/api_user_settings_repository.dart';
 import '../../providers/auth_provider.dart';
+import '../../providers/user_settings_provider.dart';
 import '../../widgets/app_bottom_navigation.dart';
 
 /// MOB-PROF-01 — Profile (UI Pages §2, §9): "Display name, email, logout".
-/// Everything past that (preferences, AI toggles, About links) has no
-/// backend support yet, so it renders for visual completeness but isn't
-/// wired to anything real — only "Edit name" and "Log Out" (this task's
-/// acceptance criteria) actually do something.
+/// "Edit name" and "Log Out" are the task's acceptance criteria; preferences
+/// and stats are now wired to the real backend too (GET/PUT /api/users/me/
+/// preferences, GET /api/users/me/stats). AI Curation & Privacy toggles and
+/// the About links still have no backend support and stay display-only.
 class ProfileScreen extends StatelessWidget {
   const ProfileScreen({super.key});
 
   @override
   Widget build(BuildContext context) {
+    return ChangeNotifierProvider(
+      create: (_) => UserSettingsProvider(
+        repository:
+            ApiUserSettingsRepository(apiClient: context.read<ApiClient>()),
+      ),
+      child: const _ProfileView(),
+    );
+  }
+}
+
+class _ProfileView extends StatelessWidget {
+  const _ProfileView();
+
+  @override
+  Widget build(BuildContext context) {
     final user = context.watch<AuthProvider>().user;
+    final settings = context.watch<UserSettingsProvider>();
 
     return Scaffold(
       backgroundColor: AppColors.surface,
@@ -26,11 +46,15 @@ class ProfileScreen extends StatelessWidget {
           children: [
             const _TopBar(),
             const SizedBox(height: 16),
-            _ProfileCard(name: user?.name ?? 'Traveler', email: user?.email ?? ''),
+            _ProfileCard(
+              name: user?.name ?? 'Traveler',
+              email: user?.email ?? '',
+              stats: settings.stats,
+            ),
             const SizedBox(height: 20),
             const _SectionLabel('TRIP PREFERENCES & LOCALIZATION'),
             const SizedBox(height: 8),
-            const _PreferencesCard(),
+            _PreferencesCard(settings: settings),
             const SizedBox(height: 20),
             const _SectionLabel('AI CURATION & PRIVACY'),
             const SizedBox(height: 8),
@@ -85,10 +109,11 @@ class _TopBar extends StatelessWidget {
 }
 
 class _ProfileCard extends StatelessWidget {
-  const _ProfileCard({required this.name, required this.email});
+  const _ProfileCard({required this.name, required this.email, this.stats});
 
   final String name;
   final String email;
+  final UserStatsData? stats;
 
   @override
   Widget build(BuildContext context) {
@@ -167,11 +192,26 @@ class _ProfileCard extends StatelessWidget {
           const SizedBox(height: 14),
           const Divider(height: 1),
           const SizedBox(height: 14),
-          const Row(
+          Row(
             children: [
-              Expanded(child: _StatBlock(value: '0', label: 'Trips')),
-              Expanded(child: _StatBlock(value: '0', label: 'Saved')),
-              Expanded(child: _StatBlock(value: '0', label: 'Countries')),
+              Expanded(
+                child: _StatBlock(
+                  value: '${stats?.totalTrips ?? 0}',
+                  label: 'Trips',
+                ),
+              ),
+              Expanded(
+                child: _StatBlock(
+                  value: '${stats?.totalSavedPlaces ?? 0}',
+                  label: 'Saved',
+                ),
+              ),
+              Expanded(
+                child: _StatBlock(
+                  value: '${stats?.totalCountries ?? 0}',
+                  label: 'Countries',
+                ),
+              ),
             ],
           ),
         ],
@@ -198,9 +238,20 @@ class _ProfileCard extends StatelessWidget {
             child: const Text('Cancel'),
           ),
           ElevatedButton(
-            onPressed: () {
-              context.read<AuthProvider>().updateDisplayName(controller.text);
+            onPressed: () async {
+              final auth = context.read<AuthProvider>();
+              final succeeded = await auth.updateDisplayName(controller.text);
+              if (!dialogContext.mounted) return;
               Navigator.of(dialogContext).pop();
+              if (!succeeded) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text(
+                      auth.errorMessage ?? 'Unable to save your name.',
+                    ),
+                  ),
+                );
+              }
             },
             child: const Text('Save'),
           ),
@@ -242,25 +293,24 @@ class _SectionLabel extends StatelessWidget {
   }
 }
 
-class _PreferencesCard extends StatefulWidget {
-  const _PreferencesCard();
+class _PreferencesCard extends StatelessWidget {
+  const _PreferencesCard({required this.settings});
 
-  @override
-  State<_PreferencesCard> createState() => _PreferencesCardState();
-}
-
-class _PreferencesCardState extends State<_PreferencesCard> {
-  bool _useKm = true;
+  final UserSettingsProvider settings;
 
   @override
   Widget build(BuildContext context) {
+    final preferences = settings.preferences;
+    final currencyLabel = preferences?.preferredCurrency ?? '—';
+    final useKm = preferences?.distanceUnit != 'MILES';
+
     return _SettingsCard(
       children: [
         _SettingsRow(
           icon: Icons.attach_money,
           title: 'Preferred Currency',
           subtitle: 'Auto-converts all daily budgets',
-          trailing: _Dropdown(label: 'USD (\$)'),
+          trailing: _Dropdown(label: currencyLabel),
         ),
         _SettingsRow(
           icon: Icons.directions_walk,
@@ -268,8 +318,10 @@ class _PreferencesCardState extends State<_PreferencesCard> {
           trailing: _SegmentedToggle(
             leftLabel: 'Kilometers (km)',
             rightLabel: 'Miles (mi)',
-            leftSelected: _useKm,
-            onChanged: (value) => setState(() => _useKm = value),
+            leftSelected: useKm,
+            onChanged: preferences == null
+                ? (_) {}
+                : (value) => settings.setDistanceUnit(value),
           ),
           stackTrailing: true,
         ),
@@ -277,7 +329,7 @@ class _PreferencesCardState extends State<_PreferencesCard> {
           icon: Icons.tune,
           title: 'Default Pacing',
           subtitle: 'Itinerary stops per day',
-          trailing: _Dropdown(label: 'Balanced (4-5)'),
+          trailing: _Dropdown(label: preferences?.pacingLabel ?? '—'),
         ),
       ],
     );

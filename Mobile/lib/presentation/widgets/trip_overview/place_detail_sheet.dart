@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 
+import '../../../core/network/api_client.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_text_styles.dart';
 import '../../../data/models/trip_overview_data.dart';
@@ -10,10 +12,6 @@ enum PlaceDetailAction { edit, remove }
 /// price, notes, 'Edit' and 'Remove' actions". Returns which action the
 /// user picked (if any) so the caller can open the Edit Item Modal or
 /// remove the item — this sheet itself doesn't touch trip state.
-///
-/// PENDING BACKEND: there is no place-details endpoint yet (only
-/// `PlaceName` comes through the itinerary response) — description/hours
-/// below are placeholders until one exists.
 Future<PlaceDetailAction?> showPlaceDetailSheet(
   BuildContext context,
   ItineraryItemData item,
@@ -28,13 +26,39 @@ Future<PlaceDetailAction?> showPlaceDetailSheet(
   );
 }
 
-class _PlaceDetailSheet extends StatelessWidget {
+class _PlaceDetailSheet extends StatefulWidget {
   const _PlaceDetailSheet({required this.item});
 
   final ItineraryItemData item;
 
   @override
+  State<_PlaceDetailSheet> createState() => _PlaceDetailSheetState();
+}
+
+class _PlaceDetailSheetState extends State<_PlaceDetailSheet> {
+  late Future<Map<String, dynamic>> _details;
+
+  @override
+  void initState() {
+    super.initState();
+    _details = _fetchDetails();
+  }
+
+  Future<Map<String, dynamic>> _fetchDetails() {
+    if (widget.item.placeId <= 0) {
+      return Future.error(
+        StateError('This item has no linked place yet.'),
+      );
+    }
+    return context
+        .read<ApiClient>()
+        .get<Map<String, dynamic>>('/api/places/${widget.item.placeId}');
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final item = widget.item;
+
     return SafeArea(
       child: Padding(
         padding: const EdgeInsets.fromLTRB(20, 12, 20, 24),
@@ -72,13 +96,62 @@ class _PlaceDetailSheet extends StatelessWidget {
             const SizedBox(height: 2),
             Text(item.subtitle, style: AppTextStyles.bodySm),
             const SizedBox(height: 14),
-            Text(
-              // Placeholder copy — real place descriptions need a backend
-              // Place-details endpoint that doesn't exist yet.
-              'A curated stop matched to your interests. More details '
-              '(opening hours, reviews, booking links) will appear here '
-              'once the backend exposes full place data.',
-              style: AppTextStyles.bodyMd,
+            FutureBuilder<Map<String, dynamic>>(
+              future: _details,
+              builder: (context, snapshot) {
+                if (snapshot.connectionState != ConnectionState.done) {
+                  return const Padding(
+                    padding: EdgeInsets.symmetric(vertical: 12),
+                    child: Center(
+                      child: SizedBox(
+                        width: 20,
+                        height: 20,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      ),
+                    ),
+                  );
+                }
+
+                if (snapshot.hasError) {
+                  return Text(
+                    'More details for this place aren\'t available right now.',
+                    style: AppTextStyles.bodyMd,
+                  );
+                }
+
+                final data = snapshot.data!;
+                final description = data['description'] as String?;
+                final countryName = data['countryName'] as String?;
+                final destinationName = data['destinationName'] as String?;
+
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      (description == null || description.isEmpty)
+                          ? 'A curated stop matched to your interests.'
+                          : description,
+                      style: AppTextStyles.bodyMd,
+                    ),
+                    if (destinationName != null) ...[
+                      const SizedBox(height: 8),
+                      Row(
+                        children: [
+                          const Icon(Icons.place_outlined,
+                              size: 16, color: AppColors.textMuted),
+                          const SizedBox(width: 6),
+                          Text(
+                            countryName != null
+                                ? '$destinationName, $countryName'
+                                : destinationName,
+                            style: AppTextStyles.labelMd,
+                          ),
+                        ],
+                      ),
+                    ],
+                  ],
+                );
+              },
             ),
             if (item.notes != null && item.notes!.isNotEmpty) ...[
               const SizedBox(height: 10),
