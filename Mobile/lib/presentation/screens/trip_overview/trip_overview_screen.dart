@@ -5,7 +5,7 @@ import '../../../core/network/api_client.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_text_styles.dart';
 import '../../../data/models/trip_overview_data.dart';
-import '../../../data/repositories/mock_trip_overview_repository.dart';
+import '../../../data/repositories/api_trip_overview_repository.dart';
 import '../../providers/trip_overview_provider.dart';
 import '../../widgets/app_bottom_navigation.dart';
 import '../../widgets/day_selector.dart';
@@ -39,7 +39,9 @@ class TripOverviewScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     return ChangeNotifierProvider(
       create: (_) => TripOverviewProvider(
-        repository: MockTripOverviewRepository(),
+        repository: ApiTripOverviewRepository(
+          apiClient: context.read<ApiClient>(),
+        ),
         tripId: tripId,
       ),
       child: const _TripOverviewView(),

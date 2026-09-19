@@ -1,0 +1,134 @@
+{
+  "planning_mode": "DESTINATION_FIRST",
+  "destination_options": [
+    {
+      "destination_name": "Amman",
+      "accommodation": {
+        "place_name": "Jordan Tower Hotel",
+        "nights": 4
+      },
+      "days": [
+        {
+          "day_number": 1,
+          "date": "2026-11-10",
+          "items": [
+            {
+              "time_slot": "MORNING",
+              "order_index": 1,
+              "place_name": "Airport Transfer – QAIA to Amman",
+              "notes": "Arrival transport from the airport to hotel."
+            },
+            {
+              "time_slot": "AFTERNOON",
+              "order_index": 1,
+              "place_name": "Amman Citadel & Jordan Archaeological Museum",
+              "notes": "Explore historic ruins with panoramic views."
+            },
+            {
+              "time_slot": "EVENING",
+              "order_index": 1,
+              "place_name": "Hashem Restaurant",
+              "notes": "Traditional downtown dining."
+            }
+          ]
+        },
+        {
+          "day_number": 2,
+          "date": "2026-11-11",
+          "items": [
+            {
+              "time_slot": "MORNING",
+              "order_index": 1,
+              "place_name": "Jerash Archaeological Site & Museum",
+              "notes": "Day trip to historic Greco-Roman ruins."
+            },
+            {
+              "time_slot": "AFTERNOON",
+              "order_index": 1,
+              "place_name": "Jordan Heritage Restaurant",
+              "notes": "Sample local dishes."
+            },
+            {
+              "time_slot": "EVENING",
+              "order_index": 1,
+              "place_name": "Rainbow Street Evening Walk",
+              "notes": "Relaxing stroll through vibrant streets."
+            }
+          ]
+        },
+        {
+          "day_number": 3,
+          "date": "2026-11-12",
+          "items": [
+            {
+              "time_slot": "MORNING",
+              "order_index": 1,
+              "place_name": "Dead Sea Public Beach",
+              "notes": "Relaxation and floating in the mineral waters."
+            },
+            {
+              "time_slot": "AFTERNOON",
+              "order_index": 1,
+              "place_name": "Levant Restaurant",
+              "notes": "Middle Eastern cuisine."
+            },
+            {
+              "time_slot": "EVENING",
+              "order_index": 1,
+              "place_name": "Abdali Mall & Boulevard",
+              "notes": "Leisurely evening walk."
+            }
+          ]
+        },
+        {
+          "day_number": 4,
+          "date": "2026-11-13",
+          "items": [
+            {
+              "time_slot": "MORNING",
+              "order_index": 1,
+              "place_name": "Wadi Rum Protected Area",
+              "notes": "Scenic desert landscape adventure."
+            },
+            {
+              "time_slot": "AFTERNOON",
+              "order_index": 1,
+              "place_name": "Wadi Rum Jeep Safari (2 hrs)",
+              "notes": "Exciting desert jeep tour."
+            },
+            {
+              "time_slot": "EVENING",
+              "order_index": 1,
+              "place_name": "Hashem Restaurant",
+              "notes": "Casual evening meal."
+            }
+          ]
+        },
+        {
+          "day_number": 5,
+          "date": "2026-11-14",
+          "items": [
+            {
+              "time_slot": "MORNING",
+              "order_index": 1,
+              "place_name": "Roman Theatre & Museum of Popular Traditions",
+              "notes": "Visit ancient downtown theater."
+            },
+            {
+              "time_slot": "AFTERNOON",
+              "order_index": 1,
+              "place_name": "Levant Restaurant",
+              "notes": "Final meal before departure."
+            },
+            {
+              "time_slot": "EVENING",
+              "order_index": 1,
+              "place_name": "Intra-city Taxi (short ride)",
+              "notes": "Transit ride around the city."
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

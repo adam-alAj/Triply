@@ -1,0 +1,221 @@
+{
+  "planning_mode": "BUDGET_FIRST",
+  "destination_options": [
+    {
+      "destination_name": "Paris",
+      "accommodation": {
+        "place_name": "Novotel Paris 20 Belleville",
+        "nights": 2
+      },
+      "days": [
+        {
+          "day_number": 1,
+          "date": "2026-11-10",
+          "items": [
+            {
+              "time_slot": "MORNING",
+              "order_index": 1,
+              "place_name": "Airport Transfer – CDG to city centre"
+            },
+            {
+              "time_slot": "AFTERNOON",
+              "order_index": 1,
+              "place_name": "Louvre Museum"
+            },
+            {
+              "time_slot": "EVENING",
+              "order_index": 1,
+              "place_name": "Bouillon Chartier Grands Boulevards"
+            }
+          ]
+        },
+        {
+          "day_number": 2,
+          "date": "2026-11-11",
+          "items": [
+            {
+              "time_slot": "MORNING",
+              "order_index": 1,
+              "place_name": "Notre-Dame Cathedral"
+            },
+            {
+              "time_slot": "AFTERNOON",
+              "order_index": 1,
+              "place_name": "Paris Catacombs"
+            },
+            {
+              "time_slot": "EVENING",
+              "order_index": 1,
+              "place_name": "Chez Le Libanais"
+            }
+          ]
+        },
+        {
+          "day_number": 3,
+          "date": "2026-11-12",
+          "items": [
+            {
+              "time_slot": "MORNING",
+              "order_index": 1,
+              "place_name": "Eiffel Tower (2nd floor, lift)"
+            },
+            {
+              "time_slot": "AFTERNOON",
+              "order_index": 1,
+              "place_name": "Seine River Cruise"
+            },
+            {
+              "time_slot": "EVENING",
+              "order_index": 1,
+              "place_name": "Epicure (Le Bristol Paris)"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "destination_name": "Amman",
+      "accommodation": {
+        "place_name": "Jordan Tower Hotel",
+        "nights": 2
+      },
+      "days": [
+        {
+          "day_number": 1,
+          "date": "2026-11-10",
+          "items": [
+            {
+              "time_slot": "MORNING",
+              "order_index": 1,
+              "place_name": "Airport Transfer – QAIA to Amman"
+            },
+            {
+              "time_slot": "AFTERNOON",
+              "order_index": 1,
+              "place_name": "Amman Citadel & Jordan Archaeological Museum"
+            },
+            {
+              "time_slot": "EVENING",
+              "order_index": 1,
+              "place_name": "Hashem Restaurant"
+            }
+          ]
+        },
+        {
+          "day_number": 2,
+          "date": "2026-11-11",
+          "items": [
+            {
+              "time_slot": "MORNING",
+              "order_index": 1,
+              "place_name": "Roman Theatre & Museum of Popular Traditions"
+            },
+            {
+              "time_slot": "AFTERNOON",
+              "order_index": 1,
+              "place_name": "Rainbow Street Evening Walk"
+            },
+            {
+              "time_slot": "EVENING",
+              "order_index": 1,
+              "place_name": "Jordan Heritage Restaurant"
+            }
+          ]
+        },
+        {
+          "day_number": 3,
+          "date": "2026-11-12",
+          "items": [
+            {
+              "time_slot": "MORNING",
+              "order_index": 1,
+              "place_name": "Petra Day Trip (entrance)"
+            },
+            {
+              "time_slot": "AFTERNOON",
+              "order_index": 2,
+              "place_name": "Wadi Rum Protected Area"
+            },
+            {
+              "time_slot": "EVENING",
+              "order_index": 1,
+              "place_name": "Levant Restaurant"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "destination_name": "New York",
+      "accommodation": {
+        "place_name": "Pod 51 Hotel",
+        "nights": 2
+      },
+      "days": [
+        {
+          "day_number": 1,
+          "date": "2026-11-10",
+          "items": [
+            {
+              "time_slot": "MORNING",
+              "order_index": 1,
+              "place_name": "Airport Transfer – JFK to Manhattan"
+            },
+            {
+              "time_slot": "AFTERNOON",
+              "order_index": 1,
+              "place_name": "Statue of Liberty & Ellis Island Ferry"
+            },
+            {
+              "time_slot": "EVENING",
+              "order_index": 1,
+              "place_name": "Joe's Pizza"
+            }
+          ]
+        },
+        {
+          "day_number": 2,
+          "date": "2026-11-11",
+          "items": [
+            {
+              "time_slot": "MORNING",
+              "order_index": 1,
+              "place_name": "Central Park"
+            },
+            {
+              "time_slot": "AFTERNOON",
+              "order_index": 1,
+              "place_name": "Empire State Building (86th floor)"
+            },
+            {
+              "time_slot": "EVENING",
+              "order_index": 1,
+              "place_name": "Wo Hop"
+            }
+          ]
+        },
+        {
+          "day_number": 3,
+          "date": "2026-11-12",
+          "items": [
+            {
+              "time_slot": "MORNING",
+              "order_index": 1,
+              "place_name": "Brooklyn Bridge Walk"
+            },
+            {
+              "time_slot": "AFTERNOON",
+              "order_index": 1,
+              "place_name": "Top of the Rock Observation Deck"
+            },
+            {
+              "time_slot": "EVENING",
+              "order_index": 1,
+              "place_name": "Le Bernardin"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
