@@ -168,3 +168,11 @@ public sealed class AiGenerationResult
     public ItineraryResponse? Itinerary { get; set; }
     public CostEstimateResponse? Cost { get; set; }
 }
+
+public sealed class GenerateItineraryRequest
+{
+    /// <summary>FULL, DAY, or ITEM. Omit or use FULL for the existing full-trip flow.</summary>
+    public string Scope { get; set; } = "FULL";
+    public int? DayNumber { get; set; }
+    public Guid? ItemId { get; set; }
+}

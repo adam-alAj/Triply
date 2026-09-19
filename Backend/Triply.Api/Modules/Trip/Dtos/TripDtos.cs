@@ -20,6 +20,8 @@ public class TripResponse
     public Guid Id { get; set; }
     public string PlanningMode { get; set; } = default!;
     public string Status { get; set; } = default!;
+    public string? Title { get; set; }
+    public string? CoverImageUrl { get; set; }
     public long? DestinationId { get; set; }
     public string? DestinationName { get; set; }
     public DateOnly? StartDate { get; set; }
@@ -43,4 +45,11 @@ public class UpdateTripRequest
     public long? BudgetCurrencyId { get; set; }
     public List<long> InterestCategoryIds { get; set; } = new();
     public int ExpectedVersion { get; set; }
+}
+
+public class UpdateTripMetadataRequest
+{
+    public string? Title { get; set; }
+    public string? CoverImageUrl { get; set; }
+    public int? ExpectedVersion { get; set; }
 }

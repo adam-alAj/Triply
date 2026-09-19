@@ -176,6 +176,138 @@ var itinerary = new Triply.Api.Entities.Itinerary
         return Ok(ToResponse(itinerary));
     }
 
+    [HttpPatch("items/{itemId:guid}")]
+    public async Task<IActionResult> UpdateItem(
+        Guid tripId,
+        Guid itemId,
+        [FromBody] UpdateItineraryItemRequest request,
+        CancellationToken cancellationToken)
+    {
+        var trip = await _db.Trips
+            .FirstOrDefaultAsync(x => x.Id == tripId, cancellationToken);
+
+        if (trip is null) return NotFound();
+
+        var authResult = await _authorizationService
+            .AuthorizeAsync(User, trip, "TripOwner");
+        if (!authResult.Succeeded) return NotFound();
+
+        if (trip.Status == TripLifecycle.Archived || trip.Status == TripLifecycle.Generating)
+            return Conflict(new { message = $"Trip cannot be modified while status is {trip.Status}." });
+
+        var timeSlot = request.TimeSlot?.Trim().ToUpperInvariant();
+        if (request.PlaceId <= 0 || !new[] { "MORNING", "AFTERNOON", "EVENING" }.Contains(timeSlot))
+        {
+            return BadRequest(new ValidationProblemDetails(
+    new Dictionary<string, string[]>            {
+                ["request"] = ["PlaceId must be greater than 0 and TimeSlot must be MORNING, AFTERNOON, or EVENING."]
+            }));
+        }
+
+        if (request.OrderIndex < 0)
+        {
+            return BadRequest(new ValidationProblemDetails(
+    new Dictionary<string, string[]>            {
+                [nameof(request.OrderIndex)] = ["OrderIndex cannot be negative."]
+            }));
+        }
+
+        if (request.Notes?.Length > 1000)
+        {
+            return BadRequest(new ValidationProblemDetails(
+    new Dictionary<string, string[]>            {
+                [nameof(request.Notes)] = ["Notes must be at most 1000 characters."]
+            }));
+        }
+
+        var item = await _db.ItineraryItems
+            .Include(x => x.ItineraryDay)
+                .ThenInclude(x => x.Itinerary)
+            .Include(x => x.Place)
+                .ThenInclude(x => x.PlaceCategory)
+            .FirstOrDefaultAsync(x => x.Id == itemId &&
+                                      x.ItineraryDay.Itinerary.TripId == tripId,
+                cancellationToken);
+
+        if (item is null) return NotFound();
+
+        // Accommodation is a trip-scoped special item and is not an editable activity.
+        if (string.Equals(item.Place.PlaceCategory.Code, "ACCOMMODATION", StringComparison.OrdinalIgnoreCase) ||
+            (item.Notes?.StartsWith("Accommodation:", StringComparison.OrdinalIgnoreCase) ?? false))
+        {
+            return Conflict(new { message = "Accommodation cannot be edited as a regular itinerary activity." });
+        }
+
+        var place = await _db.Places
+            .FirstOrDefaultAsync(x => x.Id == request.PlaceId && x.IsActive, cancellationToken);
+
+        if (place is null)
+        {
+            return BadRequest(new
+            {
+                errors = new Dictionary<string, string[]>
+                {
+                    [nameof(request.PlaceId)] = ["Place does not exist or is inactive."]
+                }
+            });
+        }
+
+        if (trip.DestinationId.HasValue && place.DestinationId != trip.DestinationId.Value)
+        {
+            return BadRequest(new
+            {
+                errors = new Dictionary<string, string[]>
+                {
+                    [nameof(request.PlaceId)] = ["Place must belong to the trip destination."]
+                }
+            });
+        }
+
+        var duplicate = await _db.ItineraryItems.AnyAsync(x =>
+            x.Id != itemId &&
+            x.ItineraryDayId == item.ItineraryDayId &&
+            x.TimeSlot == timeSlot &&
+            x.OrderIndex == request.OrderIndex, cancellationToken);
+
+        if (duplicate)
+        {
+            return Conflict(new { message = "Another itinerary item already uses the requested TimeSlot and OrderIndex on this day." });
+        }
+
+        item.PlaceId = place.Id;
+        item.TimeSlot = timeSlot!;
+        item.OrderIndex = request.OrderIndex;
+        item.EstimatedCost = place.ReferencePrice;
+        item.Notes = request.Notes;
+        item.IsAiGenerated = false;
+        item.ModifiedAt = DateTime.UtcNow;
+
+        if (trip.Status is TripLifecycle.Generated or TripLifecycle.Saved)
+            TripLifecycle.Transition(trip, TripLifecycle.Modified);
+
+        trip.UpdatedAt = DateTime.UtcNow;
+        trip.Version++;
+
+        await using var transaction = await _db.Database.BeginTransactionAsync(cancellationToken);
+        await _db.SaveChangesAsync(cancellationToken);
+        await transaction.CommitAsync(cancellationToken);
+
+        await _db.Entry(item).Reference(x => x.Place).LoadAsync(cancellationToken);
+
+        return Ok(new ItineraryItemResponse
+        {
+            Id = item.Id,
+            PlaceId = item.PlaceId,
+            PlaceName = item.Place.Name,
+            TimeSlot = item.TimeSlot,
+            OrderIndex = item.OrderIndex,
+            EstimatedCost = item.EstimatedCost,
+            Notes = item.Notes,
+            IsAiGenerated = item.IsAiGenerated,
+            ModifiedAt = item.ModifiedAt
+        });
+    }
+
     private static int TimeSlotOrder(string timeSlot) => timeSlot.ToUpperInvariant() switch
     {
         "MORNING" => 1,

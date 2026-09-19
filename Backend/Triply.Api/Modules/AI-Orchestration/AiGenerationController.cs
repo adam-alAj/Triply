@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.EntityFrameworkCore;
 using Triply.Api.Data;
+using Triply.Api.Modules.AIOrchestration.Dtos;
 
 namespace Triply.Api.Modules.AIOrchestration;
 
@@ -32,7 +33,7 @@ public class AiGenerationController : ControllerBase
     }
 
     [HttpPost]
-    public async Task<IActionResult> Generate(Guid tripId, CancellationToken cancellationToken)
+    public async Task<IActionResult> Generate(Guid tripId, [FromBody] GenerateItineraryRequest? request, CancellationToken cancellationToken)
     {
         var trip = await _db.Trips.FirstOrDefaultAsync(t => t.Id == tripId, cancellationToken);
         if (trip is null)
@@ -42,7 +43,31 @@ public class AiGenerationController : ControllerBase
         if (!authResult.Succeeded)
             return NotFound();
 
-        var result = await _orchestrationService.GenerateItineraryAsync(tripId, cancellationToken);
+        request ??= new GenerateItineraryRequest();
+        var scope = request.Scope?.Trim().ToUpperInvariant() ?? "FULL";
+
+        if (scope is not "FULL" and not "DAY" and not "ITEM")
+            return BadRequest(new { errors = new Dictionary<string, string[]> { [nameof(request.Scope)] = ["Scope must be FULL, DAY, or ITEM."] } });
+
+        AiGenerationResult result;
+        try
+        {
+            result = scope == "FULL"
+                ? await _orchestrationService.GenerateItineraryAsync(tripId, cancellationToken)
+                : await _orchestrationService.RegeneratePartialAsync(tripId, request, cancellationToken);
+        }
+        catch (ArgumentException ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
+        catch (KeyNotFoundException)
+        {
+            return NotFound();
+        }
+        catch (InvalidOperationException ex)
+        {
+            return Conflict(new { message = ex.Message });
+        }
 
         if (!result.Success)
         {
