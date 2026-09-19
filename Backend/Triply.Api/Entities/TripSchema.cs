@@ -9,6 +9,8 @@ public class Trip
     public long? DestinationId { get; set; }
     public Destination? Destination { get; set; }
     public string PlanningMode { get; set; } = default!; // DESTINATION_FIRST | BUDGET_FIRST
+    public string? Title { get; set; }
+    public string? CoverImageUrl { get; set; }
     public string Status { get; set; } = "DRAFT";         // §19 lifecycle
     public DateOnly? StartDate { get; set; }
     public DateOnly? EndDate { get; set; }

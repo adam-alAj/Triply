@@ -41,7 +41,19 @@ public class CostAggregationIntegrationTests
         return body!.Token;
     }
 
-    private async Task<Guid> CreateTripAsync(string token)
+    private async Task<long> GetDestinationIdAsync()
+    {
+        using var scope = _factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+
+        return await db.Destinations
+            .AsNoTracking()
+            .Where(x => x.IsSupported)
+            .Select(x => x.Id)
+            .FirstAsync();
+    }
+
+    private async Task<Guid> CreateTripAsync(string token, long destinationId)
     {
         _client.DefaultRequestHeaders.Authorization =
             new AuthenticationHeaderValue("Bearer", token);
@@ -51,7 +63,7 @@ public class CostAggregationIntegrationTests
             new
             {
                 planningMode = "DESTINATION_FIRST",
-                destinationId = 1,
+                destinationId,
                 travelerCount = 2,
                 budgetAmount = 5000,
                 budgetCurrencyId = 1,
@@ -63,82 +75,197 @@ public class CostAggregationIntegrationTests
         return body!.Id;
     }
 
-    private async Task SeedCostEstimatesAsync(
-        Guid tripId,
-        params (long categoryId, decimal amount)[] estimates)
+    private async Task<(long destinationId, long firstPlaceId, long secondPlaceId, decimal firstPrice, decimal secondPrice)>
+        SeedTwoPlacesAsync()
     {
         using var scope = _factory.Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
 
-        foreach (var estimate in estimates)
-        {
-            db.CostEstimates.Add(new CostEstimate
-            {
-                TripId = tripId,
-                CostCategoryId = estimate.categoryId,
-                Amount = estimate.amount,
-                CurrencyId = 1,
-                ComputedAt = DateTime.UtcNow
-            });
-        }
+        var destinationId = await db.Destinations
+            .AsNoTracking()
+            .Where(x => x.IsSupported)
+            .Select(x => x.Id)
+            .FirstAsync();
 
+        var placeCategoryId = await db.PlaceCategories
+            .OrderBy(x => x.Id)
+            .Select(x => x.Id)
+            .FirstAsync();
+
+        var costCategoryId = await db.CostCategories
+            .OrderBy(x => x.Id)
+            .Select(x => x.Id)
+            .FirstAsync();
+
+        var currencyId = await db.Currencies
+            .Where(x => x.IsoCode == "USD")
+            .Select(x => x.Id)
+            .FirstAsync();
+
+        var first = new Place
+        {
+            DestinationId = destinationId,
+            PlaceCategoryId = placeCategoryId,
+            Name = $"Cost Test Place A {Guid.NewGuid():N}",
+            ReferencePrice = 120m,
+            CurrencyId = currencyId,
+            CostCategoryId = costCategoryId,
+            IsActive = true
+        };
+
+        var second = new Place
+        {
+            DestinationId = destinationId,
+            PlaceCategoryId = placeCategoryId,
+            Name = $"Cost Test Place B {Guid.NewGuid():N}",
+            ReferencePrice = 80m,
+            CurrencyId = currencyId,
+            CostCategoryId = costCategoryId,
+            IsActive = true
+        };
+
+        db.Places.AddRange(first, second);
         await db.SaveChangesAsync();
+
+        return (
+            destinationId,
+            first.Id,
+            second.Id,
+            first.ReferencePrice,
+            second.ReferencePrice);
     }
 
     [Fact]
-    public async Task CostEstimate_AggregatesCategoriesAndPersistsTotal()
+    public async Task CostEstimate_CalculatesFromItineraryAndPersistsTripTotal()
     {
         var token = await RegisterAndGetTokenAsync();
-        var tripId = await CreateTripAsync(token);
+        var places = await SeedTwoPlacesAsync();
+        var tripId = await CreateTripAsync(token, places.destinationId);
 
-        using (var scope = _factory.Services.CreateScope())
-        {
-            var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
-            var categoryIds = await db.CostCategories
-                .OrderBy(x => x.Id)
-                .Select(x => x.Id)
-                .Take(2)
-                .ToListAsync();
+        // Deliberately send incorrect prices. The itinerary endpoint must
+        // use the authoritative internal dataset price instead.
+        var writeResponse = await _client.PostAsJsonAsync(
+            $"/api/trips/{tripId}/itinerary",
+            new
+            {
+                days = new[]
+                {
+                    new
+                    {
+                        dayNumber = 1,
+                        date = "2026-09-20",
+                        items = new[]
+                        {
+                            new
+                            {
+                                placeId = places.firstPlaceId,
+                                timeSlot = "MORNING",
+                                orderIndex = 1,
+                                estimatedCost = 999999m,
+                                isAiGenerated = true
+                            },
+                            new
+                            {
+                                placeId = places.secondPlaceId,
+                                timeSlot = "AFTERNOON",
+                                orderIndex = 2,
+                                estimatedCost = 888888m,
+                                isAiGenerated = true
+                            }
+                        }
+                    }
+                }
+            });
 
-            await SeedCostEstimatesAsync(
-                tripId,
-                (categoryIds[0], 120m),
-                (categoryIds[1], 80m));
-        }
+        writeResponse.EnsureSuccessStatusCode();
 
         var response = await _client.GetAsync(
             $"/api/trips/{tripId}/cost-estimate");
 
         response.EnsureSuccessStatusCode();
+
         var body = await response.Content
             .ReadFromJsonAsync<CostEstimateResponse>();
 
         Assert.NotNull(body);
         Assert.Equal(tripId, body!.TripId);
-        Assert.Equal(200m, body.TotalEstimatedCost);
+        Assert.Equal(places.firstPrice + places.secondPrice, body.TotalEstimatedCost);
         Assert.Equal("USD", body.Currency);
         Assert.True(body.IsEstimated);
         Assert.All(body.Categories, x => Assert.True(x.IsEstimated));
 
-        Assert.Equal(2, body.Categories.Count(x => x.Amount > 0));
-        Assert.Contains(body.Categories, x => x.Amount == 120m);
-        Assert.Contains(body.Categories, x => x.Amount == 80m);
-
         using var verifyScope = _factory.Services.CreateScope();
         var verifyDb = verifyScope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+
         var storedTotal = await verifyDb.Trips
             .Where(x => x.Id == tripId)
             .Select(x => x.TotalEstimatedCost)
             .SingleAsync();
 
-        Assert.Equal(200m, storedTotal);
+        Assert.Equal(places.firstPrice + places.secondPrice, storedTotal);
+
+        var persistedRows = await verifyDb.CostEstimates
+            .Where(x => x.TripId == tripId)
+            .ToListAsync();
+
+        Assert.Equal(
+            body.Categories.Count(x => x.Amount > 0),
+            persistedRows.Count);
+        Assert.Equal(
+            places.firstPrice + places.secondPrice,
+            persistedRows.Sum(x => x.Amount));
+    }
+
+    [Fact]
+    public async Task CostEstimate_UsesPersistedItinerarySnapshotCost()
+    {
+        var token = await RegisterAndGetTokenAsync();
+        var places = await SeedTwoPlacesAsync();
+        var tripId = await CreateTripAsync(token, places.destinationId);
+
+        using (var scope = _factory.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+            var itinerary = new Itinerary { TripId = tripId, GeneratedAt = DateTime.UtcNow };
+            var day = new ItineraryDay
+            {
+                Date = new DateOnly(2026, 9, 20),
+                DayNumber = 1
+            };
+            day.Items.Add(new ItineraryItem
+            {
+                PlaceId = places.firstPlaceId,
+                TimeSlot = "MORNING",
+                OrderIndex = 1,
+                EstimatedCost = 360m, // 3 nights x 120, persisted by AI orchestration
+                IsAiGenerated = true
+            });
+            itinerary.Days.Add(day);
+            db.Itineraries.Add(itinerary);
+            await db.SaveChangesAsync();
+        }
+
+        var response = await _client.GetAsync($"/api/trips/{tripId}/cost-estimate");
+        response.EnsureSuccessStatusCode();
+        var body = await response.Content.ReadFromJsonAsync<CostEstimateResponse>();
+
+        Assert.NotNull(body);
+        Assert.Equal(360m, body!.TotalEstimatedCost);
+
+        using var verifyScope = _factory.Services.CreateScope();
+        var verifyDb = verifyScope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+        var persisted = await verifyDb.CostEstimates
+            .Where(x => x.TripId == tripId)
+            .SumAsync(x => x.Amount);
+
+        Assert.Equal(360m, persisted);
     }
 
     [Fact]
     public async Task CostEstimate_ReturnsAllCategoriesWithZeroForMissingRows()
     {
         var token = await RegisterAndGetTokenAsync();
-        var tripId = await CreateTripAsync(token);
+        var tripId = await CreateTripAsync(token, await GetDestinationIdAsync());
 
         using var scope = _factory.Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
@@ -163,7 +290,7 @@ public class CostAggregationIntegrationTests
     public async Task CostEstimate_DifferentUser_ReturnsNotFound()
     {
         var ownerToken = await RegisterAndGetTokenAsync();
-        var tripId = await CreateTripAsync(ownerToken);
+        var tripId = await CreateTripAsync(ownerToken, await GetDestinationIdAsync());
 
         var otherUserToken = await RegisterAndGetTokenAsync();
         _client.DefaultRequestHeaders.Authorization =

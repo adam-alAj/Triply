@@ -43,6 +43,8 @@ public class TripsController : ControllerBase
                 Id = t.Id,
                 PlanningMode = t.PlanningMode,
                 Status = t.Status,
+                Title = t.Title,
+                CoverImageUrl = t.CoverImageUrl,
                 DestinationId = t.DestinationId,
                 DestinationName = t.Destination == null ? null : t.Destination.Name,
                 StartDate = t.StartDate,
@@ -210,6 +212,113 @@ public class TripsController : ControllerBase
             ToResponse(trip, null, []));
     }
 
+
+    [HttpPatch("{id:guid}")]
+    public async Task<IActionResult> UpdateMetadata(
+        Guid id,
+        [FromBody] UpdateTripMetadataRequest request,
+        CancellationToken cancellationToken)
+    {
+        var userId = GetUserId();
+        if (userId is null) return Unauthorized();
+
+        if (request.Title is null && request.CoverImageUrl is null)
+        {
+            return BadRequest(new ValidationProblemDetails(
+    new Dictionary<string, string[]>            {
+                ["request"] = ["At least one metadata field must be provided."]
+            }));
+        }
+
+        if (request.Title is not null && request.Title.Trim().Length > 200)
+        {
+            return BadRequest(new ValidationProblemDetails(
+    new Dictionary<string, string[]>            {
+                [nameof(request.Title)] = ["Title must be at most 200 characters."]
+            }));
+        }
+
+        if (request.CoverImageUrl is not null)
+        {
+            var cover = request.CoverImageUrl.Trim();
+            if (cover.Length > 1000)
+            {
+                return BadRequest(new ValidationProblemDetails(
+    new Dictionary<string, string[]>                {
+                    [nameof(request.CoverImageUrl)] = ["CoverImageUrl must be at most 1000 characters."]
+                }));
+            }
+
+            if (cover.Length > 0 &&
+                (!Uri.TryCreate(cover, UriKind.Absolute, out var uri) ||
+                 (uri.Scheme != Uri.UriSchemeHttp && uri.Scheme != Uri.UriSchemeHttps)))
+            {
+                return BadRequest(new ValidationProblemDetails(
+    new Dictionary<string, string[]>                {
+                    [nameof(request.CoverImageUrl)] = ["CoverImageUrl must be a valid HTTP or HTTPS URL."]
+                }));
+            }
+        }
+
+        var trip = await _db.Trips
+            .Include(t => t.TripInterests)
+            .Include(t => t.Destination)
+            .FirstOrDefaultAsync(t => t.Id == id && t.UserId == userId.Value, cancellationToken);
+
+        if (trip is null) return NotFound();
+
+        if (trip.Status == TripLifecycle.Generating || trip.Status == TripLifecycle.Archived)
+        {
+            return Conflict(new { message = $"Trip cannot be modified while status is {trip.Status}." });
+        }
+
+        if (request.ExpectedVersion.HasValue && request.ExpectedVersion.Value != trip.Version)
+        {
+            return Conflict(new
+            {
+                message = "Trip has been modified by another request.",
+                currentVersion = trip.Version
+            });
+        }
+
+        if (request.Title is not null)
+            trip.Title = request.Title.Trim();
+
+        if (request.CoverImageUrl is not null)
+            trip.CoverImageUrl = request.CoverImageUrl.Trim();
+
+        if (trip.Status is TripLifecycle.Generated or TripLifecycle.Saved)
+            TripLifecycle.Transition(trip, TripLifecycle.Modified);
+
+        trip.UpdatedAt = DateTime.UtcNow;
+        trip.Version++;
+
+        try
+        {
+            await _db.SaveChangesAsync(cancellationToken);
+        }
+        catch (DbUpdateConcurrencyException)
+        {
+            return Conflict(new { message = "Trip has been modified by another request." });
+        }
+
+        var itinerary = await _db.Itineraries
+            .AsNoTracking()
+            .Include(x => x.Days)
+                .ThenInclude(x => x.Items)
+                    .ThenInclude(x => x.Place)
+            .FirstOrDefaultAsync(x => x.TripId == id, cancellationToken);
+
+        var costEstimate = await _db.CostEstimates
+            .AsNoTracking()
+            .Include(x => x.CostCategory)
+            .Include(x => x.Currency)
+            .Where(x => x.TripId == id)
+            .OrderBy(x => x.CostCategoryId)
+            .ToListAsync(cancellationToken);
+
+        return Ok(ToResponse(trip, itinerary, costEstimate));
+    }
 
     [HttpPost("{id:guid}/save")]
     public async Task<IActionResult> Save(
@@ -581,6 +690,8 @@ public class TripsController : ControllerBase
             Id = trip.Id,
             PlanningMode = trip.PlanningMode,
             Status = trip.Status,
+            Title = trip.Title,
+            CoverImageUrl = trip.CoverImageUrl,
             DestinationId = trip.DestinationId,
             DestinationName = trip.Destination?.Name,
             StartDate = trip.StartDate,

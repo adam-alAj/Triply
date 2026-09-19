@@ -1,0 +1,39 @@
+Plan a trip to New York for a traveler with the following preferences:
+
+- Trip dates: 2026-12-20 to 2026-12-24
+- Budget: 2000 USD (context only -- do not mention, estimate, or calculate any cost in your response)
+- Interests: Culture, Shopping, Food, Adventure
+
+Only use places from the list below. Do not use any place that is not on this list, and do not use a place from a different destination:
+
+[ACCOMMODATION]
+- Pod 51 Hotel
+- Hampton Inn Manhattan Grand Central
+- The Ritz-Carlton New York, Central Park
+
+[RESTAURANT]
+- Joe's Pizza
+- Wo Hop
+- Le Bernardin
+
+[ATTRACTION]
+- Empire State Building (86th floor)
+- Top of the Rock Observation Deck
+- Statue of Liberty & Ellis Island Ferry
+
+[ACTIVITY]
+- Central Park
+- Saks Fifth Avenue
+- MUJI Fifth Avenue
+- SUMMIT One Vanderbilt
+- Brooklyn Bridge Walk
+- Times Square
+- Broadway Show (standard ticket)
+
+[TRANSPORT]
+- Airport Transfer – JFK to Manhattan
+- Subway/Bus Single Ride (OMNY)
+- Weekly Fare Cap (OMNY)
+
+
+Return your response as JSON matching the required response schema exactly.

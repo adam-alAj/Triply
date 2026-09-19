@@ -1,0 +1,86 @@
+{
+  "planning_mode": "DESTINATION_FIRST",
+  "destination_options": [
+    {
+      "destination_name": "Amman",
+      "accommodation": {
+        "place_name": "Jordan Tower Hotel",
+        "nights": 2
+      },
+      "days": [
+        {
+          "day_number": 1,
+          "date": "2026-11-10",
+          "items": [
+            {
+              "time_slot": "MORNING",
+              "order_index": 1,
+              "place_name": "Airport Transfer – QAIA to Amman",
+              "notes": "Transfer from the airport to central Amman."
+            },
+            {
+              "time_slot": "AFTERNOON",
+              "order_index": 1,
+              "place_name": "Amman Citadel & Jordan Archaeological Museum",
+              "notes": "Explore ancient historic ruins and archaeological exhibits."
+            },
+            {
+              "time_slot": "EVENING",
+              "order_index": 1,
+              "place_name": "Hashem Restaurant",
+              "notes": "Savor classic local dishes in downtown Amman."
+            }
+          ]
+        },
+        {
+          "day_number": 2,
+          "date": "2026-11-11",
+          "items": [
+            {
+              "time_slot": "MORNING",
+              "order_index": 1,
+              "place_name": "Roman Theatre & Museum of Popular Traditions",
+              "notes": "Visit the iconic Roman theater complex."
+            },
+            {
+              "time_slot": "AFTERNOON",
+              "order_index": 1,
+              "place_name": "Jordan Heritage Restaurant",
+              "notes": "Experience authentic culinary tradition."
+            },
+            {
+              "time_slot": "EVENING",
+              "order_index": 1,
+              "place_name": "Rainbow Street Evening Walk",
+              "notes": "Enjoy a stroll along Rainbow Street."
+            }
+          ]
+        },
+        {
+          "day_number": 3,
+          "date": "2026-11-12",
+          "items": [
+            {
+              "time_slot": "MORNING",
+              "order_index": 1,
+              "place_name": "Jerash Archaeological Site & Museum",
+              "notes": "Explore ancient Roman ruins near Amman."
+            },
+            {
+              "time_slot": "AFTERNOON",
+              "order_index": 1,
+              "place_name": "Levant Restaurant",
+              "notes": "Enjoy regional cuisine for lunch."
+            },
+            {
+              "time_slot": "EVENING",
+              "order_index": 1,
+              "place_name": "Intra-city Taxi (short ride)",
+              "notes": "Taxi transport across downtown."
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
