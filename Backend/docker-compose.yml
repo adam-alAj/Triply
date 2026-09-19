@@ -45,6 +45,8 @@ services:
       Jwt__Audience: TriplyClients
       Gemini__ApiKey: ${GEMINI_API_KEY}
       Cors__AllowedOrigins__0: "http://localhost:5173"
+      Cors__AllowedOrigins__1: "http://localhost:8765"
+      Cors__AllowedOrigins__2: "http://localhost:49904"
     depends_on:
       db:
         condition: service_healthy

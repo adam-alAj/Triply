@@ -11,11 +11,13 @@ public class TripSchemaConstraintsTests : IDisposable
 {
     private readonly ApplicationDbContext _db;
 
+    private readonly string _dbName = $"TriplyDb_TripSchemaTests_{Guid.NewGuid():N}";
+
     public TripSchemaConstraintsTests()
     {
        var connectionString =
     Environment.GetEnvironmentVariable("TRIPLY_TEST_DB_CONNECTION")
-    ?? "Server=(localdb)\\mssqllocaldb;Database=TriplyDb_TripSchemaTests;Trusted_Connection=True;TrustServerCertificate=True;";
+    ?? $"Server=(localdb)\\mssqllocaldb;Database={_dbName};Trusted_Connection=True;TrustServerCertificate=True;";
 
 var options = new DbContextOptionsBuilder<ApplicationDbContext>()
     .UseSqlServer(connectionString)
