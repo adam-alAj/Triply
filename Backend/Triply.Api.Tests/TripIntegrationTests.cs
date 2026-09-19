@@ -49,12 +49,13 @@ public class TripIntegrationTests : IClassFixture<CustomWebApplicationFactory>
         var db = scope.ServiceProvider
             .GetRequiredService<ApplicationDbContext>();
 
-        var existingPlace = await db.Places
-            .Where(x =>
-                x.DestinationId == destinationId &&
-                x.IsActive)
-            .OrderBy(x => x.Id)
-            .FirstOrDefaultAsync();
+      var existingPlace = await db.Places
+    .Where(x =>
+        x.DestinationId == destinationId &&
+        x.IsActive &&
+        x.Name.StartsWith("Integration Test Place"))
+    .OrderBy(x => x.Id)
+    .FirstOrDefaultAsync();
 
         if (existingPlace is not null)
             return existingPlace.Id;
