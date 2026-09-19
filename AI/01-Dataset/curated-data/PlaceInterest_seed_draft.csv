@@ -15,6 +15,9 @@ Paris,Galeries Lafayette Champs-Élysées,SHOPPING
 Paris,Paris Catacombs,HISTORY
 Paris,Seine River Cruise,CULTURE
 Paris,Moulin Rouge Cabaret Show,CULTURE
+Paris,Airport Transfer – CDG to city centre,OTHER
+Paris,Intra-city Metro/Bus Single Ticket,OTHER
+Paris,Navigo Easy Weekly Pass,OTHER
 Amman,Jordan Tower Hotel,HISTORY
 Amman,AlQasr Metropole Hotel,CULTURE
 Amman,Four Seasons Hotel Amman,RELAXATION
@@ -31,6 +34,9 @@ Amman,Abdali Mall & Boulevard,SHOPPING
 Amman,Wadi Rum Jeep Safari (2 hrs),ADVENTURE
 Amman,Petra Day Trip (entrance),HISTORY
 Amman,Rainbow Street Evening Walk,CULTURE
+Amman,Airport Transfer – QAIA to Amman,OTHER
+Amman,Intra-city Taxi (short ride),OTHER
+Amman,Jordan Pass,OTHER
 New York,Pod 51 Hotel,OTHER
 New York,Hampton Inn Manhattan Grand Central,OTHER
 New York,"The Ritz-Carlton New York, Central Park",RELAXATION
@@ -47,3 +53,6 @@ New York,SUMMIT One Vanderbilt,ADVENTURE
 New York,Brooklyn Bridge Walk,ADVENTURE
 New York,Times Square,CULTURE
 New York,Broadway Show (standard ticket),CULTURE
+New York,Airport Transfer – JFK to Manhattan,OTHER
+New York,Subway/Bus Single Ride (OMNY),OTHER
+New York,Weekly Fare Cap (OMNY),OTHER

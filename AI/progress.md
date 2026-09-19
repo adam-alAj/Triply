@@ -1,6 +1,6 @@
 # Triply AI — Progress
 
-*Owner: Aya Malli · Track: AI/ML · Last updated: 2026-09-17*
+*Owner: Aya Malli · Track: AI/ML · Last updated: 2026-09-19*
 
 This document tracks new work done on the AI track from this point forward — what was added, why, and its current status — so the rest of the team can follow along without digging through commits.
 
@@ -63,118 +63,30 @@ traceability.
 
 ---
 
-## 4. Gemini JSON Output Schema Finalization (TASK36) — ✅ Complete
+## 4. Extra_AI_Context.csv — BUDGET_FIRST Dataset Population — ✅ Complete
 
-**Task objective:** Validate and lock the Gemini JSON output schema against the agreed contract, dataset, and prompt templates. Align Backend with v2.0.0.
+**Task objective:** Fully populate `Extra_AI_Context.csv` (previously empty) so Backend can consume it for `BUDGET_FIRST` prompt context.
 
-| Step | Detail | Status |
-| --- | --- | --- |
-| Phase 1-2: Repository & dependency audit | Inspected all artifacts: contract v2.0.0, schema.json, prompt templates, dataset CSVs, Backend entities/DTOs | ✅ Done |
-| Phase 3-6: Consistency matrix | Identified 7 critical misalignments between Backend (v1-era) and contract v2.0.0 | ✅ Done |
-| Phase 7-8: Schema validation | Confirmed `triply-trip-plan-generation.schema.json` is valid JSON Schema draft 2020-12, all $refs resolve | ✅ Done |
-| Phase 10: Backend DTO alignment | Rewrote `AiOrchestrationDtos.cs` — root shape `{planning_mode, destination_options[]}`, `place_name` replaces `PlaceId`, `accommodation` object added | ✅ Done |
-| Phase 10b: Validation service | Rewrote `ItineraryValidationService.cs` — name-based grounding, category rules, 0% tolerance | ✅ Done |
-| Phase 10c: Prompt builder | Rewrote `ItineraryPromptBuilder.cs` — `place_name` grounding, category-grouped lists, BUDGET_FIRST support | ✅ Done |
-| Phase 10d: Orchestration service | Updated `AiOrchestrationService.cs` — handles new DTO structure, name-to-ID resolution for persistence | ✅ Done |
-| Phase 10e: Gemini client | Updated `GeminiClient.cs` — added `GenerateJsonWithSchemaAsync` with `responseJsonSchema` | ✅ Done |
-| Phase 11: Validation harness | Created `AI/03-Validation/validate_schema.py` — 15 test cases covering valid/invalid/edge scenarios | ✅ Done |
-| Phase 12: Test results | All 15/15 test cases pass: valid itineraries, missing fields, wrong types, invalid enums, unexpected fields, realistic dataset values | ✅ Done |
-| Phase 9: Schema changelog | Created `AI/docs/SCHEMA_CHANGELOG.md` — documents all changes, reasons, and integration notes | ✅ Done |
+| Step                                                         | Detail                                                                                                                                                                                                                                                                                                                                                                                              | Status                                      |
+| ------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------- |
+| Populated all 57 rows                                        | `Extra_AI_Context.csv` was empty before this pass — now has `source_place_id`, `place_name`, `destination_name`, `place_category`, `reference_price`, `currency`, `budget_tier` for all 57 places across Paris / Amman / New York                                                                                                                                                                   | ✅ Done                                      |
+| Assigned `budget_tier`                                       | Every active place tagged `BUDGET` / `MID_RANGE` / `LUXURY`, assigned by price ordering **within each (destination, place_category)** — explicitly *not* comparable across destinations                                                                                                                                                                                                             | ✅ Done                                      |
+| Renamed join key                                             | Used `source_place_id` (not `place_id`) for the curation-local id, so Backend's `ExtraAiContextReader` falls back to matching on `place_name` (exact, case-sensitive vs. `Place.Name`) instead of accidentally joining on a curation id that isn't the DB id                                                                                                                                        | ✅ Done                                      |
+| Decoupled interest data                                      | `interest_tag` left blank/reserved in this file — Place↔Interest links now live only in `PlaceInterest_seed_draft.csv` (all 57 places, including the 9 `TRANSPORT` places tagged `OTHER`) so there's a single source of truth                                                                                                                                                                       | ✅ Done                                      |
+| Updated schema mapping doc                                   | `DATASET_CURATION_SCHEMA_MAPPING.md` §3.8 rewritten — documents the `place_name` lookup contract, the `AI:ExtraAiContextPath` runtime read (not imported into the DB), and that every active `Place` needs a `budget_tier` or Backend rejects `BUDGET_FIRST` generation                                                                                                                             | ✅ Done                                      |
+| Updated `REVIEW_RECORD.md`                                   | §3 rewritten to match — removed stale claims about `source_url`/`notes` being populated (they're reserved/blank), added the `budget_tier` runtime-read note                                                                                                                                                                                                                                         | ✅ Done                                      |
+| Updated Interest-Aware spec                                  | `Interest_Aware_Destination_Suggestions_Spec.md` §3 updated to point at `PlaceInterest_seed_draft.csv` instead of the now-blank `Extra_AI_Context.csv.interest_tag`                                                                                                                                                                                                                                 | ✅ Done                                      |
+| Flagged pre-existing Jerusalem/Palestine conflict to Backend | Re-surfaced the open item from `REVIEW_RECORD.md` §6 (Backend's `SeedCountriesCurrenciesDestinations` / `seed-dataset.sql` still seeds Jerusalem/Palestine, which isn't in the 3-destination curated dataset) — flagged because any such leftover `Place` has no matching row in `Extra_AI_Context.csv` and would fail the “every active Place needs a `budget_tier`” rule, blocking `BUDGET_FIRST` | ✅ Sent to Backend — ⬜ Waiting on resolution |
+| Sent to Backend                                              | Message sent confirming the file is ready, explaining the `place_name` matching + `budget_tier` semantics, and flagging the Jerusalem/Palestine conflict above                                                                                                                                                                                                                                      | ✅ Done                                      |
 
 **Key findings:**
-- The schema JSON file was already correct at v2.0.0 — no schema changes needed
-- The Backend was the source of drift: DTOs used `PlaceId` (numeric), flat structure, no `planning_mode`/`accommodation`
-- All 5 Backend files in AI-Orchestration were updated to align with the contract
-- `Extra_AI_Context.csv` budget_tier not yet joined in the place query (marked as TODO)
+- `budget_tier` is fully populated and documented as consumed at runtime by `ExtraAiContextReader`, not imported into the DB
+- `Extra_AI_Context.csv` is intentionally not the source for interests anymore; `PlaceInterest_seed_draft.csv` is
+- `BUDGET_FIRST` is still blocked end-to-end by the unresolved reference-data conflict tracked as DB-D4 (§6 of `REVIEW_RECORD.md`) — not an AI-side gap, but worth chasing since it now has a concrete failure mode (`BUDGET_FIRST` generation rejected for any non-curated `Place`)
 
 ---
 
-## 5. Gemini Prototype Experiments (TASK37) — ✅ Complete
-
-**Task objective:** Run controlled prototype experiments against Gemini Flash-family models to verify prompt + schema + dataset context can reliably produce structured itinerary output.
-
-| Step | Detail | Status |
-| --- | --- | --- |
-| Schema verification | Confirmed finalized schema v2.0.0 at `json-schemas/triply-trip-plan-generation.schema.json` | ✅ Done |
-| Prompt verification | Confirmed both templates (`destination_first.md`, `budget_first.md`) reference v2.0.0 | ✅ Done |
-| Dataset context | Built real context from 57 active places across 3 destinations | ✅ Done |
-| Experiment design | 12 scenarios: DESTINATION_FIRST (9) + BUDGET_FIRST (3), varying budget/duration/interests | ✅ Done |
-| Model selection | Primary: `gemini-3.6-flash`, Secondary: `gemini-3.5-flash-lite` | ✅ Done |
-| Generations executed | 10 of 12 scenarios (2 blocked by free-tier daily quota exhaustion) | ✅ Done |
-| Schema validation | 10/10 responses are schema-valid (JSON parse + JSON Schema draft 2020-12) | ✅ Done |
-| Dataset grounding | 10/10 responses reference only valid dataset places (0% hallucination) | ✅ Done |
-| Contract compliance | 10/10 responses are fully contract-valid | ✅ Done |
-| Failure analysis | No schema or grounding failures observed; 6 potential failure modes documented as risks | ✅ Done |
-| Prompt refinements | None needed — v2.0.0 prompts produced 100% success on first run | ✅ Done |
-| Results artifact | `AI/06-Gemini-Prototype/EXPERIMENT_REPORT.md` + `results/experiment_results.json` | ✅ Done |
-| Downstream handoff | Validation rules and AI-Orchestration integration notes prepared | ✅ Done |
-
-**Key findings:**
-- `responseJsonSchema` (full JSON Schema with `$defs`/`$ref`) works perfectly with Gemini Flash
-- Zero hallucination rate across all 10 generations — model strictly uses supplied place names
-- `gemini-2.0-flash` (project original) is deprecated; `gemini-3.6-flash` is the current Flash model
-- Free-tier quota: 20 requests/day per model — production needs paid plan
-- No prompt refinements were needed — the v2.0.0 templates are production-ready
-
----
-
-## 6. AI-Output Validation Rules Specification (TASK38) — ✅ Complete
-
-**Task objective:** Convert FR-AI-002 validation requirements into explicit, deterministic, codeable rules for Backend implementation.
-
-| Step | Detail | Status |
-| --- | --- | --- |
-| Requirement traceability | Traced FR-AI-002 through SRS, Database Design, Contract v2.0.0 | ✅ Done |
-| Cost tolerance analysis | Found D1 (±15%) is **proposed, not decided**; resolved: N/A in v2.0.0 (no AI-reported costs) | ✅ Done |
-| Place identity definition | Defined `Place.name` (exact string match) as authoritative identity | ✅ Done |
-| V-001 (0%-Invented-Place) | Full algorithm, edge cases, failure codes, examples | ✅ Done |
-| V-002 (Budget Feasibility) | Budget comparison from `Place.reference_price`, mode-specific behavior | ✅ Done |
-| Validation order | 5-step pipeline: Schema → Structural → Grounding → Category → Budget | ✅ Done |
-| Result contract | Machine-readable structure with per-rule pass/fail | ✅ Done |
-| Backend readiness | Specification is implementation-ready; existing Backend code aligned | ✅ Done |
-| Prototype findings incorporated | 10/10 zero-hallucination rate documented as safety-net context | ✅ Done |
-| Spec artifact | `AI/03-Validation/AI_OUTPUT_VALIDATION_RULES.md` | ✅ Done |
-
-**Key decisions:**
-- V-001: `Place.name` exact match only — no fuzzy matching, no normalization
-- V-002: No tolerance check needed — v2.0.0 removes all cost fields from model output
-- Budget check is deterministic Backend computation, never compared against AI output
-- `DESTINATION_FIRST` over-budget is flagged but not auto-failed (per contract §5 step 4)
-- `BUDGET_FIRST` over-budget options are dropped; zero surviving = attempt failure
-
----
-
-## 7. Python Validation Harness (TASK39) — ✅ Complete
-
-**Task objective:** Implement a systematic, reproducible Python validation harness that implements V-001 and V-002 per the validation specification.
-
-| Step | Detail | Status |
-| --- | --- | --- |
-| Validation spec read | Loaded AI_OUTPUT_VALIDATION_RULES.md v2.0.0 as source of truth | ✅ Done |
-| Dataset loaded | 57 active places, 3 supported destinations, 5 categories | ✅ Done |
-| Schema loaded | triply-trip-plan-generation.schema.json v2.0.0, draft 2020-12 | ✅ Done |
-| V-001 implemented | 0%-Invented-Place: exact Place.name match, destination-scoped, 0% tolerance | ✅ Done |
-| V-001 category rules | ACCOMMODATION placement, RESTAURANT per day, TRANSPORT per option | ✅ Done |
-| V-002 implemented | Budget feasibility: deterministic cost from Place.reference_price | ✅ Done |
-| V-002 mode-specific | DESTINATION_FIRST: flag over-budget; BUDGET_FIRST: drop + fail if zero | ✅ Done |
-| Decimal precision | Uses Python Decimal for monetary calculations (no float) | ✅ Done |
-| Fixture tests | 10/10 deterministic fixtures pass | ✅ Done |
-| Real generation batch | 10/10 real Gemini generations pass (138 place refs, 0 invalid) | ✅ Done |
-| Invented-place rate | 0.00% across 138 references | ✅ Done |
-| Machine-readable report | JSON report at reports/validation_results.json | ✅ Done |
-| Human-readable report | Markdown report at reports/VALIDATION_REPORT.md | ✅ Done |
-| Harness artifact | `AI/03-Validation/harness.py` | ✅ Done |
-
-**Key results:**
-- 10/10 real Gemini generations are fully contract-valid
-- 138 place references across all generations, 0 invalid
-- V-001 0% requirement: PASS
-- V-002 budget check: all options within budget (400 JOD test budget)
-- Fixture tests cover: valid, invented place, budget over, accommodation in days, missing restaurant, missing transport, schema failure, budget-first mixed, unknown destination
-
----
-
-## 8. Not Yet Started
+## 5. Not Yet Started
 
 - `PlaceInterest` seed file + seeder update (blocked on Backend decision, §2 above)
 

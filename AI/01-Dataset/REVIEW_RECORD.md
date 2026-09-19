@@ -13,11 +13,11 @@
 
 Per the D5-agreed MVP scope, this initial pass covers **3 destinations**:
 
-| Destination | Country | Currency | Places |
-|---|---|---|---|
-| Paris | France (FR) | EUR | 19 |
-| Amman | Jordan (JO) | JOD | 19 |
-| New York | United States (US) | USD | 19 |
+| Destination | Country            | Currency | Places |
+| ----------- | ------------------ | -------- | ------ |
+| Paris       | France (FR)        | EUR      | 19     |
+| Amman       | Jordan (JO)        | JOD      | 19     |
+| New York    | United States (US) | USD      | 19     |
 
 **Total: 57 places**, spanning all 5 place categories (Accommodation 9, Activity 21,
 Attraction 9, Restaurant 9, Transport 9) and 4 cost categories. Free entries
@@ -25,16 +25,16 @@ Attraction 9, Restaurant 9, Transport 9) and 4 cost categories. Free entries
 
 ## 2. Acceptance criteria status
 
-| Criterion | Status | Evidence |
-|---|---|---|
-| Dataset covers D5-agreed destinations | ✅ Met | §1 above; `Destination.csv` |
-| Every place has PlaceCategory | ✅ Met | 57/57 mapped; validated by seeder pre-flight |
-| Every place has CostCategory | ✅ Met | 57/57 mapped |
-| Every place has Currency | ✅ Met | 57/57 mapped (EUR/JOD/USD) |
-| Every place has reference_price | ✅ Met | 57/57, `decimal(10,2)` range checked |
-| Dataset is versioned | ✅ Met | `seed/DATASET_MANIFEST.json` — SHA-256 per CSV + row counts + coverage stats, version `1.0.0` |
-| Reviewed before use in generation | ✅ Met (this record) | §4 below; sign-off table §6 |
-| Seeded into SQL Server | ✅ Met | `seed/seed_places.py` verified end-to-end against SQL Server 2022 (see §5) |
+| Criterion                             | Status              | Evidence                                                                                      |
+| ------------------------------------- | ------------------- | --------------------------------------------------------------------------------------------- |
+| Dataset covers D5-agreed destinations | ✅ Met               | §1 above; `Destination.csv`                                                                   |
+| Every place has PlaceCategory         | ✅ Met               | 57/57 mapped; validated by seeder pre-flight                                                  |
+| Every place has CostCategory          | ✅ Met               | 57/57 mapped                                                                                  |
+| Every place has Currency              | ✅ Met               | 57/57 mapped (EUR/JOD/USD)                                                                    |
+| Every place has reference_price       | ✅ Met               | 57/57, `decimal(10,2)` range checked                                                          |
+| Dataset is versioned                  | ✅ Met               | `seed/DATASET_MANIFEST.json` — SHA-256 per CSV + row counts + coverage stats, version `1.0.0` |
+| Reviewed before use in generation     | ✅ Met (this record) | §4 below; sign-off table §6                                                                   |
+| Seeded into SQL Server                | ✅ Met               | `seed/seed_places.py` verified end-to-end against SQL Server 2022 (see §5)                    |
 
 ## 3. Data conventions & quality rules applied
 
@@ -50,17 +50,25 @@ Attraction 9, Restaurant 9, Transport 9) and 4 cost categories. Free entries
   hotels = per-night double-room rate; restaurants = per-person; transport =
   per-ride or pass; attractions = standard adult ticket; shows = standard seat.
 - **`price_updated_at`** records the curation date (2026-09-13). Per Database
-  Design §28 (stale-price risk), prices sourced from official pricing pages are
-  marked in `Extra_AI_Context.notes`; all rows need re-verification before
-  Sprint 3 generation runs that depend on them.
-- **`Extra_AI_Context.csv`** carries the per-place source URL, budget tier, and
-  interest tags used by prompt-context assembly. It is versioned in the same
-  manifest. (Interest tags are advisory prompt context only — the approved
-  schema has no Place-to-Interest relationship.)
+  Design §28 (stale-price risk), all rows need re-verification before Sprint 3
+  generation runs that depend on them. Per-row sources and `verify` flags are
+  not recorded in the current CSVs (the `source_url` and `notes` columns of
+  `Extra_AI_Context.csv` are reserved and blank).
+- **`Extra_AI_Context.csv`** carries the per-place `budget_tier` used by
+  BUDGET_FIRST prompt-context assembly; the backend reads it at runtime through
+  `ExtraAiContextReader`, matching rows on `place_name`. Tiers (`BUDGET` /
+  `MID_RANGE` / `LUXURY`) are relative: assigned by price ordering within each
+  destination and place category, so they are not comparable across
+  destinations. It is versioned in the same manifest. The columns
+  `suitable_travel_style`, `interest_tag`, `source_url` and `notes` are
+  reserved and currently blank. Place↔Interest links are curated separately in
+  `PlaceInterest_seed_draft.csv` (loaded into `PlaceInterests` by
+  `seed/Seed_place_interests.py`; see
+  `AI/05-Destination-Suggestion/Interest_Aware_Destination_Suggestions_Spec.md`).
 - Prices are **reference estimates**, not quotes: official tariff pages were
   used where available (Eiffel Tower, Catacombs, JSTA sites, MTA/OMNY, NYC TLC,
-  Jordan Pass); everything else is an average from maps/listing data and is
-  flagged `verify` in `Extra_AI_Context.notes`.
+  Jordan Pass); everything else is an average from maps/listing data (not
+  individually flagged in the current CSVs).
 
 ## 4. Review performed
 
@@ -89,13 +97,13 @@ verified 2026-09-15 against **SQL Server 2022 (Docker, `mcr.microsoft.com/mssql/
 using a test schema (`seed/test-schema.sql`) that mirrors the Backend EF Core
 migrations:
 
-| Scenario | Result |
-|---|---|
-| Fresh database (no reference data) | ✅ Reference rows landed; 3 destinations + 57 places inserted; correct category/currency joins |
-| Database seeded with conflicting Backend data (USD=1/JOD=2, Jerusalem/Palestine, Amman id=2) | ✅ No ID collisions; existing Amman matched by name and re-used (id=2); Paris/NY + 57 places inserted; USD/JOD re-used by ISO code; EUR added |
-| Re-run (idempotency) | ✅ 0 inserts, 0 updates; row counts unchanged (57 places / 4 destinations / 3 currencies) |
-| `--dry-run` | ✅ Prints full plan (inserts vs. existing), writes nothing |
-| Dataset validation gate | ✅ Rejects duplicate place names per destination, unknown category/currency ids, missing/over-range prices, empty descriptions, before touching the DB |
+| Scenario                                                                                     | Result                                                                                                                                                |
+| -------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Fresh database (no reference data)                                                           | ✅ Reference rows landed; 3 destinations + 57 places inserted; correct category/currency joins                                                         |
+| Database seeded with conflicting Backend data (USD=1/JOD=2, Jerusalem/Palestine, Amman id=2) | ✅ No ID collisions; existing Amman matched by name and re-used (id=2); Paris/NY + 57 places inserted; USD/JOD re-used by ISO code; EUR added          |
+| Re-run (idempotency)                                                                         | ✅ 0 inserts, 0 updates; row counts unchanged (57 places / 4 destinations / 3 currencies)                                                              |
+| `--dry-run`                                                                                  | ✅ Prints full plan (inserts vs. existing), writes nothing                                                                                             |
+| Dataset validation gate                                                                      | ✅ Rejects duplicate place names per destination, unknown category/currency ids, missing/over-range prices, empty descriptions, before touching the DB |
 
 Verification artifacts: `seed/test-schema.sql` (the DDL used). Rerunnable with:
 `python seed_places.py --connection-string "..."` per `seed/README.md`.
@@ -122,12 +130,12 @@ Verification artifacts: `seed/test-schema.sql` (the DDL used). Rerunnable with:
 
 ## 7. Sign-off
 
-| Reviewer | Role | Status | Date |
-|---|---|---|---|
-| Aya Maali | AI track — dataset curation | ☐ | — |
-| Anas Musleh | AI track — dataset curation | ☐ | — |
-| Adam Alafandi | AI track — dataset curation | ☐ | — |
-| Lynn Sharbati | Backend lead — §6 items | ☐ | — |
+| Reviewer      | Role                        | Status | Date |
+| ------------- | --------------------------- | ------ | ---- |
+| Aya Maali     | AI track — dataset curation | ☐      | —    |
+| Anas Musleh   | AI track — dataset curation | ☐      | —    |
+| Adam Alafandi | AI track — dataset curation | ☐      | —    |
+| Lynn Sharbati | Backend lead — §6 items     | ☐      | —    |
 
 The dataset is cleared for use in prompt-context assembly and generation
 validation once the AI-track sign-offs are recorded; Backend item §6.1 must be
