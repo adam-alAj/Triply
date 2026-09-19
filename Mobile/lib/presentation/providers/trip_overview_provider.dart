@@ -119,11 +119,34 @@ class TripOverviewProvider extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// Real backend call — `POST /api/trips/{id}/save`. Only a SAVED trip can
+  /// be archived (`TripLifecycle.CanTransition`: only `Saved → Archived` is
+  /// allowed), so this is the required step before Archive can ever
+  /// succeed. Returns whether it succeeded; check [errorMessage] on failure.
+  Future<bool> saveTrip(ApiClient apiClient) async {
+    try {
+      await apiClient.post<Map<String, dynamic>>('/api/trips/$_tripId/save');
+
+      if (_trip != null) {
+        _trip = _trip!.copyWith(status: 'SAVED');
+      }
+      notifyListeners();
+      return true;
+    } catch (error) {
+      _errorMessage = error is ApiException
+          ? error.message
+          : 'Unable to save this trip. Please try again.';
+      notifyListeners();
+      return false;
+    }
+  }
+
   /// Real backend call — `POST /api/trips/{id}/archive`. Returns whether it
-  /// succeeded; check [errorMessage] on failure. A 409 means someone else
-  /// (or another device) changed this trip since it was loaded here —
-  /// surfaced as a distinct "stale version" message rather than a generic
-  /// failure, per UI Pages §8's optimistic-concurrency special state.
+  /// succeeded; check [errorMessage] on failure. The backend's 409 here is
+  /// always `TripLifecycle`'s "cannot archive from status X" business rule
+  /// (only a SAVED trip can be archived) — never an optimistic-concurrency
+  /// conflict (Archive doesn't take an `ExpectedVersion`) — so its message
+  /// is shown as-is rather than replaced with a generic one.
   Future<bool> archiveTrip(ApiClient apiClient) async {
     try {
       await apiClient.post<Map<String, dynamic>>('/api/trips/$_tripId/archive');
@@ -135,8 +158,7 @@ class TripOverviewProvider extends ChangeNotifier {
       return true;
     } catch (error) {
       if (error is ApiException && error.statusCode == 409) {
-        _errorMessage = 'This trip changed elsewhere — reload to see the '
-            'latest version before archiving.';
+        _errorMessage = error.message;
       } else {
         _errorMessage = error is ApiException
             ? error.message

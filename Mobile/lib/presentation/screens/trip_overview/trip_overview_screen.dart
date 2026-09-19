@@ -5,7 +5,7 @@ import '../../../core/network/api_client.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_text_styles.dart';
 import '../../../data/models/trip_overview_data.dart';
-import '../../../data/repositories/mock_trip_overview_repository.dart';
+import '../../../data/repositories/api_trip_overview_repository.dart';
 import '../../providers/trip_overview_provider.dart';
 import '../../widgets/app_bottom_navigation.dart';
 import '../../widgets/day_selector.dart';
@@ -39,7 +39,7 @@ class TripOverviewScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     return ChangeNotifierProvider(
       create: (_) => TripOverviewProvider(
-        repository: MockTripOverviewRepository(),
+        repository: ApiTripOverviewRepository(apiClient: context.read<ApiClient>()),
         tripId: tripId,
       ),
       child: const _TripOverviewView(),
@@ -418,6 +418,17 @@ class _ActionBar extends StatelessWidget {
             onPressed: () => _handleRegenerate(context),
           ),
 
+          // Only a SAVED trip can be archived (backend's TripLifecycle only
+          // allows Saved -> Archived) — Save shows for anything before that.
+          if (status != 'SAVED' && status != 'ARCHIVED') ...[
+            const SizedBox(width: 8),
+            _CircleIconButton(
+              tooltip: 'Save trip',
+              icon: Icons.bookmark_border,
+              onPressed: () => _handleSave(context),
+            ),
+          ],
+
           const SizedBox(width: 8),
 
           _CircleIconButton(
@@ -426,6 +437,22 @@ class _ActionBar extends StatelessWidget {
             onPressed: () => _handleArchive(context),
           ),
         ],
+      ),
+    );
+  }
+
+  Future<void> _handleSave(BuildContext context) async {
+    final provider = context.read<TripOverviewProvider>();
+    final succeeded = await provider.saveTrip(context.read<ApiClient>());
+    if (!context.mounted) return;
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          succeeded
+              ? 'Trip saved.'
+              : provider.errorMessage ?? 'Unable to save this trip.',
+        ),
       ),
     );
   }

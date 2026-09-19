@@ -7,6 +7,7 @@ import '../../../core/theme/app_text_styles.dart';
 import '../../../data/repositories/api_home_repository.dart';
 import '../../../data/repositories/widgets/home_active_trip_card.dart';
 import '../../../data/repositories/widgets/home_region_card.dart';
+import '../../providers/auth_provider.dart';
 import '../../providers/home_provider.dart';
 import '../../widgets/app_bottom_navigation.dart';
 import '../../widgets/empty_state.dart';
@@ -329,22 +330,28 @@ class _HomeTopBar extends StatelessWidget {
               size: 21,
             ),
           ),
-          Container(
-            width: 30,
-            height: 30,
-            decoration: const BoxDecoration(
-              color: AppColors.primary,
-              shape: BoxShape.circle,
-            ),
-            alignment: Alignment.center,
-            child: const Text(
-              'A',
-              style: TextStyle(
-                color: Colors.white,
-                fontWeight: FontWeight.w700,
-                fontSize: 13,
-              ),
-            ),
+          Builder(
+            builder: (context) {
+              final name = context.watch<AuthProvider>().user?.name ?? '';
+              final initial = name.isNotEmpty ? name[0].toUpperCase() : '?';
+              return Container(
+                width: 30,
+                height: 30,
+                decoration: const BoxDecoration(
+                  color: AppColors.primary,
+                  shape: BoxShape.circle,
+                ),
+                alignment: Alignment.center,
+                child: Text(
+                  initial,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.w700,
+                    fontSize: 13,
+                  ),
+                ),
+              );
+            },
           ),
         ],
       ),
@@ -357,6 +364,9 @@ class _GreetingSection extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final user = context.watch<AuthProvider>().user;
+    final firstName = (user?.name ?? '').split(' ').first;
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -383,13 +393,13 @@ class _GreetingSection extends StatelessWidget {
             style: AppTextStyles.headlineLg.copyWith(
               fontSize: 26,
             ),
-            children: const [
-              TextSpan(
+            children: [
+              const TextSpan(
                 text: 'Where to next, ',
               ),
               TextSpan(
-                text: 'Alex?',
-                style: TextStyle(
+                text: firstName.isEmpty ? 'there?' : '$firstName?',
+                style: const TextStyle(
                   color: AppColors.primary,
                 ),
               ),
