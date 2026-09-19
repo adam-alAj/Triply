@@ -5,6 +5,7 @@ using Triply.Api.Data;
 using Triply.Api.Entities;
 using Triply.Api.Modules.AIOrchestration.Dtos;
 using Triply.Api.Modules.Cost;
+using Triply.Api.Modules.Cost.Dtos;
 using Triply.Api.Modules.Itinerary.Dtos;
 using Triply.Api.Modules.Trip;
 
@@ -380,18 +381,45 @@ public class AiOrchestrationService : IAiOrchestrationService
 
             _db.Itineraries.Add(itinerary);
 
+            aiGeneration.CompletedAt = DateTime.UtcNow;
+            await _db.SaveChangesAsync(cancellationToken);
+            await transaction.CommitAsync(cancellationToken);
+
+            // TASK48 — write CostEstimate rows from the itinerary just persisted.
+            // This MUST succeed before the trip is considered "generated" - it
+            // used to run after the trip was already transitioned to Generated
+            // and committed, so a cost-aggregation failure (e.g. mismatched
+            // place currencies) left the trip stuck in GENERATED with no cost
+            // data and no way to retry (a fresh /generate call is only allowed
+            // from DRAFT). Computing cost first and only THEN flipping the
+            // trip's status keeps "GENERATED" meaning "fully generated,
+            // including cost", and leaves the trip retry-able from DRAFT if
+            // this step fails - the itinerary just written above gets cleanly
+            // replaced by the "remove any existing itinerary" step above on
+            // the next attempt.
+            CostEstimateResponse costResult;
+            try
+            {
+                costResult = await _costAggregationService.GenerateFromItineraryAsync(tripId, cancellationToken);
+            }
+            catch (InvalidOperationException ex)
+            {
+                _logger.LogError(ex, "Cost aggregation failed after generation on attempt {Attempt} for trip {TripId}", attempt, tripId);
+
+                aiGeneration.Status = "FAILED_ERROR";
+                aiGeneration.ValidationErrors = $"Cost aggregation failed: {ex.Message}";
+                TripLifecycle.Transition(trip, TripLifecycle.Draft);
+                await _db.SaveChangesAsync(cancellationToken);
+
+                throw;
+            }
+
             TripLifecycle.Transition(trip, TripLifecycle.Generated);
             trip.UpdatedAt = DateTime.UtcNow;
             trip.Version++;
 
             aiGeneration.Status = "SUCCEEDED";
-            aiGeneration.CompletedAt = DateTime.UtcNow;
-
             await _db.SaveChangesAsync(cancellationToken);
-            await transaction.CommitAsync(cancellationToken);
-
-            // TASK48 — write CostEstimate rows from the itinerary just persisted
-            var costResult = await _costAggregationService.GenerateFromItineraryAsync(tripId, cancellationToken);
 
             return new AiGenerationResult
             {
