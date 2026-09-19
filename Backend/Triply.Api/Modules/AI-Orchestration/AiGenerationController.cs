@@ -49,6 +49,20 @@ public class AiGenerationController : ControllerBase
         if (scope is not "FULL" and not "DAY" and not "ITEM")
             return BadRequest(new { errors = new Dictionary<string, string[]> { [nameof(request.Scope)] = ["Scope must be FULL, DAY, or ITEM."] } });
 
+        if (scope is "DAY" or "ITEM")
+        {
+            if (!request.ExpectedVersion.HasValue || request.ExpectedVersion.Value < 1)
+            {
+                return BadRequest(new
+                {
+                    errors = new Dictionary<string, string[]>
+                    {
+                        [nameof(request.ExpectedVersion)] = ["ExpectedVersion is required for partial regeneration."]
+                    }
+                });
+            }
+        }
+
         AiGenerationResult result;
         try
         {
@@ -64,11 +78,22 @@ public class AiGenerationController : ControllerBase
         {
             return NotFound();
         }
-        catch (InvalidOperationException ex)
-        {
-            return Conflict(new { message = ex.Message });
-        }
-
+       catch (InvalidOperationException ex)
+{
+    return Conflict(new
+    {
+        message = ex.Message
+    });
+}
+catch (DbUpdateConcurrencyException ex)
+{
+    return Conflict(new
+    {
+        message = "Trip has been modified by another request.",
+        detail = ex.Message,
+        inner = ex.InnerException?.Message
+    });
+}
         if (!result.Success)
         {
             // Never a fabricated result (FR-AI-002) — a clear, distinguishable failure instead.
@@ -85,6 +110,7 @@ public class AiGenerationController : ControllerBase
         {
             aiGenerationId = result.AiGenerationId,
             attemptsUsed = result.AttemptsUsed,
+            tripVersion = result.TripVersion ?? trip.Version,
             itinerary = result.Itinerary,
             cost = result.Cost
         });
