@@ -39,9 +39,7 @@ class TripOverviewScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     return ChangeNotifierProvider(
       create: (_) => TripOverviewProvider(
-        repository: ApiTripOverviewRepository(
-          apiClient: context.read<ApiClient>(),
-        ),
+        repository: ApiTripOverviewRepository(apiClient: context.read<ApiClient>()),
         tripId: tripId,
       ),
       child: const _TripOverviewView(),
@@ -420,6 +418,17 @@ class _ActionBar extends StatelessWidget {
             onPressed: () => _handleRegenerate(context),
           ),
 
+          // Only a SAVED trip can be archived (backend's TripLifecycle only
+          // allows Saved -> Archived) — Save shows for anything before that.
+          if (status != 'SAVED' && status != 'ARCHIVED') ...[
+            const SizedBox(width: 8),
+            _CircleIconButton(
+              tooltip: 'Save trip',
+              icon: Icons.bookmark_border,
+              onPressed: () => _handleSave(context),
+            ),
+          ],
+
           const SizedBox(width: 8),
 
           _CircleIconButton(
@@ -428,6 +437,22 @@ class _ActionBar extends StatelessWidget {
             onPressed: () => _handleArchive(context),
           ),
         ],
+      ),
+    );
+  }
+
+  Future<void> _handleSave(BuildContext context) async {
+    final provider = context.read<TripOverviewProvider>();
+    final succeeded = await provider.saveTrip(context.read<ApiClient>());
+    if (!context.mounted) return;
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          succeeded
+              ? 'Trip saved.'
+              : provider.errorMessage ?? 'Unable to save this trip.',
+        ),
       ),
     );
   }
