@@ -193,7 +193,10 @@ public class ApplicationDbContext : IdentityDbContext<ApplicationUser, IdentityR
         b.Entity<AIGeneration>().ToTable(t => t.HasCheckConstraint(
             "CK_AIGeneration_Status",
             "[Status] IN ('PENDING','SUCCEEDED','FAILED_VALIDATION','FAILED_ERROR')"));
-        // ---- Basic reference data seed for local development ----
+        // ---- Stable reference data ----
+        // These are shared lookup values used by the backend/tests.
+        // Destination/Place/PlaceInterest data is NOT seeded here; it comes
+        // from AI/01-Dataset/curated-data through the dataset seeder.
 
         b.Entity<Country>().HasData(
             new Country

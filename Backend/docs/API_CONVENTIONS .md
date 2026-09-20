@@ -54,6 +54,25 @@ These routes return data from the SQL Server dataset; Flutter should not hardcod
 
 > These routes describe the agreed API structure. They do not mean that every route is already implemented.
 
+### Mobile Profile / Place / Editing Routes
+
+The backend now provides these authenticated Flutter-facing routes:
+
+```text
+GET  /api/users/me
+PATCH /api/users/me
+GET  /api/users/me/preferences
+PUT  /api/users/me/preferences
+GET  /api/users/me/stats
+GET  /api/places/{id}
+PATCH /api/trips/{id}/itinerary/items/{itemId}
+PATCH /api/trips/{id}
+```
+
+`POST /api/trips/{id}/generate` keeps the existing full-trip behavior and accepts an optional request scope of `FULL`, `DAY`, or `ITEM` for partial regeneration.
+
+`PUT /api/users/me/preferences` is the explicit full replacement endpoint for the user's preference set; other partial resource updates continue to use PATCH.
+
 ---
 
 ## 3. HTTP Methods & Status Codes
@@ -65,7 +84,7 @@ These routes return data from the SQL Server dataset; Flutter should not hardcod
 | PATCH  | Partial update             | 200                          |
 | DELETE | Soft-delete / archive      | 200 or 204                   |
 
-No PUT is used. Updates are handled using PATCH because Triply uses partial updates.
+PATCH is used for partial resource updates. `PUT /api/users/me/preferences` is an explicit exception because it replaces the complete preference set.
 
 ---
 
