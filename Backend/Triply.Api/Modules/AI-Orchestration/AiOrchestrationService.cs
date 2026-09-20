@@ -92,7 +92,22 @@ public class AiOrchestrationService : IAiOrchestrationService
 
         if (trip.Status != TripLifecycle.Generating)
             TripLifecycle.Transition(trip, TripLifecycle.Generating);
+var trackerDebug = _db.ChangeTracker
+    .Entries<ItineraryItem>()
+    .Select(e => new
+    {
+        Id = e.Entity.Id,
+        State = e.State.ToString(),
+        DayId = e.Entity.ItineraryDayId,
+        PlaceId = e.Entity.PlaceId,
+        TimeSlot = e.Entity.TimeSlot,
+        IsAiGenerated = e.Entity.IsAiGenerated
+    })
+    .ToList();
 
+_logger.LogWarning(
+    "DAY regeneration ItineraryItem tracker: {@Items}",
+    trackerDebug);
         await _db.SaveChangesAsync(cancellationToken);
 
         // --- Fetch dataset context (active places; destination-scoped for destination-first) ---
@@ -427,6 +442,7 @@ public class AiOrchestrationService : IAiOrchestrationService
                 Status = "SUCCEEDED",
                 AiGenerationId = aiGeneration.Id,
                 AttemptsUsed = attempt,
+                TripVersion = trip.Version,
                 Itinerary = ToItineraryResponse(itinerary, nameToPlace),
                 Cost = costResult
             };
@@ -461,6 +477,7 @@ public class AiOrchestrationService : IAiOrchestrationService
             throw new ArgumentException("Partial regeneration scope must be DAY or ITEM.", nameof(request));
 
         var trip = await _db.Trips
+            .AsNoTracking()
             .Include(t => t.TripInterests)
                 .ThenInclude(ti => ti.InterestCategory)
             .Include(t => t.BudgetCurrency)
@@ -472,6 +489,12 @@ public class AiOrchestrationService : IAiOrchestrationService
 
         if (trip.Status == TripLifecycle.Archived || trip.Status == TripLifecycle.Generating)
             throw new InvalidOperationException($"Trip cannot be partially regenerated while status is {trip.Status}.");
+
+        if (!request.ExpectedVersion.HasValue || request.ExpectedVersion.Value < 1)
+            throw new ArgumentException("ExpectedVersion is required for partial regeneration.", nameof(request));
+
+        if (request.ExpectedVersion.Value != trip.Version)
+            throw new InvalidOperationException("Trip has been modified by another request.");
 
         if (scope == "DAY" && (!request.DayNumber.HasValue || request.DayNumber.Value <= 0))
             throw new ArgumentException("DayNumber is required for DAY regeneration.", nameof(request));
@@ -600,7 +623,8 @@ public class AiOrchestrationService : IAiOrchestrationService
             trip.PlanningMode,
             Scope = scope,
             request.DayNumber,
-            request.ItemId
+            request.ItemId,
+            request.ExpectedVersion
         });
 
         var allErrors = new List<string>();
@@ -709,23 +733,52 @@ public class AiOrchestrationService : IAiOrchestrationService
                 }
 
                 await using var transaction = await _db.Database.BeginTransactionAsync(cancellationToken);
-                targetItem!.PlaceId = placeLookup[replacement.PlaceName].Id;
-                targetItem.TimeSlot = targetItem.TimeSlot.ToUpperInvariant();
-                targetItem.EstimatedCost = placeLookup[replacement.PlaceName].ReferencePrice;
-                targetItem.Notes = replacement.Notes;
-                targetItem.IsAiGenerated = true;
-                targetItem.ModifiedAt = DateTime.UtcNow;
 
-                if (trip.Status is TripLifecycle.Generated or TripLifecycle.Saved)
-                    TripLifecycle.Transition(trip, TripLifecycle.Modified);
-                trip.UpdatedAt = DateTime.UtcNow;
-                trip.Version++;
-                aiGeneration.Status = "SUCCEEDED";
-                aiGeneration.CompletedAt = DateTime.UtcNow;
+                // Claim the expected Trip version before mutating any itinerary rows.
+                // The row update holds the write lock until this transaction commits,
+                // so another writer cannot slip in between the concurrency check and
+                // the partial replacement.
+                var nextVersion = request.ExpectedVersion.Value + 1;
+                var updated = await _db.Trips
+                    .Where(t => t.Id == tripId && t.Version == request.ExpectedVersion.Value)
+                    .ExecuteUpdateAsync(setters => setters
+                        .SetProperty(t => t.Status, TripLifecycle.Modified)
+                        .SetProperty(t => t.UpdatedAt, DateTime.UtcNow)
+                        .SetProperty(t => t.Version, nextVersion), cancellationToken);
 
-                await _db.SaveChangesAsync(cancellationToken);
-                await transaction.CommitAsync(cancellationToken);
+                if (updated != 1)
+                    throw new DbUpdateConcurrencyException(
+                        "Trip has been modified by another request.");
 
+               var oldItemId = targetItem!.Id;
+var targetDayId = targetItem.ItineraryDayId;
+
+_db.ItineraryItems.Remove(targetItem);
+targetDay.Items.Remove(targetItem);
+
+var newItem = new ItineraryItem
+{
+    ItineraryDayId = targetDayId,
+    PlaceId = placeLookup[replacement.PlaceName].Id,
+    TimeSlot = replacement.TimeSlot.ToUpperInvariant(),
+    OrderIndex = targetItem.OrderIndex,
+    EstimatedCost = placeLookup[replacement.PlaceName].ReferencePrice,
+    Notes = replacement.Notes,
+    IsAiGenerated = true,
+    ModifiedAt = null
+};
+
+_db.ItineraryItems.Add(newItem);
+
+aiGeneration.Status = "SUCCEEDED";
+aiGeneration.CompletedAt = DateTime.UtcNow;
+
+await _db.SaveChangesAsync(cancellationToken);
+await transaction.CommitAsync(cancellationToken);
+
+                // ExecuteUpdate bypasses EF's change tracker. Clear the stale
+                // tracked Trip before cost aggregation uses this DbContext.
+                _db.ChangeTracker.Clear();
                 var cost = await _costAggregationService.GenerateFromItineraryAsync(tripId, cancellationToken);
                 return new AiGenerationResult
                 {
@@ -733,6 +786,7 @@ public class AiOrchestrationService : IAiOrchestrationService
                     Status = "SUCCEEDED",
                     AiGenerationId = aiGeneration.Id,
                     AttemptsUsed = attempt,
+                    TripVersion = request.ExpectedVersion.Value + 1,
                     Itinerary = ToItineraryResponse(itinerary, placeLookup),
                     Cost = cost
                 };
@@ -740,42 +794,117 @@ public class AiOrchestrationService : IAiOrchestrationService
 
             await using (var transaction = await _db.Database.BeginTransactionAsync(cancellationToken))
             {
-                var accommodationItems = targetDay!.Items
-                    .Where(i => string.Equals(i.Place.PlaceCategory.Code, "ACCOMMODATION", StringComparison.OrdinalIgnoreCase) ||
-                                (i.Notes?.StartsWith("Accommodation:", StringComparison.OrdinalIgnoreCase) ?? false))
-                    .ToList();
+                // Claim the expected Trip version before changing the target day.
+                // This makes the version check and the replacement one atomic unit.
+                var nextVersion = request.ExpectedVersion.Value + 1;
+                var updated = await _db.Trips
+                    .Where(t => t.Id == tripId && t.Version == request.ExpectedVersion.Value)
+                    .ExecuteUpdateAsync(setters => setters
+                        .SetProperty(t => t.Status, TripLifecycle.Modified)
+                        .SetProperty(t => t.UpdatedAt, DateTime.UtcNow)
+                        .SetProperty(t => t.Version, nextVersion), cancellationToken);
 
-                var nonAccommodation = targetDay.Items.Except(accommodationItems).ToList();
-                _db.ItineraryItems.RemoveRange(nonAccommodation);
-                await _db.SaveChangesAsync(cancellationToken);
+                if (updated != 1)
+                    throw new DbUpdateConcurrencyException(
+                        "Trip has been modified by another request.");
 
-                foreach (var itemDto in selectedDay.Items.OrderBy(i => i.OrderIndex))
-                {
-                    if (!placeLookup.TryGetValue(itemDto.PlaceName, out var place))
-                        continue;
-                    targetDay.Items.Add(new ItineraryItem
-                    {
-                        ItineraryDayId = targetDay.Id,
-                        PlaceId = place.Id,
-                        TimeSlot = itemDto.TimeSlot.ToUpperInvariant(),
-                        OrderIndex = itemDto.OrderIndex,
-                        EstimatedCost = place.ReferencePrice,
-                        Notes = itemDto.Notes,
-                        IsAiGenerated = true
-                    });
-                }
+var accommodationItems = targetDay!.Items
+    .Where(i =>
+        string.Equals(
+            i.Place.PlaceCategory.Code,
+            "ACCOMMODATION",
+            StringComparison.OrdinalIgnoreCase) ||
+        (i.Notes?.StartsWith(
+            "Accommodation:",
+            StringComparison.OrdinalIgnoreCase) ?? false))
+    .ToList();
 
-                if (trip.Status is TripLifecycle.Generated or TripLifecycle.Saved)
-                    TripLifecycle.Transition(trip, TripLifecycle.Modified);
-                trip.UpdatedAt = DateTime.UtcNow;
-                trip.Version++;
-                aiGeneration.Status = "SUCCEEDED";
-                aiGeneration.CompletedAt = DateTime.UtcNow;
+// Delete only non-accommodation items directly from the database.
+// Do not keep deleted items tracked while rebuilding the day.
+var nonAccommodationIds = targetDay.Items
+    .Where(i => !accommodationItems.Contains(i))
+    .Select(i => i.Id)
+    .ToList();
 
-                await _db.SaveChangesAsync(cancellationToken);
-                await transaction.CommitAsync(cancellationToken);
+if (nonAccommodationIds.Count > 0)
+{
+    await _db.ItineraryItems
+        .Where(i => nonAccommodationIds.Contains(i.Id))
+        .ExecuteDeleteAsync(cancellationToken);
+}
+
+// Detach all old non-accommodation entities from EF tracking.
+foreach (var item in targetDay.Items
+             .Where(i => !accommodationItems.Contains(i))
+             .ToList())
+{
+    _db.Entry(item).State = EntityState.Detached;
+}
+
+// Remove the deleted items from the in-memory navigation collection.
+foreach (var item in targetDay.Items
+             .Where(i => !accommodationItems.Contains(i))
+             .ToList())
+{
+    targetDay.Items.Remove(item);
+}
+
+// Add the newly generated items as completely new entities.
+foreach (var itemDto in selectedDay.Items.OrderBy(i => i.OrderIndex))
+{
+    if (!placeLookup.TryGetValue(itemDto.PlaceName, out var place))
+        continue;
+
+   var newItem = new ItineraryItem
+{
+    ItineraryDayId = targetDay.Id,
+    PlaceId = place.Id,
+    TimeSlot = itemDto.TimeSlot.ToUpperInvariant(),
+    OrderIndex = itemDto.OrderIndex,
+    EstimatedCost = place.ReferencePrice,
+    Notes = itemDto.Notes,
+    IsAiGenerated = true,
+    ModifiedAt = null
+};
+
+_db.ItineraryItems.Add(newItem);
+}
+
+aiGeneration.Status = "SUCCEEDED";
+aiGeneration.CompletedAt = DateTime.UtcNow;
+
+try
+{
+    await _db.SaveChangesAsync(cancellationToken);
+}
+catch (DbUpdateConcurrencyException ex)
+{
+    var details = ex.Entries
+        .Select(e =>
+        {
+            var id = e.Properties
+                .FirstOrDefault(p => p.Metadata.Name == "Id")
+                ?.CurrentValue;
+
+            var modifiedProperties = e.Properties
+                .Where(p => p.IsModified)
+                .Select(p => p.Metadata.Name);
+
+            return $"{e.Entity.GetType().Name}" +
+                   $":State={e.State}" +
+                   $":Id={id}" +
+                   $":Modified=[{string.Join(",", modifiedProperties)}]";
+        });
+
+    throw new DbUpdateConcurrencyException(
+        "DAY partial regeneration concurrency conflict. " +
+        string.Join(" | ", details),
+        ex);
+}
+await transaction.CommitAsync(cancellationToken);
             }
 
+            _db.ChangeTracker.Clear();
             var dayCost = await _costAggregationService.GenerateFromItineraryAsync(tripId, cancellationToken);
             return new AiGenerationResult
             {
@@ -783,6 +912,7 @@ public class AiOrchestrationService : IAiOrchestrationService
                 Status = "SUCCEEDED",
                 AiGenerationId = aiGeneration.Id,
                 AttemptsUsed = attempt,
+                TripVersion = request.ExpectedVersion.Value + 1,
                 Itinerary = ToItineraryResponse(itinerary, placeLookup),
                 Cost = dayCost
             };

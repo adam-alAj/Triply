@@ -1,0 +1,39 @@
+# Render Blueprint for the Triply API.
+# One-time setup: Render dashboard > New > Blueprint > point at this repo.
+# After that, deploys are triggered by the "deploy" job in
+# .github/workflows/ci-cd.yml via this service's Deploy Hook, NOT by
+# Render's own auto-deploy-on-push (kept off on purpose, see autoDeploy below),
+# so a failing test always blocks a deploy.
+
+services:
+  - type: web
+    name: triply-api
+    runtime: docker
+    plan: free
+    dockerfilePath: ./Backend/Triply.Api/Dockerfile
+    dockerContext: ./Backend/Triply.Api
+    healthCheckPath: /health
+    autoDeploy: false
+    envVars:
+      - key: ASPNETCORE_ENVIRONMENT
+        value: Staging
+      # Do NOT set a PORT var: the Dockerfile already binds to 8080 via
+      # ASPNETCORE_URLS, and Render auto-detects that listening port.
+
+      # --- Secrets / per-environment values: set once in the Render
+      # dashboard after the first blueprint sync (Dashboard > triply-api >
+      # Environment). "sync: false" just tells Render to prompt instead
+      # of storing a value here in git. ---
+      - key: ConnectionStrings__Default
+        sync: false   # e.g. your Azure SQL free-tier connection string
+      - key: Gemini__ApiKey
+        sync: false
+      - key: Cors__AllowedOrigins__0
+        sync: false   # e.g. https://<your-flutter-web-app>.web.app
+
+      - key: Jwt__Key
+        generateValue: true   # Render generates and stores a random secret
+      - key: Jwt__Issuer
+        value: Triply
+      - key: Jwt__Audience
+        value: TriplyClients

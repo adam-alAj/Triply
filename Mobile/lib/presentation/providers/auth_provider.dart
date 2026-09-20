@@ -126,9 +126,13 @@ class AuthProvider extends ChangeNotifier {
   /// Session restore (splash screen): a saved token means the user already
   /// logged in on this device — fetch their real profile via
   /// `GET /api/users/me` rather than just trusting the token exists.
-  /// Returns whether the session is actually valid; a stale/expired token
-  /// (401) clears itself out via [logout] so the caller can route to
-  /// onboarding instead of a broken Home.
+  /// Returns whether the session is actually valid. Only a genuine auth
+  /// rejection (401/403 — the token is actually invalid) clears it out via
+  /// [logout] so the caller can route to onboarding instead of a broken
+  /// Home. Any other failure (no network, backend unreachable, timeout) is
+  /// transient and must NOT wipe a token that might still be good —
+  /// otherwise a dropped connection on launch permanently signs the user
+  /// out.
   Future<bool> restoreSession() async {
     try {
       final json = await _apiClient.get<Map<String, dynamic>>('/api/users/me');
@@ -136,8 +140,12 @@ class AuthProvider extends ChangeNotifier {
       _status = AuthStatus.success;
       notifyListeners();
       return true;
-    } catch (_) {
-      await logout();
+    } catch (error) {
+      final isAuthRejection = error is ApiException &&
+          (error.statusCode == 401 || error.statusCode == 403);
+      if (isAuthRejection) {
+        await logout();
+      }
       return false;
     }
   }

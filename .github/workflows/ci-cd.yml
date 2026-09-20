@@ -1,0 +1,156 @@
+name: CI/CD Pipeline
+
+on:
+  pull_request:
+    branches: [ main ]
+  push:
+    branches: [ main ]
+
+concurrency:
+  group: ci-cd-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # ---------------------------------------------------------------------
+  # Backend: build the API + test project, run xUnit against a real
+  # SQL Server instance spun up as a service container.
+  # ---------------------------------------------------------------------
+  backend-test:
+    name: Backend build & test
+    runs-on: ubuntu-latest
+
+    services:
+      sqlserver:
+        image: mcr.microsoft.com/mssql/server:2022-latest
+        env:
+          ACCEPT_EULA: "Y"
+          MSSQL_SA_PASSWORD: "Triply_CI_SqlServer_2026!Strong"
+        ports:
+          - 1433:1433
+        options: >-
+          --health-cmd "/opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P 'Triply_CI_SqlServer_2026!Strong' -C -Q 'SELECT 1'"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 20
+
+    env:
+      TRIPLY_TEST_DB_CONNECTION: "Server=localhost,1433;Database=TriplyDb_Tests;User Id=sa;Password=Triply_CI_SqlServer_2026!Strong;TrustServerCertificate=True;Encrypt=False"
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup .NET 9
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '9.0.x'
+
+      - name: Restore
+        run: dotnet restore Backend/Triply.Api.Tests/Triply.Api.Tests.csproj
+
+      - name: Build
+        run: dotnet build Backend/Triply.Api.Tests/Triply.Api.Tests.csproj --no-restore --configuration Release
+
+      - name: Wait for SQL Server & create test database
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          SQL_CONTAINER=$(docker ps --filter "ancestor=mcr.microsoft.com/mssql/server:2022-latest" -q | head -n 1)
+
+          if [ -z "$SQL_CONTAINER" ]; then
+            echo "SQL Server container was not found."
+            docker ps -a
+            exit 1
+          fi
+
+          READY=false
+          for i in {1..30}; do
+            if docker exec "$SQL_CONTAINER" /opt/mssql-tools18/bin/sqlcmd \
+              -S localhost -U sa -P 'Triply_CI_SqlServer_2026!Strong' -C -Q "SELECT 1" \
+              >/dev/null 2>&1; then
+              READY=true
+              echo "SQL Server is ready."
+              break
+            fi
+            echo "Waiting for SQL Server... attempt $i/30"
+            sleep 2
+          done
+
+          if [ "$READY" != "true" ]; then
+            echo "SQL Server did not become ready."
+            docker logs "$SQL_CONTAINER" --tail 200
+            exit 1
+          fi
+
+          docker exec "$SQL_CONTAINER" /opt/mssql-tools18/bin/sqlcmd \
+            -S localhost -U sa -P 'Triply_CI_SqlServer_2026!Strong' -C \
+            -Q "IF DB_ID('TriplyDb_Tests') IS NULL CREATE DATABASE [TriplyDb_Tests];"
+
+      - name: Test
+        run: >-
+          dotnet test Backend/Triply.Api.Tests/Triply.Api.Tests.csproj
+          --no-build
+          --configuration Release
+          --collect:"XPlat Code Coverage"
+          --logger "trx;LogFileName=test-results.trx"
+
+      - name: Upload backend test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: backend-test-results
+          path: |
+            Backend/Triply.Api.Tests/TestResults/**/*.trx
+            Backend/Triply.Api.Tests/TestResults/**/coverage.cobertura.xml
+          if-no-files-found: warn
+
+  # ---------------------------------------------------------------------
+  # Flutter: analyze + run widget tests for the Mobile app.
+  # ---------------------------------------------------------------------
+  flutter-test:
+    name: Flutter widget tests
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: 'stable'
+          cache: true
+
+      - name: Install dependencies
+        working-directory: Mobile
+        run: flutter pub get
+
+      - name: Analyze
+        working-directory: Mobile
+        run: flutter analyze --no-fatal-infos
+
+      - name: Run widget tests
+        working-directory: Mobile
+        run: flutter test
+
+  # ---------------------------------------------------------------------
+  # Deploy: only after BOTH suites pass, only on a real push to main
+  # (never on a pull_request event, so forks/PRs can't trigger a deploy).
+  # Triggers Render's deploy hook, which rebuilds the Docker image
+  # from Backend/Triply.Api/Dockerfile and redeploys the API.
+  # ---------------------------------------------------------------------
+  deploy:
+    name: Deploy API to Render
+    needs: [ backend-test, flutter-test ]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Trigger Render deploy hook
+        run: |
+          if [ -z "${{ secrets.RENDER_DEPLOY_HOOK_URL }}" ]; then
+            echo "::error::RENDER_DEPLOY_HOOK_URL secret is not set. Add it in Settings > Secrets and variables > Actions."
+            exit 1
+          fi
+          curl -fsS -X POST "${{ secrets.RENDER_DEPLOY_HOOK_URL }}"
