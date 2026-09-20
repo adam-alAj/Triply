@@ -25,6 +25,7 @@ public class ApplicationDbContext : IdentityDbContext<ApplicationUser, IdentityR
     public DbSet<CostEstimate> CostEstimates => Set<CostEstimate>();
     public DbSet<AIGeneration> AIGenerations => Set<AIGeneration>();
     public DbSet<UserPreferences> UserPreferences => Set<UserPreferences>();
+    public DbSet<ExchangeRate> ExchangeRates => Set<ExchangeRate>();
 
     protected override void OnModelCreating(ModelBuilder b)
     {
@@ -53,23 +54,23 @@ public class ApplicationDbContext : IdentityDbContext<ApplicationUser, IdentityR
             .IsUnique();
 
         // ---- PlaceInterest (Place ↔ InterestCategory, §6.5 + interest-aware suggestions) ----
-      b.Entity<PlaceInterest>().HasKey(x => new
-{
-    x.PlaceId,
-    x.InterestCategoryId
-});
+        b.Entity<PlaceInterest>().HasKey(x => new
+        {
+            x.PlaceId,
+            x.InterestCategoryId
+        });
 
-b.Entity<PlaceInterest>()
-    .HasOne(x => x.Place)
-    .WithMany(x => x.PlaceInterests)
-    .HasForeignKey(x => x.PlaceId)
-    .OnDelete(DeleteBehavior.Cascade);
+        b.Entity<PlaceInterest>()
+            .HasOne(x => x.Place)
+            .WithMany(x => x.PlaceInterests)
+            .HasForeignKey(x => x.PlaceId)
+            .OnDelete(DeleteBehavior.Cascade);
 
-b.Entity<PlaceInterest>()
-    .HasOne(x => x.InterestCategory)
-    .WithMany(x => x.PlaceInterests)
-    .HasForeignKey(x => x.InterestCategoryId)
-    .OnDelete(DeleteBehavior.Restrict);
+        b.Entity<PlaceInterest>()
+            .HasOne(x => x.InterestCategory)
+            .WithMany(x => x.PlaceInterests)
+            .HasForeignKey(x => x.InterestCategoryId)
+            .OnDelete(DeleteBehavior.Restrict);
 
         // ---- UserPreferences ----
         b.Entity<UserPreferences>().HasKey(x => x.UserId);
@@ -162,8 +163,13 @@ b.Entity<PlaceInterest>()
             .Property(x => x.Longitude)
             .HasColumnType("decimal(9,6)");
 
+        // Exchange rates need more decimals than money amounts (e.g. ~0.0275 USD per THB).
+        b.Entity<ExchangeRate>()
+            .Property(x => x.RateToUsd)
+            .HasColumnType("decimal(18,6)");
+
         // email UNIQUE enforced at DB level, not just app-level RequireUniqueEmail
-b.Entity<ApplicationUser>().HasIndex(x => x.NormalizedEmail).IsUnique();
+        b.Entity<ApplicationUser>().HasIndex(x => x.NormalizedEmail).IsUnique();
         // ---- CHECK constraints (§16 Data Integrity Rules) ----
         b.Entity<Trip>().ToTable(t => t.HasCheckConstraint(
             "CK_Trip_TravelerCount", "[TravelerCount] > 0"));

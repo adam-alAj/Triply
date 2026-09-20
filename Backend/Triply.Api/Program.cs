@@ -17,6 +17,7 @@ using Triply.Api.Modules.Auth;
 using Triply.Api.Modules.Cost;
 using Triply.Api.Modules.Destination;
 using Triply.Api.Modules.Trip.Validators;
+using Triply.Api.Modules.Currency;
 
 
 var builder = WebApplication.CreateBuilder(args);
@@ -143,6 +144,7 @@ builder.Services.AddScoped<ICostAggregationService, CostAggregationService>();
 
 builder.Services.AddScoped<JwtTokenService>();
 builder.Services.AddScoped<IDestinationSuggestionService, DestinationSuggestionService>();
+builder.Services.AddScoped<ICurrencyConversionService, CurrencyConversionService>();
 
 // ---------- AI-Orchestration (Gemini) — Architecture §4 ADR-01 ----------
 
