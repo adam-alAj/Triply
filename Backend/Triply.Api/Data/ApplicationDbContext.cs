@@ -25,6 +25,7 @@ public class ApplicationDbContext : IdentityDbContext<ApplicationUser, IdentityR
     public DbSet<CostEstimate> CostEstimates => Set<CostEstimate>();
     public DbSet<AIGeneration> AIGenerations => Set<AIGeneration>();
     public DbSet<UserPreferences> UserPreferences => Set<UserPreferences>();
+    public DbSet<ExchangeRate> ExchangeRates => Set<ExchangeRate>();
 
     protected override void OnModelCreating(ModelBuilder b)
     {
@@ -53,23 +54,23 @@ public class ApplicationDbContext : IdentityDbContext<ApplicationUser, IdentityR
             .IsUnique();
 
         // ---- PlaceInterest (Place ↔ InterestCategory, §6.5 + interest-aware suggestions) ----
-      b.Entity<PlaceInterest>().HasKey(x => new
-{
-    x.PlaceId,
-    x.InterestCategoryId
-});
+        b.Entity<PlaceInterest>().HasKey(x => new
+        {
+            x.PlaceId,
+            x.InterestCategoryId
+        });
 
-b.Entity<PlaceInterest>()
-    .HasOne(x => x.Place)
-    .WithMany(x => x.PlaceInterests)
-    .HasForeignKey(x => x.PlaceId)
-    .OnDelete(DeleteBehavior.Cascade);
+        b.Entity<PlaceInterest>()
+            .HasOne(x => x.Place)
+            .WithMany(x => x.PlaceInterests)
+            .HasForeignKey(x => x.PlaceId)
+            .OnDelete(DeleteBehavior.Cascade);
 
-b.Entity<PlaceInterest>()
-    .HasOne(x => x.InterestCategory)
-    .WithMany(x => x.PlaceInterests)
-    .HasForeignKey(x => x.InterestCategoryId)
-    .OnDelete(DeleteBehavior.Restrict);
+        b.Entity<PlaceInterest>()
+            .HasOne(x => x.InterestCategory)
+            .WithMany(x => x.PlaceInterests)
+            .HasForeignKey(x => x.InterestCategoryId)
+            .OnDelete(DeleteBehavior.Restrict);
 
         // ---- UserPreferences ----
         b.Entity<UserPreferences>().HasKey(x => x.UserId);
@@ -162,8 +163,13 @@ b.Entity<PlaceInterest>()
             .Property(x => x.Longitude)
             .HasColumnType("decimal(9,6)");
 
+        // Exchange rates need more decimals than money amounts (e.g. ~0.0275 USD per THB).
+        b.Entity<ExchangeRate>()
+            .Property(x => x.RateToUsd)
+            .HasColumnType("decimal(18,6)");
+
         // email UNIQUE enforced at DB level, not just app-level RequireUniqueEmail
-b.Entity<ApplicationUser>().HasIndex(x => x.NormalizedEmail).IsUnique();
+        b.Entity<ApplicationUser>().HasIndex(x => x.NormalizedEmail).IsUnique();
         // ---- CHECK constraints (§16 Data Integrity Rules) ----
         b.Entity<Trip>().ToTable(t => t.HasCheckConstraint(
             "CK_Trip_TravelerCount", "[TravelerCount] > 0"));
@@ -189,88 +195,95 @@ b.Entity<ApplicationUser>().HasIndex(x => x.NormalizedEmail).IsUnique();
             "[Status] IN ('PENDING','SUCCEEDED','FAILED_VALIDATION','FAILED_ERROR')"));
         // ---- Basic reference data seed for local development ----
 
-b.Entity<Country>().HasData(
-    new Country
-    {
-        Id = 1,
-        Name = "Palestine",
-        IsoCode = "PS"
-    },
-    new Country
-    {
-        Id = 2,
-        Name = "Jordan",
-        IsoCode = "JO"
-    }
-);
+        b.Entity<Country>().HasData(
+            new Country
+            {
+                Id = 1,
+                Name = "Palestine",
+                IsoCode = "PS"
+            },
+            new Country
+            {
+                Id = 2,
+                Name = "Jordan",
+                IsoCode = "JO"
+            }
+        );
 
-b.Entity<Currency>().HasData(
-    new Currency
-    {
-        Id = 1,
-        IsoCode = "USD",
-        Symbol = "$"
-    },
-    new Currency
-    {
-        Id = 2,
-        IsoCode = "JOD",
-        Symbol = "JD"
-    }
-);
+        b.Entity<Currency>().HasData(
+            new Currency
+            {
+                Id = 1,
+                IsoCode = "USD",
+                Symbol = "$"
+            },
+            new Currency
+            {
+                Id = 2,
+                IsoCode = "JOD",
+                Symbol = "JD"
+            }
+        );
 
-b.Entity<Destination>().HasData(
-    new Destination
-    {
-        Id = 1,
-        CountryId = 1,
-        Name = "Jerusalem",
-        Description = "Historic and cultural destination",
-        Latitude = 31.7683m,
-        Longitude = 35.2137m,
-        IsSupported = true
-    },
-    new Destination
-    {
-        Id = 2,
-        CountryId = 2,
-        Name = "Amman",
-        Description = "Capital city of Jordan",
-        Latitude = 31.9539m,
-        Longitude = 35.9106m,
-        IsSupported = true
-    }
-);
-                
+        b.Entity<Destination>().HasData(
+            new Destination
+            {
+                Id = 1,
+                CountryId = 1,
+                Name = "Jerusalem",
+                Description = "Historic and cultural destination",
+                Latitude = 31.7683m,
+                Longitude = 35.2137m,
+                IsSupported = true
+            },
+            new Destination
+            {
+                Id = 2,
+                CountryId = 2,
+                Name = "Amman",
+                Description = "Capital city of Jordan",
+                Latitude = 31.9539m,
+                Longitude = 35.9106m,
+                IsSupported = true
+            }
+        );
+
         // ---- Reference data seed (Database Design §26) ----
 
-                // ---- Reference data seed (Database Design §26) ----
-    
+        // ---- Reference data seed (Database Design §26) ----
+
         b.Entity<InterestCategory>().HasData(
-            new InterestCategory { Id = 1, Code = "NATURE",     Label = "Nature" },
-            new InterestCategory { Id = 2, Code = "HISTORY",    Label = "History" },
-            new InterestCategory { Id = 3, Code = "FOOD",       Label = "Food" },
-            new InterestCategory { Id = 4, Code = "SHOPPING",   Label = "Shopping" },
-            new InterestCategory { Id = 5, Code = "ADVENTURE",  Label = "Adventure" },
-            new InterestCategory { Id = 6, Code = "CULTURE",    Label = "Culture" },
+            new InterestCategory { Id = 1, Code = "NATURE", Label = "Nature" },
+            new InterestCategory { Id = 2, Code = "HISTORY", Label = "History" },
+            new InterestCategory { Id = 3, Code = "FOOD", Label = "Food" },
+            new InterestCategory { Id = 4, Code = "SHOPPING", Label = "Shopping" },
+            new InterestCategory { Id = 5, Code = "ADVENTURE", Label = "Adventure" },
+            new InterestCategory { Id = 6, Code = "CULTURE", Label = "Culture" },
             new InterestCategory { Id = 7, Code = "RELAXATION", Label = "Relaxation" },
-            new InterestCategory { Id = 8, Code = "OTHER",      Label = "Other" }
+            new InterestCategory { Id = 8, Code = "OTHER", Label = "Other" }
         );
 
         b.Entity<CostCategory>().HasData(
-            new CostCategory { Id = 1, Code = "ACCOMMODATION",  Label = "Accommodation" },
+            new CostCategory { Id = 1, Code = "ACCOMMODATION", Label = "Accommodation" },
             new CostCategory { Id = 2, Code = "TRANSPORTATION", Label = "Transportation" },
-            new CostCategory { Id = 3, Code = "FOOD",           Label = "Food" },
-            new CostCategory { Id = 4, Code = "ACTIVITIES",     Label = "Activities" },
-            new CostCategory { Id = 5, Code = "OTHER",          Label = "Other" }
+            new CostCategory { Id = 3, Code = "FOOD", Label = "Food" },
+            new CostCategory { Id = 4, Code = "ACTIVITIES", Label = "Activities" },
+            new CostCategory { Id = 5, Code = "OTHER", Label = "Other" }
         );
 
         b.Entity<PlaceCategory>().HasData(
-            new PlaceCategory { Id = 1, Code = "ATTRACTION",    Label = "Attraction" },
-            new PlaceCategory { Id = 2, Code = "RESTAURANT",    Label = "Restaurant" },
-            new PlaceCategory { Id = 3, Code = "ACTIVITY",      Label = "Activity" },
+            new PlaceCategory { Id = 1, Code = "ATTRACTION", Label = "Attraction" },
+            new PlaceCategory { Id = 2, Code = "RESTAURANT", Label = "Restaurant" },
+            new PlaceCategory { Id = 3, Code = "ACTIVITY", Label = "Activity" },
             new PlaceCategory { Id = 4, Code = "ACCOMMODATION", Label = "Accommodation" },
-            new PlaceCategory { Id = 5, Code = "TRANSPORT",     Label = "Transport" }
+            new PlaceCategory { Id = 5, Code = "TRANSPORT", Label = "Transport" }
         );
+
+        // ---- ExchangeRate ----
+        b.Entity<ExchangeRate>().HasKey(x => x.CurrencyId);
+        b.Entity<ExchangeRate>()
+            .HasOne(x => x.Currency).WithMany()
+            .HasForeignKey(x => x.CurrencyId)
+            .OnDelete(DeleteBehavior.Cascade);
     }
 }
