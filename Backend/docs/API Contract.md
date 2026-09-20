@@ -446,6 +446,32 @@ Trip status follows the database lifecycle:
 
 A generation request moves `DRAFT` to `GENERATING`. Writing the generated itinerary moves `GENERATING` to `GENERATED`; changes to a generated or saved trip move it to `MODIFIED`. Saving a generated/modified trip moves it to `SAVED` and increments `version`. A saved trip can be archived and an archived trip can be restored to `SAVED`.
 
+### AI generation / partial regeneration
+
+`POST /api/trips/{id}/generate`
+
+The endpoint supports:
+
+- `FULL`: generates/replaces the complete itinerary. `expectedVersion` is not required.
+- `DAY`: regenerates only the requested `dayNumber`; every other day is preserved.
+- `ITEM`: regenerates only the requested activity `itemId`; every other item is preserved.
+
+For `DAY` and `ITEM`, `expectedVersion` is required and must equal the current trip `version`. A stale value returns `409 Conflict` and no itinerary content is replaced.
+
+Example partial regeneration request:
+
+```json
+{
+  "scope": "DAY",
+  "dayNumber": 2,
+  "expectedVersion": 4
+}
+```
+
+Successful partial regeneration increments `Trip.version` exactly once. Direct item edits through `PATCH /api/trips/{id}/itinerary/items/{itemId}` set only the edited item's `isAiGenerated` to `false`; untouched AI-generated items remain unchanged.
+
+Successful generation responses include `tripVersion` so the client can use the returned version for the next optimistic-concurrency write.
+
 ### Save
 
 `POST /api/trips/{id}/save`

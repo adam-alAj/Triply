@@ -1,6 +1,6 @@
 using Triply.Api.Modules.Cost.Dtos;
 using Triply.Api.Modules.Itinerary.Dtos;
-
+using System.Text.Json.Serialization;
 namespace Triply.Api.Modules.AIOrchestration.Dtos;
 
 // ============================================================================
@@ -23,35 +23,24 @@ namespace Triply.Api.Modules.AIOrchestration.Dtos;
 /// </summary>
 public sealed class GeminiItineraryOutputDto
 {
-    /// <summary>Echo of Trip.planning_mode. Backend cross-checks it matches the request.</summary>
+    [JsonPropertyName("planning_mode")]
     public string PlanningMode { get; set; } = default!;
 
-    /// <summary>
-    /// DESTINATION_FIRST: exactly 1 entry.
-    /// BUDGET_FIRST: 1–3 entries, each a complete self-contained plan.
-    /// </summary>
+    [JsonPropertyName("destination_options")]
     public List<GeminiDestinationOptionDto> DestinationOptions { get; set; } = new();
 }
-
 /// <summary>
 /// One complete destination plan (v2.0.0 §4.2).
 /// </summary>
 public sealed class GeminiDestinationOptionDto
 {
-    /// <summary>
-    /// Must exactly match a Destination.name from the supported destination list.
-    /// Resolved server-side to Destination.id by exact lookup.
-    /// </summary>
+    [JsonPropertyName("destination_name")]
     public string DestinationName { get; set; } = default!;
 
-    /// <summary>
-    /// Exactly one hotel/accommodation for the whole stay. Not repeated inside days.
-    /// </summary>
+    [JsonPropertyName("accommodation")]
     public GeminiAccommodationDto Accommodation { get; set; } = default!;
 
-    /// <summary>
-    /// One entry per day, in order. Length must match trip duration.
-    /// </summary>
+    [JsonPropertyName("days")]
     public List<GeminiItineraryDayDto> Days { get; set; } = new();
 }
 
@@ -61,15 +50,10 @@ public sealed class GeminiDestinationOptionDto
 /// </summary>
 public sealed class GeminiAccommodationDto
 {
-    /// <summary>
-    /// Must exactly match a Place.name whose category is ACCOMMODATION,
-    /// scoped to this option's destination_name.
-    /// </summary>
+    [JsonPropertyName("place_name")]
     public string PlaceName { get; set; } = default!;
 
-    /// <summary>
-    /// Number of nights. Backend multiplies by Place.reference_price (per-night rate).
-    /// </summary>
+    [JsonPropertyName("nights")]
     public int Nights { get; set; }
 }
 
@@ -78,43 +62,32 @@ public sealed class GeminiAccommodationDto
 /// </summary>
 public sealed class GeminiItineraryDayDto
 {
-    /// <summary>1-based sequential day number. Maps to ItineraryDay.DayNumber.</summary>
+    [JsonPropertyName("day_number")]
     public int DayNumber { get; set; }
 
-    /// <summary>ISO 8601 date (YYYY-MM-DD). Maps to ItineraryDay.Date.</summary>
+    [JsonPropertyName("date")]
     public DateOnly Date { get; set; }
 
-    /// <summary>
-    /// Non-accommodation entries (restaurants, attractions, activities, transport).
-    /// Must include at least one RESTAURANT-category place per day.
-    /// </summary>
+    [JsonPropertyName("items")]
     public List<GeminiItineraryItemDto> Items { get; set; } = new();
 }
-
 /// <summary>
 /// One itinerary item within a day (v2.0.0 §4.5).
 /// </summary>
 public sealed class GeminiItineraryItemDto
 {
-    /// <summary>MORNING | AFTERNOON | EVENING. Matches DB CHECK constraint.</summary>
+    [JsonPropertyName("time_slot")]
     public string TimeSlot { get; set; } = default!;
 
-    /// <summary>Order within the time_slot, starting at 1. Unique per (day_number, time_slot).</summary>
+    [JsonPropertyName("order_index")]
     public int OrderIndex { get; set; }
 
-    /// <summary>
-    /// FR-AI-002 enforcement field. Must exactly match a Place.name for an
-    /// is_active place whose destination_id matches the option's destination_name.
-    /// Must NOT be an ACCOMMODATION-category place (that belongs in accommodation).
-    /// </summary>
+    [JsonPropertyName("place_name")]
     public string PlaceName { get; set; } = default!;
 
-    /// <summary>
-    /// Optional free-text user-facing note. Never used for structural purposes.
-    /// </summary>
+    [JsonPropertyName("notes")]
     public string? Notes { get; set; }
 }
-
 // ============================================================================
 // Dataset context fed to the model as grounding (Architecture §9).
 // Only what the model needs to choose validly — no IDs in the prompt context
@@ -164,6 +137,7 @@ public sealed class AiGenerationResult
     public Guid AiGenerationId { get; set; }
     public string Status { get; set; } = default!; // SUCCEEDED | FAILED_VALIDATION | FAILED_ERROR
     public int AttemptsUsed { get; set; }
+    public int? TripVersion { get; set; }
     public List<string> Errors { get; set; } = new();
     public ItineraryResponse? Itinerary { get; set; }
     public CostEstimateResponse? Cost { get; set; }
@@ -175,4 +149,11 @@ public sealed class GenerateItineraryRequest
     public string Scope { get; set; } = "FULL";
     public int? DayNumber { get; set; }
     public Guid? ItemId { get; set; }
+
+    /// <summary>
+    /// Client-observed Trip.Version used for optimistic concurrency.
+    /// Required for partial regeneration so a stale regenerate-sheet request
+    /// cannot overwrite a newer trip state.
+    /// </summary>
+    public int? ExpectedVersion { get; set; }
 }
