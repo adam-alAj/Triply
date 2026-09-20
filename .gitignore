@@ -40,3 +40,4 @@ Backend/Triply.Api/Properties/
 .env.*
 !.env.example
 
+AI/06-Gemini-Prototype/__pycache__/run_experiments.cpython-313.pyc
