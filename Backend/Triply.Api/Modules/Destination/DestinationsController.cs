@@ -1,3 +1,4 @@
+using System.Text.Json;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
@@ -13,15 +14,39 @@ namespace Triply.Api.Modules.Destination;
 [EnableRateLimiting("fixed")]
 public class DestinationsController : ControllerBase
 {
+    [HttpGet("assets")]
+    [AllowAnonymous]
+    public async Task<IActionResult> GetAssets(CancellationToken cancellationToken)
+    {
+        var path = Path.Combine(
+            _environment.ContentRootPath,
+            "assets",
+            "destinations.json");
+
+        if (!System.IO.File.Exists(path))
+            return NotFound(new { message = "Destination assets are not configured." });
+
+        await using var stream = System.IO.File.OpenRead(path);
+        var assets = await JsonSerializer.DeserializeAsync<JsonElement>(
+            stream,
+            cancellationToken: cancellationToken);
+
+        return Ok(assets);
+    }
+
+
     private readonly ApplicationDbContext _db;
     private readonly IDestinationSuggestionService _suggestionService;
+    private readonly IHostEnvironment _environment;
 
     public DestinationsController(
         ApplicationDbContext db,
-        IDestinationSuggestionService suggestionService)
+        IDestinationSuggestionService suggestionService,
+        IHostEnvironment environment)
     {
         _db = db;
         _suggestionService = suggestionService;
+        _environment = environment;
     }
 
     [HttpGet]
@@ -102,8 +127,8 @@ public class DestinationsController : ControllerBase
             suggestions,
             count = suggestions.Count,
             message = suggestions.Count == 0
-                ? "No supported destinations match the requested budget and currency."
-                : null
+                ? "No supported destinations match the selected interests and budget."
+                : "Choose one suggested destination, then generate the trip."
         });
     }
 }

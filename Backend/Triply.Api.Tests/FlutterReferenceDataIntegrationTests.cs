@@ -102,12 +102,13 @@ public class FlutterReferenceDataIntegrationTests : IClassFixture<CustomWebAppli
 
         var body = await response.Content.ReadFromJsonAsync<List<DestinationResponse>>();
         Assert.NotNull(body);
-        Assert.Contains(body!, x => x.Id == 1 && x.Name == "Jerusalem");
+        Assert.Contains(body!, x => x.Id == 1 && x.Name == "Paris");
         Assert.Contains(body!, x => x.Id == 2 && x.Name == "Amman");
+        Assert.Contains(body!, x => x.Id == 3 && x.Name == "New York");
     }
 
     [Fact]
-    public async Task GetInterestCategories_ReturnsSeededCategories()
+    public async Task GetInterestCategories_ReturnsReferenceCategories()
     {
         var token = await RegisterAndGetTokenAsync();
         _client.DefaultRequestHeaders.Authorization =
@@ -124,7 +125,7 @@ public class FlutterReferenceDataIntegrationTests : IClassFixture<CustomWebAppli
     }
 
     [Fact]
-    public async Task GetCurrencies_ReturnsSeededCurrencies()
+    public async Task GetCurrencies_ReturnsReferenceCurrencies()
     {
         var token = await RegisterAndGetTokenAsync();
         _client.DefaultRequestHeaders.Authorization =

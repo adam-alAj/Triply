@@ -26,7 +26,15 @@ public class ReferenceTableConstraintsTests : IDisposable
 
     _db = new ApplicationDbContext(options);
     _db.Database.EnsureDeleted(); // clean slate per test class run
-    _db.Database.Migrate();       // applies schema + HasData seed
+    _db.Database.Migrate();       // applies schema only — no static seed data
+
+    // Production no longer owns static reference data (see
+    // RemoveBackendStaticSeed); seed the one baseline row each
+    // duplicate-code test below needs to actually create a duplicate.
+    _db.InterestCategories.Add(new InterestCategory { Code = "NATURE", Label = "Nature" });
+    _db.CostCategories.Add(new CostCategory { Code = "FOOD", Label = "Food" });
+    _db.PlaceCategories.Add(new PlaceCategory { Code = "ATTRACTION", Label = "Attraction" });
+    _db.SaveChanges();
 }
 
     [Fact]

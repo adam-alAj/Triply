@@ -45,7 +45,9 @@ public class DestinationSuggestionIntegrationTests
     private async Task<long> SeedDestinationWithPlacesAsync(
         long currencyId,
         decimal firstPrice,
-        decimal secondPrice)
+        decimal secondPrice,
+        long firstInterestCategoryId = 1,
+        long secondInterestCategoryId = 2)
     {
         using var scope = _factory.Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
@@ -97,16 +99,32 @@ public class DestinationSuggestionIntegrationTests
             new PlaceInterest
             {
                 PlaceId = firstPlace.Id,
-                InterestCategoryId = 1
+                InterestCategoryId = firstInterestCategoryId
             },
             new PlaceInterest
             {
                 PlaceId = secondPlace.Id,
-                InterestCategoryId = 2
+                InterestCategoryId = secondInterestCategoryId
             });
 
         await db.SaveChangesAsync();
         return destination.Id;
+    }
+
+    private async Task<long> CreateUniqueInterestCategoryAsync()
+    {
+        using var scope = _factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+
+        var category = new InterestCategory
+        {
+            Code = $"TEST_{Guid.NewGuid():N}",
+            Label = "Integration Test Interest"
+        };
+
+        db.InterestCategories.Add(category);
+        await db.SaveChangesAsync();
+        return category.Id;
     }
 
     [Fact]
@@ -116,10 +134,16 @@ public class DestinationSuggestionIntegrationTests
         _client.DefaultRequestHeaders.Authorization =
             new AuthenticationHeaderValue("Bearer", token);
 
+        // Use a unique interest for this test so destinations created by other
+        // integration tests cannot displace this candidate from the top three.
+        var testInterestId = await CreateUniqueInterestCategoryAsync();
+
         var destinationId = await SeedDestinationWithPlacesAsync(
             currencyId: 1,
             firstPrice: 250,
-            secondPrice: 350);
+            secondPrice: 350,
+            firstInterestCategoryId: testInterestId,
+            secondInterestCategoryId: testInterestId);
 
         var response = await _client.PostAsJsonAsync(
             "/api/destinations/suggestions",
@@ -127,7 +151,7 @@ public class DestinationSuggestionIntegrationTests
             {
                 BudgetAmount = 700,
                 BudgetCurrencyId = 1,
-                InterestCategoryIds = new List<long> { 1, 2 }
+                InterestCategoryIds = new List<long> { testInterestId }
             });
 
         response.EnsureSuccessStatusCode();
@@ -136,7 +160,7 @@ public class DestinationSuggestionIntegrationTests
             .ReadFromJsonAsync<DestinationSuggestionEnvelope>();
 
         Assert.NotNull(body);
-        Assert.True(body!.Count >= 1);
+        Assert.Equal(1, body!.Count);
         Assert.Contains(
             body.Suggestions,
             x => x.DestinationId == destinationId &&
@@ -172,8 +196,7 @@ public class DestinationSuggestionIntegrationTests
             .ReadFromJsonAsync<DestinationSuggestionEnvelope>();
 
         Assert.NotNull(body);
-        Assert.Equal(0, body!.Count);
-        Assert.Empty(body.Suggestions);
+        Assert.Empty(body!.Suggestions);
     }
 
     [Fact]
@@ -270,6 +293,40 @@ public class DestinationSuggestionIntegrationTests
         Assert.True(
             body.Suggestions.IndexOf(first) <
             body.Suggestions.IndexOf(second));
+    }
+
+    [Fact]
+    public async Task Suggestions_ReturnsAtMostThreeClosestAlternatives()
+    {
+        var token = await RegisterAndGetTokenAsync();
+        _client.DefaultRequestHeaders.Authorization =
+            new AuthenticationHeaderValue("Bearer", token);
+
+        for (var i = 0; i < 4; i++)
+        {
+            await SeedDestinationWithPlacesAsync(
+                currencyId: 1,
+                firstPrice: 400 + (i * 100),
+                secondPrice: 400);
+        }
+
+        var response = await _client.PostAsJsonAsync(
+            "/api/destinations/suggestions",
+            new DestinationSuggestionRequest
+            {
+                BudgetAmount = 1000,
+                BudgetCurrencyId = 1,
+                InterestCategoryIds = new List<long> { 1, 2 }
+            });
+
+        response.EnsureSuccessStatusCode();
+
+        var body = await response.Content
+            .ReadFromJsonAsync<DestinationSuggestionEnvelope>();
+
+        Assert.NotNull(body);
+        Assert.Equal(3, body!.Count);
+        Assert.Equal(3, body.Suggestions.Count);
     }
 
     [Fact]

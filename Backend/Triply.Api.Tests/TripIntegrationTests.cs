@@ -108,6 +108,48 @@ public class TripIntegrationTests : IClassFixture<CustomWebApplicationFactory>
     }
 
     [Fact]
+    public async Task BudgetFirst_UserCanSelectSuggestedDestinationBeforeGeneration()
+    {
+        var token = await RegisterAndGetTokenAsync();
+        _client.DefaultRequestHeaders.Authorization =
+            new AuthenticationHeaderValue("Bearer", token);
+
+        var createResponse = await _client.PostAsJsonAsync(
+            "/api/trips",
+            new
+            {
+                planningMode = "BUDGET_FIRST",
+                destinationId = (long?)null,
+                startDate = "2026-10-01",
+                endDate = "2026-10-03",
+                travelerCount = 2,
+                budgetAmount = 1000,
+                budgetCurrencyId = 1,
+                interestCategoryIds = new[] { 1, 3 }
+            });
+
+        createResponse.EnsureSuccessStatusCode();
+        var created = await createResponse.Content.ReadFromJsonAsync<TripResponse>();
+        Assert.NotNull(created);
+        Assert.Null(created!.DestinationId);
+
+        var selectResponse = await _client.PatchAsJsonAsync(
+            $"/api/trips/{created.Id}/destination",
+            new
+            {
+                destinationId = 2,
+                expectedVersion = created.Version
+            });
+
+        Assert.Equal(HttpStatusCode.OK, selectResponse.StatusCode);
+        var selected = await selectResponse.Content.ReadFromJsonAsync<DestinationSelectionResponse>();
+        Assert.NotNull(selected);
+        Assert.Equal(2, selected!.DestinationId);
+        Assert.Equal("Amman", selected.DestinationName);
+        Assert.Equal(created.Version + 1, selected.Version);
+    }
+
+    [Fact]
     public async Task GetTrip_DifferentUser_ReturnsNotFound()
     {
         // Arrange
@@ -281,7 +323,7 @@ public async Task UpdateTrip_StaleVersion_ReturnsConflict()
     Assert.Equal(
         HttpStatusCode.Conflict,
         secondUpdate.StatusCode);
-}
+    }
 
     [Fact]
     public async Task SaveThenRetrieve_ReturnsLastConfirmedTripState()
@@ -498,4 +540,12 @@ using (var scope = _factory.Services.CreateScope())
             "SAVED",
             savedTrip!.Status);
     }
+    private sealed class DestinationSelectionResponse
+    {
+        public Guid TripId { get; set; }
+        public long DestinationId { get; set; }
+        public string DestinationName { get; set; } = default!;
+        public int Version { get; set; }
+    }
+
 }

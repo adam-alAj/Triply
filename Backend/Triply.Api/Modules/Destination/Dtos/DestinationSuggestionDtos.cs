@@ -24,4 +24,9 @@ public class DestinationSuggestionResponse
     public long BudgetCurrencyId { get; set; }
 
     public bool IsEstimated { get; set; } = true;
+
+    // True when the destination's estimated reference total is within the
+    // requested budget. Up to three budget-suitable destinations are returned
+    // so the user can choose one before BUDGET_FIRST generation.
+    public bool IsWithinBudget { get; set; }
 }

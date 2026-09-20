@@ -95,9 +95,13 @@ public class DestinationSuggestionService : IDestinationSuggestionService
                 // user's budget currency) = EstimatedCost expressed in budget currency.
                 EstimatedCostInBudgetCurrency = x.EstimatedCost * rateFactorInBudgetCurrency[x.CurrencyId]
             })
+            // Return up to three destinations that actually fit the requested
+            // budget. Over-budget destinations are not suggestions because the
+            // user must choose from budget-suitable options.
             .Where(x => x.EstimatedCostInBudgetCurrency <= request.BudgetAmount)
             .OrderByDescending(x => x.MatchCount)
             .ThenBy(x => x.EstimatedCostInBudgetCurrency)
+            .Take(3)
             .Select(x => new DestinationSuggestionResponse
             {
                 DestinationId = x.DestinationId,
@@ -110,7 +114,8 @@ public class DestinationSuggestionService : IDestinationSuggestionService
                 // above are unchanged — this is purely additive.
                 EstimatedCostInBudgetCurrency = Math.Round(x.EstimatedCostInBudgetCurrency, 2),
                 BudgetCurrencyId = request.BudgetCurrencyId,
-                IsEstimated = true
+                IsEstimated = true,
+                IsWithinBudget = x.EstimatedCostInBudgetCurrency <= request.BudgetAmount
             })
             .ToList();
 

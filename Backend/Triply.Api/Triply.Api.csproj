@@ -29,6 +29,8 @@
 		<None Update="AI-Schemas\triply-trip-plan-generation.schema.json">
 			<CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
 		</None>
+		<None Update="assets\destinations.json">
+			<CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+		</None>
 	</ItemGroup>
-
 </Project>
