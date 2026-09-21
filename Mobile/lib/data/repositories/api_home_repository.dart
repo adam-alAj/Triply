@@ -1,4 +1,5 @@
 import '../../core/network/api_client.dart';
+import '../../core/network/destination_assets_cache.dart';
 import '../models/home_region.dart';
 import '../models/home_trip.dart';
 import 'home_repository.dart';
@@ -25,8 +26,8 @@ class ApiHomeRepository implements HomeRepository {
 
   @override
   Future<List<HomeRegion>> getFeaturedRegions() async {
-    final response = await _apiClient.get<List<dynamic>>('/api/destinations');
-    final destinations = response.cast<Map<String, dynamic>>();
+    final destinations =
+        await DestinationAssetsCache.instance.getDestinations(_apiClient);
     final images = await _fetchDestinationImages();
 
     return destinations.take(2).map((destination) {
@@ -46,14 +47,7 @@ class ApiHomeRepository implements HomeRepository {
   /// local asset image instead of blocking Home entirely.
   Future<Map<String, String>> _fetchDestinationImages() async {
     try {
-      final response = await _apiClient
-          .get<Map<String, dynamic>>('/api/destinations/assets');
-      final entries = (response['destinations'] as List<dynamic>?) ?? [];
-
-      return {
-        for (final entry in entries.cast<Map<String, dynamic>>())
-          entry['destinationName'] as String: entry['url'] as String,
-      };
+      return await DestinationAssetsCache.instance.getImages(_apiClient);
     } catch (_) {
       return {};
     }
