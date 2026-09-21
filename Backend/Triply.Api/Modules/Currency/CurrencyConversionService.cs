@@ -66,7 +66,7 @@ public class CurrencyConversionService : ICurrencyConversionService
         {
             throw new InvalidOperationException(
                 $"No ExchangeRate configured for CurrencyId(s) {string.Join(", ", missing)}. " +
-                "Seed ExchangeRates before comparing amounts across currencies.");
+                "ExchangeRates must be provided by the AI dataset setup before comparing amounts across currencies.");
         }
 
         return rates;

@@ -249,7 +249,7 @@ public class ProfileAndMobileFeatureIntegrationTests : IClassFixture<CustomWebAp
         var body = await response.Content.ReadFromJsonAsync<PlaceDetailsDto>();
         Assert.Equal(placeId, body!.Id);
         Assert.NotNull(body.Description);
-        Assert.Equal("Jerusalem", body.DestinationName);
+        Assert.Equal("Paris", body.DestinationName);
         Assert.Empty(body.Images);
         Assert.Empty(body.OpeningHours);
     }

@@ -107,6 +107,7 @@ public sealed class PlaceContextDto
     public string Category { get; set; } = default!;
     public decimal ReferencePrice { get; set; }
     public string Currency { get; set; } = default!;
+    public long CurrencyId { get; set; }
     public string? BudgetTier { get; set; }
 }
 

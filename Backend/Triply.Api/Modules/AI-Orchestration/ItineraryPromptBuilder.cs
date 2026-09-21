@@ -103,6 +103,9 @@ public class ItineraryPromptBuilder : IItineraryPromptBuilder
 
         var placeList = BuildPlaceListByDestination(places, destinations);
         var dateRule = BuildDateRule(trip.StartDate, trip.EndDate, dayCount);
+        var destinationSelectionRule = trip.DestinationId.HasValue
+            ? "7. A destination has already been selected by the user. Return exactly one entry in `destination_options`, for that selected destination only."
+            : "7. Return between 1 and 3 entries in `destination_options`, each for a different destination from the supported list below.";
 
         return $$"""
         You are Triply's trip-planning assistant. You generate 1 to 3 candidate
@@ -129,9 +132,8 @@ public class ItineraryPromptBuilder : IItineraryPromptBuilder
         6. Exactly one ACCOMMODATION-category place must be chosen per
            destination option, returned only inside that option's `accommodation`
            object - never repeated inside `days`.
-        7. Return between 1 and 3 entries in `destination_options`, each for a
-           different destination from the supported list below. Each option must
-           be a complete, self-contained plan that you judge as realistically
+        {{destinationSelectionRule}}
+           Each option must be a complete, self-contained plan that you judge as realistically
            fitting within the stated budget, using only the reference pricing
            implied by each place's `budget_tier` in the list below - never state
            or calculate an exact total.

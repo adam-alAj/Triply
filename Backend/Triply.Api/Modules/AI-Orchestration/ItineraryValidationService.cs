@@ -16,7 +16,7 @@ namespace Triply.Api.Modules.AIOrchestration;
 /// 2. Dataset grounding (FR-AI-002, 0% tolerance) — every name resolves to an active row
 /// 3. Category rules — accommodation not in days, at least one restaurant per day,
 ///    at least one transport across the option
-/// 4. Budget check (deterministic, Backend-computed — not validated here)
+/// 4. Budget check (deterministic, Backend-computed after grounding/cost aggregation)
 /// </summary>
 public interface IItineraryValidator
 {
@@ -188,7 +188,8 @@ public class ItineraryValidationService : IItineraryValidator
                     continue;
                 }
 
-                if (!ValidTimeSlots.Contains(item.TimeSlot?.ToUpperInvariant()))
+                var normalizedTimeSlot = item.TimeSlot?.ToUpperInvariant();
+                if (normalizedTimeSlot is null || !ValidTimeSlots.Contains(normalizedTimeSlot))
                 {
                     errors.Add(
                         $"{optionPrefix} day {day.DayNumber}, item '{item.PlaceName}': " +

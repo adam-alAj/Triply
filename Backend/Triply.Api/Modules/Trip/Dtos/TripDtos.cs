@@ -53,3 +53,13 @@ public class UpdateTripMetadataRequest
     public string? CoverImageUrl { get; set; }
     public int? ExpectedVersion { get; set; }
 }
+
+
+/// <summary>
+/// Selects one destination from the budget-first suggestions before AI generation.
+/// </summary>
+public class SelectDestinationRequest
+{
+    public long DestinationId { get; set; }
+    public int ExpectedVersion { get; set; }
+}

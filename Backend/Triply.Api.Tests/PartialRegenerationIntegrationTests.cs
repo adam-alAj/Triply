@@ -56,6 +56,9 @@ public sealed class PartialRegenerationIntegrationTests
         return body.Token;
     }
 
+    private void UseToken(string token)
+        => _client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
+
     private async Task<(long accommodation, long restaurantA, long restaurantB, long transport)>
         SeedPlacesAsync(long destinationId)
     {
@@ -140,7 +143,7 @@ public sealed class PartialRegenerationIntegrationTests
             transport.Id);
     }
 
-    private async Task<TripResponse> CreateTripAsync(string token)
+    private async Task<TripResponse> CreateTripAsync(string token, decimal budgetAmount = 1000)
     {
         _client.DefaultRequestHeaders.Authorization =
             new AuthenticationHeaderValue("Bearer", token);
@@ -154,7 +157,7 @@ public sealed class PartialRegenerationIntegrationTests
                 startDate = "2026-10-01",
                 endDate = "2026-10-03",
                 travelerCount = 2,
-                budgetAmount = 1000,
+                budgetAmount = budgetAmount,
                 budgetCurrencyId = 1,
                 interestCategoryIds = new[] { 1, 3 }
             });
@@ -293,6 +296,24 @@ public sealed class PartialRegenerationIntegrationTests
                 .Id,
 
             trip.Version);
+    }
+
+    [Fact]
+    public async Task Generate_RejectsOverBudgetPlanAfterBoundedRetries()
+    {
+        var token = await RegisterAndGetTokenAsync();
+        await SeedPlacesAsync(1);
+        var trip = await CreateTripAsync(token, budgetAmount: 100);
+
+        UseToken(token);
+        var response = await _client.PostAsJsonAsync(
+            $"/api/trips/{trip.Id}/generate",
+            new { scope = "FULL" });
+
+        Assert.Equal(HttpStatusCode.UnprocessableEntity, response.StatusCode);
+        var body = await response.Content.ReadAsStringAsync();
+        Assert.Contains("attemptsUsed", body, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("exceeds the requested budget", body, StringComparison.OrdinalIgnoreCase);
     }
 
     [Fact]
@@ -621,7 +642,7 @@ public sealed class FakeGeminiClient : IGeminiClient
             {
                 new
                 {
-                    destination_name = "Jerusalem",
+                    destination_name = "Paris",
 
                     accommodation = new
                     {

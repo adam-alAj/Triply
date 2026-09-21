@@ -163,6 +163,18 @@ public class ApplicationDbContext : IdentityDbContext<ApplicationUser, IdentityR
             .Property(x => x.Longitude)
             .HasColumnType("decimal(9,6)");
 
+        // ---- ExchangeRate (1:1 with Currency) ----
+        // CurrencyId is both the PK and FK. EF Core cannot infer this as a
+        // primary key by convention because the property is named CurrencyId
+        // rather than ExchangeRateId/Id.
+        b.Entity<ExchangeRate>().HasKey(x => x.CurrencyId);
+        b.Entity<ExchangeRate>()
+            .HasOne(x => x.Currency)
+            .WithMany()
+            .HasForeignKey(x => x.CurrencyId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+       
         // Exchange rates need more decimals than money amounts (e.g. ~0.0275 USD per THB).
         b.Entity<ExchangeRate>()
             .Property(x => x.RateToUsd)
@@ -193,90 +205,7 @@ public class ApplicationDbContext : IdentityDbContext<ApplicationUser, IdentityR
         b.Entity<AIGeneration>().ToTable(t => t.HasCheckConstraint(
             "CK_AIGeneration_Status",
             "[Status] IN ('PENDING','SUCCEEDED','FAILED_VALIDATION','FAILED_ERROR')"));
-        // ---- Basic reference data seed for local development ----
 
-b.Entity<Country>().HasData(
-    new Country
-    {
-        Id = 1,
-        Name = "Palestine",
-        IsoCode = "PS"
-    },
-    new Country
-    {
-        Id = 2,
-        Name = "Jordan",
-        IsoCode = "JO"
-    }
-);
 
-b.Entity<Currency>().HasData(
-    new Currency
-    {
-        Id = 1,
-        IsoCode = "USD",
-        Symbol = "$"
-    },
-    new Currency
-    {
-        Id = 2,
-        IsoCode = "JOD",
-        Symbol = "JD"
-    }
-);
-
-b.Entity<Destination>().HasData(
-    new Destination
-    {
-        Id = 1,
-        CountryId = 1,
-        Name = "Jerusalem",
-        Description = "Historic and cultural destination",
-        Latitude = 31.7683m,
-        Longitude = 35.2137m,
-        IsSupported = true
-    },
-    new Destination
-    {
-        Id = 2,
-        CountryId = 2,
-        Name = "Amman",
-        Description = "Capital city of Jordan",
-        Latitude = 31.9539m,
-        Longitude = 35.9106m,
-        IsSupported = true
-    }
-);
-                
-        // ---- Reference data seed (Database Design §26) ----
-
-                // ---- Reference data seed (Database Design §26) ----
-    
-        b.Entity<InterestCategory>().HasData(
-            new InterestCategory { Id = 1, Code = "NATURE",     Label = "Nature" },
-            new InterestCategory { Id = 2, Code = "HISTORY",    Label = "History" },
-            new InterestCategory { Id = 3, Code = "FOOD",       Label = "Food" },
-            new InterestCategory { Id = 4, Code = "SHOPPING",   Label = "Shopping" },
-            new InterestCategory { Id = 5, Code = "ADVENTURE",  Label = "Adventure" },
-            new InterestCategory { Id = 6, Code = "CULTURE",    Label = "Culture" },
-            new InterestCategory { Id = 7, Code = "RELAXATION", Label = "Relaxation" },
-            new InterestCategory { Id = 8, Code = "OTHER",      Label = "Other" }
-        );
-
-        b.Entity<CostCategory>().HasData(
-            new CostCategory { Id = 1, Code = "ACCOMMODATION",  Label = "Accommodation" },
-            new CostCategory { Id = 2, Code = "TRANSPORTATION", Label = "Transportation" },
-            new CostCategory { Id = 3, Code = "FOOD",           Label = "Food" },
-            new CostCategory { Id = 4, Code = "ACTIVITIES",     Label = "Activities" },
-            new CostCategory { Id = 5, Code = "OTHER",          Label = "Other" }
-        );
-
-        b.Entity<PlaceCategory>().HasData(
-            new PlaceCategory { Id = 1, Code = "ATTRACTION",    Label = "Attraction" },
-            new PlaceCategory { Id = 2, Code = "RESTAURANT",    Label = "Restaurant" },
-            new PlaceCategory { Id = 3, Code = "ACTIVITY",      Label = "Activity" },
-            new PlaceCategory { Id = 4, Code = "ACCOMMODATION", Label = "Accommodation" },
-            new PlaceCategory { Id = 5, Code = "TRANSPORT",     Label = "Transport" }
-        );
     }
 }

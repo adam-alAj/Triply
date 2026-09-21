@@ -1,0 +1,17 @@
+{
+  "version": "1.0",
+  "destinations": [
+    {
+      "destinationName": "Paris",
+      "url": "https://media-cdn.tripadvisor.com/media/photo-c/1280x250/17/15/6d/d6/paris.jpg"
+    },
+    {
+      "destinationName": "Amman",
+      "url": "https://www.touristjordan.com/wp-content/uploads/2022/08/jordan12-800x533.jpg"
+    },
+    {
+      "destinationName": "New York",
+      "url": "https://media.timeout.com/images/106191080/image.jpg"
+    }
+  ]
+}

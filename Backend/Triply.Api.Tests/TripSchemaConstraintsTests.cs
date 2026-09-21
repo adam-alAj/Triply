@@ -42,16 +42,24 @@ var options = new DbContextOptionsBuilder<ApplicationDbContext>()
 
         var currency = new Currency { IsoCode = "TST", Symbol = "T" };
         _db.Currencies.Add(currency);
+
+        // Production/migrations no longer seed reference data (see
+        // RemoveBackendStaticSeed), so create the categories this test
+        // needs itself instead of assuming a pre-seeded row exists.
+        var placeCategory = new PlaceCategory { Code = "TEST_PLACE_CAT", Label = "Test Place Category" };
+        var costCategory = new CostCategory { Code = "TEST_COST_CAT", Label = "Test Cost Category" };
+        _db.PlaceCategories.Add(placeCategory);
+        _db.CostCategories.Add(costCategory);
         _db.SaveChanges();
 
         var place = new Place
         {
             DestinationId = destination.Id,
-            PlaceCategoryId = _db.PlaceCategories.First().Id,
+            PlaceCategoryId = placeCategory.Id,
             Name = "TestPlace",
             ReferencePrice = 10,
             CurrencyId = currency.Id,
-            CostCategoryId = _db.CostCategories.First().Id
+            CostCategoryId = costCategory.Id
         };
         _db.Places.Add(place);
         _db.SaveChanges();

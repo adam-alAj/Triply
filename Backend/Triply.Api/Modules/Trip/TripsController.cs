@@ -213,6 +213,76 @@ public class TripsController : ControllerBase
     }
 
 
+    [HttpPatch("{id:guid}/destination")]
+    public async Task<IActionResult> SelectDestination(
+        Guid id,
+        [FromBody] SelectDestinationRequest request,
+        CancellationToken cancellationToken)
+    {
+        var userId = GetUserId();
+        if (userId is null) return Unauthorized();
+
+        var trip = await _db.Trips
+            .Include(t => t.Destination)
+            .FirstOrDefaultAsync(t => t.Id == id && t.UserId == userId.Value, cancellationToken);
+
+        if (trip is null) return NotFound();
+
+        if (!string.Equals(trip.PlanningMode, "BUDGET_FIRST", StringComparison.OrdinalIgnoreCase))
+        {
+            return BadRequest(new
+            {
+                message = "Destination selection is only used for BUDGET_FIRST trips."
+            });
+        }
+
+        if (trip.Status is TripLifecycle.Generating or TripLifecycle.Archived or TripLifecycle.Generated or TripLifecycle.Saved)
+        {
+            return Conflict(new
+            {
+                message = $"Destination cannot be selected while trip status is {trip.Status}."
+            });
+        }
+
+        if (request.ExpectedVersion != trip.Version)
+        {
+            return Conflict(new
+            {
+                message = "Trip has been modified by another request.",
+                currentVersion = trip.Version
+            });
+        }
+
+        var destination = await _db.Destinations
+            .AsNoTracking()
+            .FirstOrDefaultAsync(
+                d => d.Id == request.DestinationId && d.IsSupported,
+                cancellationToken);
+
+        if (destination is null)
+        {
+            return BadRequest(new
+            {
+                message = "Destination does not exist or is not supported."
+            });
+        }
+
+        trip.DestinationId = destination.Id;
+        trip.UpdatedAt = DateTime.UtcNow;
+        trip.Version++;
+
+        await _db.SaveChangesAsync(cancellationToken);
+
+        return Ok(new
+        {
+            tripId = trip.Id,
+            destinationId = destination.Id,
+            destinationName = destination.Name,
+            version = trip.Version,
+            message = "Destination selected. The client can now generate the trip itinerary."
+        });
+    }
+
     [HttpPatch("{id:guid}")]
     public async Task<IActionResult> UpdateMetadata(
         Guid id,

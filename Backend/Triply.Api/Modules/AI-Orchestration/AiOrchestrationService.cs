@@ -6,6 +6,7 @@ using Triply.Api.Entities;
 using Triply.Api.Modules.AIOrchestration.Dtos;
 using Triply.Api.Modules.Cost;
 using Triply.Api.Modules.Cost.Dtos;
+using Triply.Api.Modules.Currency;
 using Triply.Api.Modules.Itinerary.Dtos;
 using Triply.Api.Modules.Trip;
 
@@ -46,6 +47,7 @@ public class AiOrchestrationService : IAiOrchestrationService
     private readonly GeminiOptions _options;
     private readonly ILogger<AiOrchestrationService> _logger;
     private readonly IExtraAiContextReader _extraAiContextReader;
+    private readonly ICurrencyConversionService _currencyConversion;
     private readonly IHostEnvironment _environment;
 
     public AiOrchestrationService(
@@ -57,6 +59,7 @@ public class AiOrchestrationService : IAiOrchestrationService
         IOptions<GeminiOptions> options,
         ILogger<AiOrchestrationService> logger,
         IExtraAiContextReader extraAiContextReader,
+        ICurrencyConversionService currencyConversion,
         IHostEnvironment environment)
     {
         _db = db;
@@ -67,6 +70,7 @@ public class AiOrchestrationService : IAiOrchestrationService
         _options = options.Value;
         _logger = logger;
         _extraAiContextReader = extraAiContextReader;
+        _currencyConversion = currencyConversion;
         _environment = environment;
     }
 
@@ -86,6 +90,10 @@ public class AiOrchestrationService : IAiOrchestrationService
         if (trip.PlanningMode == "DESTINATION_FIRST" && trip.DestinationId is null)
             throw new InvalidOperationException(
                 "Destination-first trips require a confirmed destination before generation.");
+
+        if (trip.PlanningMode == "BUDGET_FIRST" && trip.DestinationId is null)
+            throw new InvalidOperationException(
+                "Budget-first trips require the user to select one of the suggested destinations before generation.");
 
         if (!TripLifecycle.CanTransition(trip.Status, TripLifecycle.Generating) && trip.Status != TripLifecycle.Generating)
             throw new InvalidOperationException($"Trip in status '{trip.Status}' cannot start generation.");
@@ -118,7 +126,8 @@ _logger.LogWarning(
             .Include(p => p.Destination)
             .Where(p => p.IsActive);
 
-        if (trip.PlanningMode == "DESTINATION_FIRST")
+        if (trip.PlanningMode == "DESTINATION_FIRST" ||
+            (trip.PlanningMode == "BUDGET_FIRST" && trip.DestinationId.HasValue))
             placeQuery = placeQuery.Where(p => p.DestinationId == trip.DestinationId!.Value);
 
         var places = await placeQuery
@@ -131,6 +140,7 @@ _logger.LogWarning(
                 Category = p.PlaceCategory.Code,
                 ReferencePrice = p.ReferencePrice,
                 Currency = p.Currency.IsoCode,
+                CurrencyId = p.CurrencyId,
                 BudgetTier = null
             })
             .ToListAsync(cancellationToken);
@@ -191,7 +201,8 @@ _logger.LogWarning(
         var destinations = trip.PlanningMode == "BUDGET_FIRST"
             ? await _db.Destinations
                 .AsNoTracking()
-                .Where(d => d.IsSupported)
+                .Where(d => d.IsSupported &&
+                    (!trip.DestinationId.HasValue || d.Id == trip.DestinationId.Value))
                 .Select(d => new DestinationContextDto { Name = d.Name, Description = d.Description })
                 .OrderBy(d => d.Name)
                 .ToListAsync(cancellationToken)
@@ -310,6 +321,44 @@ _logger.LogWarning(
 
             nameToPlace = selectedPlaceLookup;
 
+            // Deterministic backend budget guard. The AI never supplies prices:
+            // every amount is resolved from the authoritative Place.reference_price,
+            // including accommodation nights.
+            if (trip.BudgetAmount.HasValue && trip.BudgetCurrencyId.HasValue)
+            {
+                // Deterministically calculate every line from Place.reference_price,
+                // convert each currency into the user's budget currency, and compare
+                // the real total before anything is persisted. If the result is over
+                // budget, this attempt is rejected and the bounded AI retry loop gets
+                // another chance with the same budget constraint.
+                var totalInBudgetCurrency = await CalculateGeneratedOptionCostInBudgetCurrencyAsync(
+                    selectedOption,
+                    nameToPlace,
+                    trip.BudgetCurrencyId.Value,
+                    cancellationToken);
+
+                var budgetCheck = (
+                    IsWithinBudget: totalInBudgetCurrency <= trip.BudgetAmount.Value,
+                    TotalInBudgetCurrency: totalInBudgetCurrency);
+
+                if (!budgetCheck.IsWithinBudget)
+                {
+                    aiGeneration.Status = "FAILED_VALIDATION";
+                    aiGeneration.ValidationErrors =
+                        $"Generated itinerary exceeds budget: {budgetCheck.TotalInBudgetCurrency:F2} " +
+                        $"{trip.BudgetCurrency?.IsoCode ?? "budget currency"} > {trip.BudgetAmount.Value:F2}.";
+
+                    aiGeneration.CompletedAt = DateTime.UtcNow;
+                    if (trip.PlanningMode == "BUDGET_FIRST")
+                        trip.DestinationId = null;
+                    await _db.SaveChangesAsync(cancellationToken);
+                    allErrors.Add(
+                        $"Attempt {attempt}: generated itinerary exceeds the requested budget " +
+                        $"({budgetCheck.TotalInBudgetCurrency:F2} > {trip.BudgetAmount.Value:F2}).");
+                    continue;
+                }
+            }
+
             await using var transaction = await _db.Database.BeginTransactionAsync(cancellationToken);
 
             // Remove any existing itinerary for this trip
@@ -427,6 +476,36 @@ _logger.LogWarning(
                 await _db.SaveChangesAsync(cancellationToken);
 
                 throw;
+            }
+
+            // Final persisted-cost guard. The cost service recomputes the exact
+            // persisted itinerary from Place.reference_price; compare its result
+            // once more before allowing GENERATED.
+            if (trip.BudgetAmount.HasValue && trip.BudgetCurrencyId.HasValue)
+            {
+                var persistedCurrencyId = await _db.CostEstimates
+                    .AsNoTracking()
+                    .Where(x => x.TripId == tripId)
+                    .Select(x => (long?)x.CurrencyId)
+                    .FirstOrDefaultAsync(cancellationToken)
+                    ?? trip.BudgetCurrencyId.Value;
+
+                var totalInBudgetCurrency = await _currencyConversion.ConvertAsync(
+                    costResult.TotalEstimatedCost,
+                    persistedCurrencyId,
+                    trip.BudgetCurrencyId.Value,
+                    cancellationToken);
+
+                if (totalInBudgetCurrency > trip.BudgetAmount.Value)
+                {
+                    // The same deterministic calculation already passed before
+                    // persistence; reaching this branch means the persisted-cost
+                    // service disagrees with the pre-persistence calculation.
+                    // Fail closed instead of accepting an over-budget itinerary.
+                    throw new InvalidOperationException(
+                        $"Generated itinerary exceeds budget after cost aggregation: " +
+                        $"{totalInBudgetCurrency:F2} > {trip.BudgetAmount.Value:F2}.");
+                }
             }
 
             TripLifecycle.Transition(trip, TripLifecycle.Generated);
@@ -563,6 +642,7 @@ _logger.LogWarning(
                 Category = p.PlaceCategory.Code,
                 ReferencePrice = p.ReferencePrice,
                 Currency = p.Currency.IsoCode,
+                CurrencyId = p.CurrencyId,
                 BudgetTier = null
             })
             .ToListAsync(cancellationToken);
@@ -925,6 +1005,42 @@ await transaction.CommitAsync(cancellationToken);
             AttemptsUsed = maxAttempts,
             Errors = allErrors
         };
+    }
+
+    private async Task<decimal> CalculateGeneratedOptionCostInBudgetCurrencyAsync(
+        GeminiDestinationOptionDto option,
+        IReadOnlyDictionary<string, PlaceContextDto> places,
+        long budgetCurrencyId,
+        CancellationToken cancellationToken)
+    {
+        // Keep costs in their stored/native currencies first. This preserves the
+        // team's currency decision: database prices are never rewritten. Only the
+        // budget comparison converts them to the user's budget currency.
+        var totalsByCurrency = new Dictionary<long, decimal>();
+
+        void Add(decimal amount, long currencyId)
+        {
+            totalsByCurrency[currencyId] =
+                totalsByCurrency.GetValueOrDefault(currencyId) + amount;
+        }
+
+        var accommodationPlace = places[option.Accommodation.PlaceName];
+        Add(
+            accommodationPlace.ReferencePrice * option.Accommodation.Nights,
+            accommodationPlace.CurrencyId);
+
+        foreach (var item in option.Days.SelectMany(d => d.Items ?? []))
+        {
+            var place = places[item.PlaceName];
+            Add(place.ReferencePrice, place.CurrencyId);
+        }
+
+        var converted = await _currencyConversion.ConvertManyAsync(
+            totalsByCurrency,
+            budgetCurrencyId,
+            cancellationToken);
+
+        return converted.Values.Sum();
     }
 
     private static ItineraryResponse ToItineraryResponse(
