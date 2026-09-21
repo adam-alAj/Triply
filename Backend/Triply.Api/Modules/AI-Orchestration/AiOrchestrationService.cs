@@ -252,6 +252,15 @@ _logger.LogWarning(
                 await _db.SaveChangesAsync(cancellationToken);
 
                 allErrors.Add($"Attempt {attempt}: Gemini call failed - {ex.Message}");
+
+                // A short backoff before the next attempt — Gemini's transient
+                // 503s (observed in practice) tend to clear within a couple of
+                // seconds, but the retries here previously fired back-to-back
+                // with no delay, so all 3 attempts landed in the same brief
+                // overload window and failed together.
+                if (attempt < maxAttempts)
+                    await Task.Delay(TimeSpan.FromSeconds(3), cancellationToken);
+
                 continue; // bounded retry also covers transient API failures
             }
             catch (InvalidOperationException ex)
@@ -763,6 +772,12 @@ _logger.LogWarning(
                 aiGeneration.CompletedAt = DateTime.UtcNow;
                 await _db.SaveChangesAsync(cancellationToken);
                 allErrors.Add($"Attempt {attempt}: Gemini call failed - {ex.Message}");
+
+                // See the matching comment in GenerateItineraryAsync — a short
+                // backoff so all attempts don't land in the same brief 503 window.
+                if (attempt < maxAttempts)
+                    await Task.Delay(TimeSpan.FromSeconds(3), cancellationToken);
+
                 continue;
             }
 
