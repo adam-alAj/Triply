@@ -10,6 +10,11 @@ abstract class TripCreationRepository {
   /// [getDestinationSuggestions].
   Future<List<Map<String, dynamic>>> getDestinations();
 
+  /// Cover image URL per destination name, from `GET /api/destinations/
+  /// assets` — a separate static asset manifest, not part of the
+  /// destination row itself. Keyed by exact destination name.
+  Future<Map<String, String>> getDestinationImages();
+
   /// Creates the trip on the backend and returns its id.
   Future<String> createTrip(TripCreationData data);
 

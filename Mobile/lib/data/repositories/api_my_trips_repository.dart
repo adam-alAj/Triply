@@ -18,4 +18,17 @@ class ApiMyTripsRepository implements MyTripsRepository {
         .map(TripSummary.fromJson)
         .toList();
   }
+
+  @override
+  Future<Map<String, String>> getDestinationImages() async {
+    final response =
+        await _apiClient.get<Map<String, dynamic>>('/api/destinations/assets');
+
+    final entries = (response['destinations'] as List<dynamic>?) ?? [];
+
+    return {
+      for (final entry in entries.cast<Map<String, dynamic>>())
+        entry['destinationName'] as String: entry['url'] as String,
+    };
+  }
 }
