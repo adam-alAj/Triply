@@ -1,0 +1,1058 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Triply — Project Audit &amp; Gap Analysis</title>
+<style>
+:root{
+  --bg:#0b1220; --surface:#111a2b; --surface-raised:#16223a; --surface-hi:#1c2b47;
+  --border:#26314a; --border-soft:#1c2740;
+  --text:#e9edf5; --text-dim:#aab4c8; --text-mute:#7c88a3;
+  --teal:#4fd1c5; --teal-dim:#1f4a47;
+  --complete:#34d399; --complete-bg:#0f2e26;
+  --partial:#fbbf24; --partial-bg:#332608;
+  --missing:#f87171; --missing-bg:#3a1717;
+  --unknown:#94a3b8; --unknown-bg:#232c3d;
+  --conflicting:#c084fc; --conflicting-bg:#2a1e3d;
+  --blocked:#fb923c; --blocked-bg:#33220f;
+  --p0:#ef4444; --p1:#f59e0b; --p2:#3b82f6; --p3:#64748b;
+  --radius-card:10px; --radius-pill:999px;
+  --mono: ui-monospace,"SFMono-Regular",Menlo,Consolas,"Liberation Mono",monospace;
+  --sans: -apple-system,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;
+}
+*{box-sizing:border-box}
+html,body{height:100%}
+body{
+  margin:0; background:var(--bg); color:var(--text); font-family:var(--sans);
+  -webkit-font-smoothing:antialiased; overflow:hidden;
+}
+::selection{background:var(--teal-dim); color:#fff}
+
+/* ---------- shell ---------- */
+#app{display:flex; height:100vh; width:100vw}
+
+/* rail */
+#rail{
+  width:260px; min-width:260px; background:var(--surface); border-right:1px solid var(--border);
+  display:flex; flex-direction:column; height:100%;
+}
+#rail-head{padding:20px 18px 14px; border-bottom:1px solid var(--border-soft)}
+#rail-head .brand{font-weight:700; font-size:15px; letter-spacing:.02em}
+#rail-head .brand span{color:var(--teal)}
+#rail-head .sub{font-size:11.5px; color:var(--text-mute); margin-top:3px}
+#toc{flex:1; overflow-y:auto; padding:10px 8px}
+.toc-item{
+  display:flex; gap:10px; align-items:baseline; width:100%; text-align:left;
+  padding:8px 10px; border-radius:7px; background:transparent; border:none; color:var(--text-dim);
+  font-family:var(--sans); font-size:12.6px; cursor:pointer; line-height:1.3;
+}
+.toc-item:hover{background:var(--surface-hi); color:var(--text)}
+.toc-item.active{background:var(--surface-hi); color:var(--text); box-shadow:inset 2px 0 0 var(--teal)}
+.toc-num{font-family:var(--mono); font-size:11px; color:var(--text-mute); min-width:20px}
+.toc-item.active .toc-num{color:var(--teal)}
+#rail-foot{padding:12px 18px 16px; border-top:1px solid var(--border-soft); font-size:11px; color:var(--text-mute)}
+#rail-foot kbd{
+  background:var(--surface-hi); border:1px solid var(--border); border-radius:4px; padding:1px 5px;
+  font-family:var(--mono); font-size:10px; color:var(--text-dim);
+}
+
+/* main */
+#main{flex:1; display:flex; flex-direction:column; height:100%; position:relative; min-width:0}
+#progress{height:3px; background:var(--border-soft); flex-shrink:0}
+#progress-bar{height:100%; background:var(--teal); width:0%; transition:width .25s ease}
+#viewport{flex:1; overflow-y:auto; overflow-x:hidden; position:relative}
+.slide{
+  display:none; min-height:100%; padding:54px 64px 90px; max-width:1180px;
+}
+.slide.active{display:block; animation:fade .35s ease}
+@keyframes fade{from{opacity:0; transform:translateY(6px)} to{opacity:1; transform:translateY(0)}}
+
+/* nav controls */
+#navbar{
+  position:absolute; bottom:0; left:0; right:0; height:64px; display:flex; align-items:center;
+  justify-content:space-between; padding:0 28px; background:linear-gradient(to top, var(--bg) 60%, transparent);
+  pointer-events:none;
+}
+#navbar > *{pointer-events:auto}
+.navbtn{
+  display:flex; align-items:center; gap:7px; background:var(--surface-raised); border:1px solid var(--border);
+  color:var(--text); font-family:var(--sans); font-size:13px; padding:9px 16px; border-radius:var(--radius-pill);
+  cursor:pointer; transition:background .15s, border-color .15s;
+}
+.navbtn:hover{background:var(--surface-hi); border-color:var(--teal-dim)}
+.navbtn:disabled{opacity:.35; cursor:default}
+.navbtn:disabled:hover{background:var(--surface-raised); border-color:var(--border)}
+#counter{font-family:var(--mono); font-size:12.5px; color:var(--text-mute); letter-spacing:.02em}
+#counter b{color:var(--text)}
+
+/* ---------- typography ---------- */
+.eyebrow{
+  font-size:11px; letter-spacing:.08em; color:var(--teal); font-weight:600; margin-bottom:10px;
+  text-transform:uppercase;
+}
+h1.title{font-size:40px; line-height:1.12; margin:0 0 14px; font-weight:700; letter-spacing:-0.01em}
+h2.slide-title{font-size:28px; line-height:1.2; margin:0 0 6px; font-weight:700; letter-spacing:-0.01em}
+.slide-dek{font-size:15px; color:var(--text-dim); margin:0 0 28px; max-width:760px; line-height:1.55}
+h3.section-h{font-size:14px; margin:26px 0 12px; color:var(--text); font-weight:700}
+p{line-height:1.6; color:var(--text-dim); font-size:14px}
+a{color:var(--teal)}
+.lead{font-size:16px; color:var(--text); max-width:720px; line-height:1.6}
+
+/* ---------- badges ---------- */
+.badge{
+  display:inline-flex; align-items:center; gap:5px; padding:3px 10px; border-radius:var(--radius-pill);
+  font-size:11px; font-weight:700; letter-spacing:.02em; white-space:nowrap; border:1px solid transparent;
+}
+.st-complete{color:var(--complete); background:var(--complete-bg); border-color:#1c5c47}
+.st-partial{color:var(--partial); background:var(--partial-bg); border-color:#6b4f0d}
+.st-missing{color:var(--missing); background:var(--missing-bg); border-color:#6e2323}
+.st-unknown{color:var(--unknown); background:var(--unknown-bg); border-color:#39435a}
+.st-conflicting{color:var(--conflicting); background:var(--conflicting-bg); border-color:#4a3568}
+.st-blocked{color:var(--blocked); background:var(--blocked-bg); border-color:#6b4318}
+.pr{font-family:var(--mono); font-weight:800}
+.pr-p0{color:#fff; background:var(--p0)}
+.pr-p1{color:#1a1400; background:var(--p1)}
+.pr-p2{color:#fff; background:var(--p2)}
+.pr-p3{color:#fff; background:var(--p3)}
+
+/* ---------- legend ---------- */
+.legend{display:flex; flex-wrap:wrap; gap:8px 16px; margin:4px 0 24px}
+.legend .item{display:flex; align-items:center; gap:6px; font-size:11.5px; color:var(--text-mute)}
+
+/* ---------- cards & grids ---------- */
+.grid{display:grid; gap:16px}
+.grid-2{grid-template-columns:1fr 1fr}
+.grid-3{grid-template-columns:1fr 1fr 1fr}
+.grid-4{grid-template-columns:repeat(4,1fr)}
+.card{
+  background:var(--surface); border:1px solid var(--border); border-radius:var(--radius-card); padding:18px 20px;
+}
+.card h4{margin:0 0 8px; font-size:13.5px; color:var(--text)}
+.card p{margin:0; font-size:13px}
+.card .evidence{margin-top:10px}
+
+.kpi{background:var(--surface); border:1px solid var(--border); border-radius:var(--radius-card); padding:16px 18px}
+.kpi .num{font-family:var(--mono); font-size:30px; font-weight:700; line-height:1; color:var(--teal)}
+.kpi.warn .num{color:var(--partial)}
+.kpi.bad .num{color:var(--missing)}
+.kpi .lbl{font-size:11.5px; color:var(--text-mute); margin-top:8px; line-height:1.4}
+
+.evidence{
+  font-family:var(--mono); font-size:11px; color:var(--text-mute); background:var(--bg);
+  border:1px solid var(--border-soft); border-radius:6px; padding:5px 9px; display:inline-block; line-height:1.5;
+}
+
+/* ---------- tables ---------- */
+.twrap{border:1px solid var(--border); border-radius:var(--radius-card); overflow:hidden; margin-bottom:8px}
+table{width:100%; border-collapse:collapse; font-size:12.6px}
+th{
+  text-align:left; background:var(--surface-raised); color:var(--text-mute); font-weight:600; font-size:11px;
+  letter-spacing:.03em; text-transform:uppercase; padding:10px 14px; border-bottom:1px solid var(--border);
+}
+td{padding:10px 14px; border-bottom:1px solid var(--border-soft); color:var(--text-dim); vertical-align:top}
+tr:last-child td{border-bottom:none}
+tbody tr:hover{background:var(--surface-hi)}
+td.mono, .mono{font-family:var(--mono); font-size:11.5px; color:var(--text)}
+td.strong, .strong{color:var(--text); font-weight:600}
+
+/* ---------- diagram (pure CSS boxes) ---------- */
+.diagram{display:flex; flex-wrap:wrap; align-items:center; gap:0; margin:20px 0}
+.dbox{
+  background:var(--surface-raised); border:1px solid var(--border); border-radius:9px; padding:12px 16px;
+  font-size:12.5px; color:var(--text); text-align:center; min-width:120px;
+}
+.dbox.accent{border-color:var(--teal-dim); box-shadow:0 0 0 1px var(--teal-dim) inset}
+.dbox .small{display:block; font-size:10px; color:var(--text-mute); margin-top:3px}
+.darrow{color:var(--text-mute); padding:0 10px; font-size:16px}
+.dcol{display:flex; flex-direction:column; gap:10px; align-items:center}
+.dflow{display:flex; align-items:center; flex-wrap:wrap; gap:2px}
+
+/* flow steps list */
+.steps{list-style:none; margin:0; padding:0; counter-reset:step}
+.steps li{
+  counter-increment:step; position:relative; padding:10px 0 10px 40px; border-bottom:1px solid var(--border-soft);
+  font-size:13px; color:var(--text-dim);
+}
+.steps li:last-child{border-bottom:none}
+.steps li::before{
+  content:counter(step); position:absolute; left:0; top:9px; width:24px; height:24px; border-radius:50%;
+  background:var(--surface-hi); border:1px solid var(--border); color:var(--teal); font-family:var(--mono);
+  font-size:11px; display:flex; align-items:center; justify-content:center; font-weight:700;
+}
+.steps b{color:var(--text)}
+
+/* two-col conflict cards */
+.conflict{border:1px solid var(--conflicting); background:var(--conflicting-bg); border-radius:var(--radius-card); padding:16px 18px; margin-bottom:14px}
+.conflict h4{margin:0 0 10px; font-size:13.5px; color:#e6d4fb; display:flex; align-items:center; gap:8px}
+.conflict .cgrid{display:grid; grid-template-columns:1fr 1fr; gap:14px}
+.conflict .cside{background:rgba(0,0,0,.18); border-radius:7px; padding:10px 12px}
+.conflict .cside .src{font-size:10.5px; color:var(--text-mute); font-family:var(--mono); margin-bottom:5px}
+.conflict .cside p{font-size:12.5px; margin:0; color:var(--text)}
+.conflict .resolution{margin-top:10px; font-size:12px; color:var(--text-dim); border-top:1px dashed #4a3568; padding-top:10px}
+
+/* roadmap */
+.phase{display:flex; gap:18px; margin-bottom:4px; align-items:flex-start}
+.phase .marker{display:flex; flex-direction:column; align-items:center; width:26px; flex-shrink:0}
+.phase .dot{width:12px; height:12px; border-radius:50%; background:var(--teal); border:2px solid var(--bg); box-shadow:0 0 0 1px var(--teal); margin-top:5px}
+.phase .line{flex:1; width:2px; background:var(--border); margin-top:4px; min-height:34px}
+.phase:last-child .line{display:none}
+.phase-body{padding-bottom:22px; flex:1}
+.phase-body .ph-head{display:flex; align-items:center; gap:10px; margin-bottom:5px}
+.phase-body h4{margin:0; font-size:14px; color:var(--text)}
+.phase-body p{margin:0; font-size:12.8px}
+
+/* checklist table compact */
+.chk td{font-size:12px}
+
+/* scroll hint */
+.scrollnote{font-size:11px; color:var(--text-mute); margin-top:26px; font-style:italic}
+
+/* misc */
+.muted{color:var(--text-mute)}
+.hr{height:1px; background:var(--border-soft); margin:24px 0}
+.tag{display:inline-block; font-family:var(--mono); font-size:10.5px; color:var(--text-mute); background:var(--surface-hi); border:1px solid var(--border); padding:2px 7px; border-radius:5px; margin:2px 4px 2px 0}
+
+@media (max-width: 900px){
+  #rail{display:none}
+  .slide{padding:36px 22px 90px}
+  .grid-2,.grid-3,.grid-4{grid-template-columns:1fr}
+  .conflict .cgrid{grid-template-columns:1fr}
+}
+</style>
+</head>
+<body>
+<div id="app">
+
+  <nav id="rail">
+    <div id="rail-head">
+      <div class="brand">TRIPLY <span>/ AUDIT</span></div>
+      <div class="sub">Comprehensive state &amp; gap analysis</div>
+    </div>
+    <div id="toc"></div>
+    <div id="rail-foot">Audit of 12 source documents · re-verified against main · Sep 21, 2026</div>
+  </nav>
+
+  <div id="main">
+    <div id="progress"><div id="progress-bar"></div></div>
+    <div id="viewport">
+
+      <!-- ============ SLIDE 1 ============ -->
+      <section class="slide" data-title="Cover">
+        <div style="display:flex; flex-direction:column; justify-content:center; min-height:78vh; max-width:820px">
+          <div class="eyebrow">Project Audit — Technical Review</div>
+          <h1 class="title">Triply</h1>
+          <p class="lead">Comprehensive state &amp; gap analysis of the AI-assisted trip-planning platform — what the project is supposed to become, what exists today, and exactly what closes the gap.</p>
+          <p style="font-size:13px; color:var(--text-mute); margin-top:14px">Audit of 12 source documents, re-verified line-by-line against <span class="mono">main</span> at <span class="mono">b41058e</span> (post-PR #66): CI/CD + Render have landed; the AI/grounding gaps remain open.</p>
+          <div class="hr"></div>
+          <div class="grid grid-4" style="margin-top:6px">
+            <div class="kpi"><div class="num">12</div><div class="lbl">Source documents reviewed</div></div>
+            <div class="kpi"><div class="num">13</div><div class="lbl">FR/NFR requirements traced</div></div>
+            <div class="kpi warn"><div class="num">17</div><div class="lbl">Gaps identified (G-01–G-17)</div></div>
+            <div class="kpi"><div class="num">23</div><div class="lbl">Tracked actions (GAP-001–023)</div></div>
+          </div>
+          <p class="scrollnote">Use the arrow keys, the buttons below, or the index on the left to navigate.</p>
+        </div>
+      </section>
+
+      <!-- ============ SLIDE 2 ============ -->
+      <section class="slide" data-title="Executive Summary">
+        <div class="eyebrow">01 · Overview</div>
+        <h2 class="slide-title">Executive Summary</h2>
+        <p class="slide-dek">Triply is materially further along than a typical MVP-stage project. The core, non-negotiable feature — a hallucination-free AI itinerary generator — is live and verified end-to-end against the real Gemini API. Since the audit snapshot, CI/CD + Render landed and the data-ownership story was consolidated; the remaining risk is still concentrated in <b style="color:var(--text)">data provisioning</b> and a handful of <b style="color:var(--text)">contract-enforcement shortcuts</b>, not in unbuilt architecture.</p>
+
+        <div class="grid grid-2">
+          <div class="card">
+            <h4>What's genuinely working</h4>
+            <p>Authentication, trip CRUD, destination-first planning, AI itinerary generation (live Gemini E2E), 0%-invented-place grounding (prompt + validation + DB-FK), cost aggregation, and partial regeneration all have real evidence. Since the audit: a gated CI/CD pipeline (backend tests on a real SQL Server container + Flutter suite + Render deploy hook), budget-currency conversion for suggestions, and a round of mobile session/profile fixes have all merged.</p>
+          </div>
+          <div class="card">
+            <h4>What's blocking, and why it matters</h4>
+            <p>Fresh environments still cannot run the core feature — and it got sharper: PR #66 removed the backend's static seed on purpose, so a fresh database starts with <b style="color:var(--missing)">zero</b> reference rows and the AI-track Python seeders are the only provisioning path. Nothing runs them automatically, and mobile QA is additionally blocked on a real <span class="mono">GEMINI_API_KEY</span>.</p>
+          </div>
+          <div class="card">
+            <h4>What's simply not built</h4>
+            <p>Flutter Web (FR-WEB-001, a Must-have) is still an empty <span class="mono">Frontend/</span> directory — and its first QA blocker is already on record (CORS: the backend allows only <span class="mono">localhost:5173</span> by default). UI/UX and Cybersecurity ownership remain unresolved (TBD since the Team &amp; Responsibilities doc). Hosting, however, has moved: a Render blueprint now exists.</p>
+          </div>
+          <div class="card">
+            <h4>What's documented but drifted from reality</h4>
+            <p>The 2026-09-19 QA log reported backend CI <b style="color:var(--missing)">red</b>; the CI/CD pipeline has since landed, but its latest status wasn't re-verifiable locally — check the newest runs before trusting <span class="mono">main</span>. Docs still lag: 20 tables shipped vs. 17 documented, .NET 9 shipped vs. .NET 8 specified.</p>
+          </div>
+        </div>
+
+        <h3 class="section-h">Status at a glance</h3>
+        <div class="legend">
+          <div class="item"><span class="badge st-complete">COMPLETE</span> matches spec, evidenced</div>
+          <div class="item"><span class="badge st-partial">PARTIAL</span> exists, meaningfully incomplete</div>
+          <div class="item"><span class="badge st-missing">MISSING</span> no implementation evidence</div>
+          <div class="item"><span class="badge st-blocked">BLOCKED</span> code ready, blocked by data/decision</div>
+          <div class="item"><span class="badge st-conflicting">CONFLICTING</span> documents disagree</div>
+          <div class="item"><span class="badge st-unknown">UNKNOWN</span> not verifiable from evidence</div>
+        </div>
+      </section>
+
+      <!-- ============ SLIDE 3 ============ -->
+      <section class="slide" data-title="What The Project Is">
+        <div class="eyebrow">02 · Product</div>
+        <h2 class="slide-title">What The Project Is</h2>
+        <p class="slide-dek">Reconstructed from the Master Plan and SRS — the single source of truth for scope.</p>
+
+        <div class="grid grid-2">
+          <div class="card">
+            <h4>Problem &amp; value</h4>
+            <p>Manual trip research is slow and generic. Triply turns a destination or a budget into a personalized, day-by-day itinerary with a transparent, category-level cost estimate — without requiring travel-agency expertise.</p>
+          </div>
+          <div class="card">
+            <h4>Users</h4>
+            <p>Individuals and families planning domestic or international trips. Two entry paths: <b style="color:var(--text)">destination-first</b> (I know where) and <b style="color:var(--text)">budget-first</b> (suggest where, within my budget).</p>
+          </div>
+          <div class="card">
+            <h4>Core workflow</h4>
+            <p>Register/login → preferences (destination or budget + interests) → AI-generated itinerary → category cost breakdown → view / edit / regenerate part of the plan → save → return later.</p>
+          </div>
+          <div class="card">
+            <h4>Platforms &amp; stack</h4>
+            <p>Flutter (mobile + Web, one codebase) · ASP.NET Core Web API (modular monolith) · SQL Server via EF Core · Gemini API for generation, backend-owned integration.</p>
+          </div>
+        </div>
+
+        <h3 class="section-h">Explicitly out of scope</h3>
+        <p>Flight booking, hotel booking, in-app payments, social/reviews, loyalty programs, a travel marketplace, real-time flight tracking, live/verified pricing feeds — none justified by a stated requirement or current team capability.</p>
+
+        <h3 class="section-h">The project's one non-negotiable rule</h3>
+        <div class="card" style="border-color:var(--teal-dim)">
+          <p><b style="color:var(--text)">0% of places/activities in a generated itinerary may be outside the internal curated dataset.</b> Every other design decision in the system — the database's non-nullable foreign key, the two-layer validation pipeline, the prompt design — exists in service of this one rule.</p>
+        </div>
+      </section>
+
+      <!-- ============ SLIDE 4 ============ -->
+      <section class="slide" data-title="System Architecture">
+        <div class="eyebrow">03 · Architecture</div>
+        <h2 class="slide-title">System Architecture</h2>
+        <p class="slide-dek">Modular monolith (ADR-00) · one ASP.NET Core service · one SQL Server database · Flutter for both clients. Confirmed as genuinely implemented, not aspirational.</p>
+
+        <div class="diagram" style="justify-content:center">
+          <div class="dcol">
+            <div class="dbox">User<span class="small">mobile / web</span></div>
+          </div>
+          <div class="darrow">→</div>
+          <div class="dcol">
+            <div class="dbox accent">Flutter Client<span class="small">mobile + web, one codebase</span></div>
+          </div>
+          <div class="darrow">→ REST/JSON, HTTPS →</div>
+          <div class="dcol">
+            <div class="dbox accent">Backend API<span class="small">ASP.NET Core, modular monolith</span></div>
+          </div>
+        </div>
+        <div class="diagram" style="justify-content:center; margin-top:-4px">
+          <div class="dcol"><div class="dbox">SQL Server<span class="small">Users · Trips · Dataset</span></div></div>
+          <div class="dcol"><div class="dbox">Redis <span class="small">optional, not triggered</span></div></div>
+          <div class="dcol"><div class="dbox">Gemini API<span class="small">external LLM</span></div></div>
+          <div class="dcol"><div class="dbox">Places/Pricing Dataset<span class="small">internal, curated</span></div></div>
+        </div>
+
+        <h3 class="section-h">Backend modules (11 feature modules)</h3>
+        <div class="grid grid-3">
+          <div class="card"><h4>Auth</h4><p>Registration, login, JWT, ownership authorization.</p></div>
+          <div class="card"><h4>Trip</h4><p>CRUD, lifecycle state machine, destination/budget-first orchestration.</p></div>
+          <div class="card"><h4>AI-Orchestration</h4><p>Gemini call, prompt build, validation, retries — the system's core.</p></div>
+          <div class="card"><h4>Cost</h4><p>Deterministic category-level aggregation from reference prices.</p></div>
+          <div class="card"><h4>Destination / Place</h4><p>Reference lookups; budget-first suggestion ranking.</p></div>
+          <div class="card"><h4>Currency</h4><p>Cross-currency conversion for suggestions — live-verified after seeding (Slide 9).</p></div>
+        </div>
+
+        <h3 class="section-h">Architectural decisions actually honored</h3>
+        <p><b style="color:var(--text)">ADR-00</b> No microservices — one service, matches team's demonstrated tooling. <b style="color:var(--text)">ADR-01</b> Backend makes the live Gemini call; AI track owns prompt/schema/validation content. <b style="color:var(--text)">ADR-02</b> Flutter Web reuses the mobile codebase instead of a second frontend stack. All three verified in the shipped code. Shipped infra: <span class="mono">docker-compose</span> for local dev, a gated GitHub Actions pipeline, and a Render blueprint (<span class="mono">render.yaml</span>) for staging.</p>
+      </section>
+
+      <!-- ============ SLIDE 5 ============ -->
+      <section class="slide" data-title="End-to-End Flow">
+        <div class="eyebrow">04 · Flow</div>
+        <h2 class="slide-title">End-to-End AI Generation Flow</h2>
+        <p class="slide-dek">The system's central loop, reconstructed from <span class="mono">AiOrchestrationService.cs</span> and verified live during this audit (real Gemini call, Paris itinerary, correct cost breakdown).</p>
+
+        <ol class="steps">
+          <li><b>Client requests generation</b> — <span class="evidence">POST /api/trips/{id}/generate</span>, JWT + ownership-checked.</li>
+          <li><b>Dataset loaded</b> — active Places (+ Destinations for budget-first) fetched from SQL Server as grounding context. <span style="color:var(--missing)">Fails hard today on a fresh database — see Slide 9.</span></li>
+          <li><b>Prompt built</b> — grounding place list (names only, no prices/IDs) + exact per-day dates, handed to Gemini with a structured JSON schema.</li>
+          <li><b>Gemini called</b> — structured output enforced via <span class="evidence">responseJsonSchema</span>; response parsed into a typed DTO.</li>
+          <li><b>Validated</b> — every place/destination name resolved against the database, 0% tolerance; category and day-structure rules checked.</li>
+          <li><b>Persisted</b> — on success, itinerary + cost breakdown written in one transaction; trip status → GENERATED. On failure, bounded retry (3 attempts), then a clear 422 error — never a fabricated plan.</li>
+        </ol>
+
+        <h3 class="section-h">Journeys explicitly covered by the SRS</h3>
+        <div class="grid grid-2">
+          <div class="card"><h4>Covered end-to-end</h4><p>New registration → login; destination-first planning; budget-first suggestion (code path); partial day/item regeneration; save and retrieve a trip.</p></div>
+          <div class="card"><h4>Covered by design, gap in enforcement</h4><p>"AI generation fails → clear error, not a broken state" ✅ built. "Requested destination isn't supported → inform, don't fabricate" — validator does <b style="color:var(--missing)">not</b> currently filter by <span class="mono">IsSupported</span> (Slide 12).</p></div>
+        </div>
+      </section>
+
+      <!-- ============ SLIDE 6 ============ -->
+      <section class="slide" data-title="Implementation Status">
+        <div class="eyebrow">05 · Status</div>
+        <h2 class="slide-title">Current Implementation Status</h2>
+        <p class="slide-dek">Every capability, classified strictly by evidence — live verification, passing tests, or code presence without proof, per the audit's own standard.</p>
+
+        <div class="twrap">
+          <table>
+            <thead><tr><th>Capability</th><th>Status</th><th>Evidence / caveat</th></tr></thead>
+            <tbody>
+              <tr><td class="strong">Authentication (register / login / JWT)</td><td><span class="badge st-complete">COMPLETE</span></td><td>75-test suite green; live register/login exercised in this audit.</td></tr>
+              <tr><td class="strong">Trip CRUD, lifecycle, concurrency</td><td><span class="badge st-complete">COMPLETE</span></td><td>State machine + optimistic version checks, tested.</td></tr>
+              <tr><td class="strong">Destination-first request</td><td><span class="badge st-complete">COMPLETE</span></td><td>Live E2E generation succeeded.</td></tr>
+              <tr><td class="strong">Budget-first suggestion</td><td><span class="badge st-complete">COMPLETE</span></td><td>Code, tests, and live data all verified — <span class="mono">ExchangeRates</span> (3) and <span class="mono">PlaceInterests</span> (57) seeded Sep 21, 2026 via the existing seeders; live <span class="mono">POST /suggestions</span> returned 200 with USD-converted totals.</td></tr>
+              <tr><td class="strong">AI itinerary generation</td><td><span class="badge st-complete">COMPLETE</span></td><td>Live Gemini call, 1 attempt, grounded, correct cost. Per-environment: needs a real <span class="mono">GEMINI_API_KEY</span> (mobile QA was blocked on a placeholder).</td></tr>
+              <tr><td class="strong">AI grounding (0% invented places)</td><td><span class="badge st-partial">PARTIALLY WORKING</span></td><td>Two-layer + DB FK enforcement; <span class="mono">IsSupported</span> destination filter gap.</td></tr>
+              <tr><td class="strong">AI schema validation</td><td><span class="badge st-partial">PARTIALLY WORKING</span></td><td>Gemini-side enforcement only; no in-process schema re-check; per-mode maxItems not narrowed.</td></tr>
+              <tr><td class="strong">Cost estimation</td><td><span class="badge st-complete">COMPLETE</span></td><td>Live-verified correct breakdown.</td></tr>
+              <tr><td class="strong">Partial regeneration (day/item)</td><td><span class="badge st-partial">CODE COMPLETE</span></td><td>9 integration tests pass; not exercised against live Gemini in this audit.</td></tr>
+              <tr><td class="strong">Dataset provisioning</td><td><span class="badge st-partial">MANUAL — BY DESIGN</span></td><td>PR #66 removed the backend static seed; AI-track Python seeders are the single source of truth, and nothing automates them. Fresh DBs start with zero reference rows.</td></tr>
+              <tr><td class="strong">Flutter mobile integration</td><td><span class="badge st-partial">PARTIALLY WORKING</span></td><td>Session-restore/profile fixes merged (PR #63); 4 QA items (stats, preferences, regenerate, save/archive E2E) await re-test once generation works with a real key.</td></tr>
+              <tr><td class="strong">Flutter Web</td><td><span class="badge st-missing">NOT IMPLEMENTED</span></td><td><span class="mono">Frontend/</span> directory is an empty README.</td></tr>
+              <tr><td class="strong">Deployment</td><td><span class="badge st-partial">PIPELINE LANDED</span></td><td>GitHub Actions (tests on a SQL Server container + Flutter) gates a Render deploy hook; staging reachability + Staging-env migrations still unproven.</td></tr>
+              <tr><td class="strong">Conversational refinement</td><td><span class="badge st-unknown">NOT BUILT — BY DESIGN</span></td><td>Post-MVP per SRS; correctly deferred.</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <!-- ============ SLIDE 7 ============ -->
+      <section class="slide" data-title="Feature Coverage">
+        <div class="eyebrow">06 · Requirements</div>
+        <h2 class="slide-title">Feature Coverage — FR/NFR by Requirement</h2>
+        <p class="slide-dek">Every Must-have functional and non-functional requirement from the SRS, traced to evidence.</p>
+
+        <div class="twrap">
+          <table>
+            <thead><tr><th>ID</th><th>Requirement</th><th>Status</th><th>Evidence</th></tr></thead>
+            <tbody>
+              <tr><td class="mono">FR-AUTH-001</td><td>Registration</td><td><span class="badge st-complete">COMPLETE</span></td><td class="evidence">AuthController.Register + AuthEndpointsTests</td></tr>
+              <tr><td class="mono">FR-AUTH-002</td><td>Login / session</td><td><span class="badge st-complete">COMPLETE</span></td><td class="evidence">JwtTokenService + AuthEndpointsTests</td></tr>
+              <tr><td class="mono">FR-TRIP-001</td><td>Destination-first request</td><td><span class="badge st-complete">COMPLETE</span></td><td class="evidence">TripsController.Create + live E2E</td></tr>
+              <tr><td class="mono">FR-TRIP-002</td><td>Budget-first suggestion</td><td><span class="badge st-complete">COMPLETE</span></td><td class="evidence">Rates + interests seeded in live DB (Sep 21, 2026); live suggestions call returned 200 with converted totals</td></tr>
+              <tr><td class="mono">FR-AI-001</td><td>Itinerary generation</td><td><span class="badge st-complete">COMPLETE</span></td><td class="evidence">AiOrchestrationService — live E2E this audit</td></tr>
+              <tr><td class="mono">FR-AI-002</td><td>Output validation, 0% invented</td><td><span class="badge st-partial">ENFORCED, UNDER-TESTED</span></td><td class="evidence">ItineraryValidationService — no HTTP-layer negative test</td></tr>
+              <tr><td class="mono">FR-COST-001</td><td>Category cost breakdown</td><td><span class="badge st-complete">COMPLETE</span></td><td class="evidence">CostAggregationService + live verification</td></tr>
+              <tr><td class="mono">FR-TRIP-003</td><td>Edit / regenerate itinerary</td><td><span class="badge st-partial">CODE ✅ / LIVE UNVERIFIED</span></td><td class="evidence">RegeneratePartialAsync — 9 tests, no live Gemini pass</td></tr>
+              <tr><td class="mono">FR-TRIP-004</td><td>Save / retrieve trip</td><td><span class="badge st-complete">COMPLETE</span></td><td class="evidence">Save/archive/restore endpoints + tests</td></tr>
+              <tr><td class="mono">FR-MOBILE-001</td><td>Mobile parity</td><td><span class="badge st-partial">PARTIAL</span></td><td class="evidence">QA round done (process.md); 4 items pending re-test after key/CORS fixes</td></tr>
+              <tr><td class="mono">FR-WEB-001</td><td>Web parity</td><td><span class="badge st-missing">MISSING</span></td><td class="evidence">Frontend/ empty</td></tr>
+              <tr><td class="mono">FR-DATA-001</td><td>Dataset maintenance</td><td><span class="badge st-partial">PARTIAL</span></td><td class="evidence">Versioned + reviewed in repo; DB import manual</td></tr>
+              <tr><td class="mono">NFR-SEC-001</td><td>Security baseline</td><td><span class="badge st-complete">COMPLETE*</span></td><td class="evidence">*caveat: test-only endpoint shipped, Slide 13</td></tr>
+              <tr><td class="mono">NFR-PRIV-001</td><td>Ownership-only access</td><td><span class="badge st-complete">COMPLETE</span></td><td class="evidence">TripOwnerHandler + AuthorizationBoundaryTests</td></tr>
+              <tr><td class="mono">NFR-OBS-001</td><td>Observability</td><td><span class="badge st-partial">PARTIAL</span></td><td class="evidence">ILogger + EF logs, plus leftover debug noise</td></tr>
+              <tr><td class="mono">NFR-TEST-001</td><td>Testability</td><td><span class="badge st-complete">COMPLETE</span></td><td class="evidence">~75 tests, now run in CI on a real SQL Server 2022 container</td></tr>
+              <tr><td class="mono">NFR-PERF-001</td><td>Generation latency target</td><td><span class="badge st-unknown">UNKNOWN</span></td><td class="evidence">Target explicitly TBD pending latency sign-off</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <!-- ============ SLIDE 8 ============ -->
+      <section class="slide" data-title="Backend Gaps">
+        <div class="eyebrow">07 · Backend</div>
+        <h2 class="slide-title">Backend Gaps</h2>
+        <p class="slide-dek">The service itself is sound; the gaps are contract-enforcement shortcuts and a few pieces of hygiene left over from active development.</p>
+
+        <div class="twrap">
+          <table>
+            <thead><tr><th>Gap</th><th>Priority</th><th>What's happening</th><th>Required action</th></tr></thead>
+            <tbody>
+              <tr><td class="strong">Empty dataset seeder</td><td><span class="badge pr pr-p0">P0</span></td><td><span class="mono">Data/SeedData.cs</span> is a static empty stub; only the Python scripts populate places/rates/interests, and nobody runs them automatically.</td><td>Wire a dev-only importer or a compose init step that runs the seeders on startup.</td></tr>
+              <tr><td class="strong">Test-only endpoint shipped</td><td><span class="badge pr pr-p2">P2</span></td><td><span class="mono">POST /api/trips/test-create</span> exists in the production binary with no input validation.</td><td>Delete it or compile-gate it behind <span class="mono">#if DEBUG</span>.</td></tr>
+              <tr><td class="strong">No FULL-generation concurrency guard</td><td><span class="badge pr pr-p2">P2</span></td><td>Two parallel <span class="mono">/generate</span> calls both pass the DRAFT→GENERATING check; partial regen has a version guard, full generation doesn't.</td><td>Add the same <span class="mono">ExpectedVersion</span> + atomic-update pattern used in partial regen.</td></tr>
+              <tr><td class="strong">API key in URL</td><td><span class="badge pr pr-p2">P2</span></td><td>Gemini call passes the key as a query parameter — standard for the provider, but leaks into any request logging.</td><td>Move to the <span class="mono">x-goog-api-key</span> header (Gemini supports this).</td></tr>
+              <tr><td class="strong">Dead configuration</td><td><span class="badge pr pr-p3">P3</span></td><td><span class="mono">GeminiOptions.CostTolerancePercent</span> is set but never read — the AI contract removed the need for it.</td><td>Delete or explicitly comment as obsolete.</td></tr>
+              <tr><td class="strong">Duplicate place-name crash path</td><td><span class="badge pr pr-p3">P3</span></td><td>An active duplicate place name within a destination would throw an unhandled exception (500) instead of failing validation gracefully.</td><td>Catch and convert to a FAILED_VALIDATION result; DB unique index already limits the data condition.</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <p class="muted" style="margin-top:10px">Re-verified in code on <span class="mono">main</span> (Sep 21, 2026): every row above is still present. Evidence base: <span class="evidence">Backend/Triply.Api/Modules/*</span>, <span class="evidence">AI_BACKEND_ARCHITECTURE_AUDIT.md §14–17</span>.</p>
+      </section>
+
+      <!-- ============ SLIDE 9 ============ -->
+      <section class="slide" data-title="Database Gaps">
+        <div class="eyebrow">08 · Database</div>
+        <h2 class="slide-title">Database Gaps</h2>
+        <p class="slide-dek">The schema is well-designed and the FR-AI-002 guarantee is genuinely a database-level constraint — the gaps are all in data, not structure.</p>
+
+        <div class="grid grid-2">
+          <div class="card" style="border-color:#1c5c47">
+            <h4 style="color:var(--complete)">Operational data gap — RESOLVED (Sep 21, 2026)</h4>
+            <p>RESOLVED Sep 21, 2026: the audit found <b style="color:var(--text)">0 rows</b> in <span class="mono">ExchangeRates</span> and <span class="mono">PlaceInterests</span>; both were populated by the existing AI-track seeders (<span class="mono">seed_exchange_rates.py</span> → 3 rates, <span class="mono">Seed_place_interests.py</span> → 57 links) — no new data invented. Verified end-to-end: <span class="mono">POST /api/destinations/suggestions</span> now returns <b>200</b> with USD-converted totals (Amman 596 JOD → 840.36 USD). Remaining risk: seeding is still manual — GAP-001 tracks automation.</p>
+          </div>
+          <div class="card">
+            <h4>Documentation lags the schema</h4>
+            <p>Docs/05 documents <b>17</b> tables. The shipped database has <b>20</b> — <span class="mono">ExchangeRate</span>, <span class="mono">PlaceInterest</span>, and <span class="mono">UserPreferences</span> were added without updating the spec.</p>
+          </div>
+          <div class="card">
+            <h4>Retention policy unimplemented</h4>
+            <p>Docs/05 §16 specifies a 30-day retention window on <span class="mono">AIGeneration.raw_output</span>. No purge job or endpoint exists anywhere in the codebase — every raw AI response is retained indefinitely.</p>
+          </div>
+          <div class="card">
+            <h4>Fresh-clone reproducibility</h4>
+            <p>Sharpened by PR #66: migration <span class="mono">20260921001200_RemoveBackendStaticSeed</span> wipes the legacy static seed on fresh databases — a new DB now starts with zero reference rows (not even countries/currencies). Migrations auto-run only in Dev/Testing; the AI seeders are the only provisioning path.</p>
+          </div>
+        </div>
+
+        <h3 class="section-h">What's solid</h3>
+        <p>All 17-vs-20 documented entities are correctly normalized to 3NF with two explicitly justified denormalizations (cached trip total, snapshotted item cost). <span class="mono">ItineraryItem.place_id</span> is a genuine non-nullable foreign key — the anti-hallucination guarantee holds even if application-layer validation were bypassed. Delete behavior (RESTRICT / CASCADE / SET NULL) is deliberately chosen per relationship, not defaulted.</p>
+      </section>
+
+      <!-- ============ SLIDE 10 ============ -->
+      <section class="slide" data-title="Frontend / Mobile Gaps">
+        <div class="eyebrow">09 · Client</div>
+        <h2 class="slide-title">Frontend / Mobile Gaps</h2>
+        <p class="slide-dek">Mobile is the most complete surface in the project — 17 of 17 built screens are wired to real backend repositories. The gaps are Web (entirely unbuilt) and verification depth.</p>
+
+        <div class="grid grid-2">
+          <div class="card" style="border-color:#6e2323">
+            <h4 style="color:var(--missing)">Web platform is a Must-have with zero implementation</h4>
+            <p>FR-WEB-001 requires Flutter Web parity. <span class="mono">Frontend/</span> contains only an empty README. ADR-02 already decided the approach (build the mobile codebase for Web). First QA blocker already on record: the backend's CORS default allows only <span class="mono">http://localhost:5173</span> — web testing on port 8765 fails with "Could not reach the server" until the origin is added or the app runs on 5173.</p>
+          </div>
+          <div class="card">
+            <h4>Shared component library has no dedicated tests</h4>
+            <p>18 reusable widgets (<span class="mono">AppScaffold</span>, <span class="mono">PrimaryButton</span>, <span class="mono">TripCard</span>, etc.) exist and are reused everywhere, but only one architecture smoke test covers the mock-to-real repository swap — no per-widget tests.</p>
+          </div>
+          <div class="card">
+            <h4>Spec drift: screen structure</h4>
+            <p>07_UI_PAGES specifies <b>MOB-TRIP-02 Budget</b> and <b>MOB-TRIP-03 Destination Selection</b> as two separate P0 screens. The shipped app merges them into one file, <span class="mono">budget_destination_screen.dart</span>. Functionally reasonable, but undocumented as a deviation.</p>
+          </div>
+          <div class="card">
+            <h4>Spec drift: screens built, not specified</h4>
+            <p>Splash and Onboarding screens exist in the shipped app but appear nowhere in the 15-screen UI_PAGES inventory or its P0/P1/P2/P3 counts.</p>
+          </div>
+          <div class="card">
+            <h4>Live integration: partially exercised</h4>
+            <p>The 2026-09-19 QA round (<span class="mono">process.md</span>) did exercise the app against a live Docker backend — trip creation was blocked only by the placeholder Gemini key, not by client code. Items 2.1/2.2/4.5/5.2 are the explicit re-test list.</p>
+          </div>
+          <div class="card">
+            <h4>Mobile QA round landed; re-test pending</h4>
+            <p>The 2026-09-19 QA report closed 10 mobile defects — hardcoded home name, session restore, edit-name persistence, the trip-overview mock-repo bug, place detail sheet, missing Save button, item edit, archive messaging. Profile stats/preferences, regenerate, and the save/archive E2E await re-test once generation succeeds with a real Gemini key.</p>
+          </div>
+        </div>
+      </section>
+
+      <!-- ============ SLIDE 11 ============ -->
+      <section class="slide" data-title="UI/UX Gaps">
+        <div class="eyebrow">10 · Design</div>
+        <h2 class="slide-title">UI/UX Gaps</h2>
+        <p class="slide-dek">The project has two design documents that answer the same question — "what does Triply look like?" — differently, and the ownership question behind both was never resolved.</p>
+
+        <div class="conflict">
+          <h4><span class="badge st-conflicting">CONFLICTING</span> Two incompatible visual directions, neither marked authoritative</h4>
+          <div class="cgrid">
+            <div class="cside">
+              <div class="src">08_SYSTEM_DESIGN.md — "UI/UX Direction"</div>
+              <p>Primary: <b>Deep Ocean Blue</b>. Accent: warm coral. Aesthetic: "premium travel-tech." Presented as design <i>philosophy and principles</i> to guide screen-by-screen work in Stitch AI — no finished tokens.</p>
+            </div>
+            <div class="cside">
+              <div class="src">09_DESIGN.md — "Sunset Wanderer" tokens</div>
+              <p>Primary: <b>Sunset Coral</b> (#E05A47). Secondary: Deep Ocean Blue. Aesthetic: "Experimental Editorial Lifestyle." Fully specified color/type/spacing tokens, Epilogue + Work Sans.</p>
+            </div>
+          </div>
+          <div class="resolution">Primary and secondary are effectively swapped between the two documents, and the stated aesthetic differs outright. 09 is more complete and looks like an exported design-system artifact, but nothing in the documentation set states it supersedes 08. <b>Required action:</b> a lead decision on which document is authoritative, then a note in 08 pointing to 09 (or vice versa).</p>
+        </div>
+
+        <div class="grid grid-2">
+          <div class="card">
+            <h4>Ownership never confirmed</h4>
+            <p>Rania Muhamid is assigned to UI/UX in Document 4, but no capability document was ever provided for her track. Design-system authority and accessibility responsibility are explicitly marked <b>TBD — Pending Capability Analysis</b> and, per the project's own rule, should not be assumed.</p>
+          </div>
+          <div class="card">
+            <h4>Design-required states not yet designed</h4>
+            <p>07_UI_PAGES flags several states needing real design attention — the Generating screen's 30s+ tolerant wait state, the "no destinations match your budget" empty state, and the AI-generated/Estimated labeling system. None have visual designs on record.</p>
+          </div>
+        </div>
+      </section>
+
+      <!-- ============ SLIDE 12 ============ -->
+      <section class="slide" data-title="AI/ML Gaps">
+        <div class="eyebrow">11 · AI / ML</div>
+        <h2 class="slide-title">AI / ML Gaps</h2>
+        <p class="slide-dek">The core grounding guarantee genuinely holds. The gaps sit in the layers around it: contract steps that were specified but never wired in, and thin negative-path test coverage for the project's one non-negotiable rule.</p>
+
+        <div class="twrap">
+          <table>
+            <thead><tr><th>Requirement</th><th>Current implementation</th><th>Gap</th><th>Priority</th></tr></thead>
+            <tbody>
+              <tr><td>0% invented places (FR-AI-002)</td><td>Prompt grounding + exact-name resolution + non-nullable DB FK</td><td><span class="badge st-complete">None — implemented</span></td><td><span class="badge pr pr-p3">—</span></td></tr>
+              <tr><td>Destination must be supported</td><td>Validator resolves destination names with <b>no</b> <span class="mono">IsSupported</span> filter</td><td>An unsupported-but-real destination can pass grounding — the Jerusalem case that exposed this is now resolved dataset-side (the backend no longer seeds any destinations), but the code hole remains</td><td><span class="badge pr pr-p1">P1</span></td></tr>
+              <tr><td>Per-mode <span class="mono">maxItems</span> (Contract §5 step 0)</td><td>Schema loaded as-is; <span class="mono">maxItems: 3</span> always requested</td><td>Wasted tokens/latency on DESTINATION_FIRST; avoidable validation retries</td><td><span class="badge pr pr-p1">P1</span></td></tr>
+              <tr><td>Budget check (Contract §5 step 4 / V-002)</td><td>Not implemented in the AI path at all</td><td>A budget-first generation can return an over-budget plan; the UX promises budget-fit options</td><td><span class="badge pr pr-p2">P2*</span></td></tr>
+              <tr><td>In-process schema validation</td><td>Trusts Gemini's structured-output enforcement + DTO binding only</td><td>No independent schema engine; residual risk if the provider's enforcement drifts</td><td><span class="badge pr pr-p2">P2</span></td></tr>
+              <tr><td>Negative-path test coverage</td><td>Only 3 unit tests touch AI orchestration directly</td><td>No HTTP-layer test proves an invented place is actually rejected — the project's central claim is under-tested</td><td><span class="badge pr pr-p1">P1</span></td></tr>
+              <tr><td>Python ↔ C# validation parity</td><td>Same rules (V-001/V-002) hand-maintained in two languages</td><td>No fixture set runs through both — drift risk; the schema changelog already lags the code</td><td><span class="badge pr pr-p3">P3</span></td></tr>
+            </tbody>
+          </table>
+        </div>
+        <p class="muted">*Budget check priority is capped at P2 because the contract's own "minimum surviving options" policy is an <b>open decision</b> (unsigned draft) — implementing it before sign-off would be coding against a moving target.</p>
+      </section>
+
+      <!-- ============ SLIDE 13 ============ -->
+      <section class="slide" data-title="Security Gaps">
+        <div class="eyebrow">12 · Security</div>
+        <h2 class="slide-title">Security Gaps</h2>
+        <p class="slide-dek">Application-layer controls are genuinely implemented and match exactly what the team's capability profiles claim — no more, no less. Findings are deliberately not inflated beyond that scope.</p>
+
+        <div class="twrap">
+          <table>
+            <thead><tr><th>Finding</th><th>Severity</th><th>Detail</th></tr></thead>
+            <tbody>
+              <tr><td class="strong">Test-only trip-creation endpoint in production</td><td><span class="badge st-blocked">MEDIUM</span></td><td>Auth required, but no input validation; pollutes the API surface unnecessarily.</td></tr>
+              <tr><td class="strong">Gemini API key in URL query string</td><td><span class="badge st-blocked">MEDIUM</span></td><td>Standard for the provider, but risks appearing in logs/proxies. Header-based alternative available.</td></tr>
+              <tr><td class="strong">No concurrency guard on full generation</td><td><span class="badge st-blocked">MEDIUM</span></td><td>Duplicate Gemini spend possible from two parallel requests; no data corruption (transactional writes).</td></tr>
+              <tr><td class="strong">Unfiltered destination grounding</td><td><span class="badge st-blocked">MEDIUM</span></td><td>Security-adjacent data-integrity gap — see AI/ML slide.</td></tr>
+              <tr><td class="strong">Validation-vs-Python drift risk</td><td><span class="badge st-unknown">LOW–MEDIUM</span></td><td>Two independently maintained implementations of the same anti-hallucination rules.</td></tr>
+              <tr><td class="strong">Secrets hygiene</td><td><span class="badge st-complete">LOW / CLEAN</span></td><td><span class="mono">.env</span> correctly gitignored; JWT/Gemini keys required at startup; no secrets found in source.</td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div class="conflict" style="margin-top:18px">
+          <h4><span class="badge st-conflicting">CONFLICTING</span> Cybersecurity ownership is internally contradictory</h4>
+          <div class="cgrid">
+            <div class="cside">
+              <div class="src">01_Master_Plan.md</div>
+              <p>"No one is currently on this [cybersecurity] track; not assumed from absence."</p>
+            </div>
+            <div class="cside">
+              <div class="src">04_Team_and_Responsibilities.md</div>
+              <p>Lists <b>Arb Hammad</b> by name as the Cybersecurity track owner in the team structure table — then his own profile says "no one currently assigned."</p>
+            </div>
+          </div>
+          <div class="resolution">Is Arb Hammad a team member or not? Anything beyond the backend's app-layer baseline (pen-testing, secrets infrastructure, compliance) currently has no confirmed owner either way.</div>
+        </div>
+      </section>
+
+      <!-- ============ SLIDE 14 ============ -->
+      <section class="slide" data-title="Testing & Validation Gaps">
+        <div class="eyebrow">13 · Testing</div>
+        <h2 class="slide-title">Testing &amp; Validation Gaps</h2>
+        <p class="slide-dek">75 of 75 backend tests pass at audit time — and the suite now runs in CI on a real SQL Server container — but coverage is uneven, and it's thinnest exactly where the project's most important guarantee lives.</p>
+
+        <div class="grid grid-2">
+          <div class="card">
+            <h4>Well covered</h4>
+            <p>Auth flows, ownership boundaries, trip CRUD + lifecycle + version conflicts, itinerary write rules and partial regeneration (9 tests), cost aggregation (7 tests), destination suggestion with seeded fixtures, reference-data constraints, middleware/security headers.</p>
+          </div>
+          <div class="card" style="border-color:#6b4f0d">
+            <h4 style="color:var(--partial)">Thin: AI orchestration</h4>
+            <p>Only <b>3 unit tests</b> touch AI orchestration directly (prompt grounding, envelope parsing, failure-exception wrapping). No test exercises the actual retry loop or validation rejection through the HTTP layer.</p>
+          </div>
+        </div>
+
+        <h3 class="section-h">Verified absent (not covered anywhere)</h3>
+        <div class="twrap">
+          <table>
+            <thead><tr><th>Missing test</th><th>Why it matters</th></tr></thead>
+            <tbody>
+              <tr><td>HTTP-layer rejection of an invented place</td><td>V-001 is the project's non-negotiable rule; only the separate Python harness proves it</td></tr>
+              <tr><td>Invalid Gemini JSON → retry counting</td><td>The retry loop is core FR-AI-002 behavior</td></tr>
+              <tr><td>Gemini timeout/5xx → recovery path</td><td>The error-continuation branch is currently untested</td></tr>
+              <tr><td>Full BUDGET_FIRST integration path</td><td>Only destination-first-shaped paths are integration-tested; the Docker CSV path bug would surface here</td></tr>
+              <tr><td>Unseeded exchange-rate / interest runtime failure</td><td>This is exactly the state of the live database right now — invisible to CI because tests seed their own fixtures</td></tr>
+              <tr><td>Concurrent generation requests</td><td>The concurrency gap noted on Slide 8/13 is unquantified</td></tr>
+              <tr><td>Partial regeneration against live Gemini</td><td>Mocks are tested; real-model behavior for DAY/ITEM scope is unverified</td></tr>
+              <tr><td>Flutter widget tests per-component</td><td>Only one architecture smoke test exists across 18 shared widgets</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <!-- ============ SLIDE 15 ============ -->
+      <section class="slide" data-title="DevOps / Deployment Gaps">
+        <div class="eyebrow">14 · DevOps</div>
+        <h2 class="slide-title">DevOps / Deployment Gaps</h2>
+        <p class="slide-dek">Biggest movement since the audit: a full CI/CD pipeline and a Render blueprint landed on <span class="mono">main</span>. The remaining risk is the last mile — proving a green run and a reachable staging URL.</p>
+
+        <div class="grid grid-2">
+          <div class="card" style="border-color:#6e2323">
+            <h4 style="color:var(--partial)">CI/CD pipeline shipped — status needs a fresh check</h4>
+            <p><span class="mono">ci-cd.yml</span> runs the backend build + full xUnit suite against a SQL Server 2022 service container (with coverage), Flutter analyze + widget tests, and — only on a push to <span class="mono">main</span> after both pass — triggers the Render deploy hook. The 2026-09-19 QA log had reported red CI; the pipeline has since been merged, so verify the latest run before trusting main.</p>
+          </div>
+          <div class="card">
+            <h4>Hosting decision (D3) effectively made: Render</h4>
+            <p><span class="mono">render.yaml</span> defines a free-tier Docker web service with a <span class="mono">/health</span> check and auto-deploy off (deploys are test-gated via the CI hook). Azure SQL connection string, Gemini key, and the CORS origin are dashboard-set secrets; the JWT key is auto-generated. Still unproven: a deployed, publicly reachable staging URL.</p>
+          </div>
+          <div class="card">
+            <h4>Docker CSV path bug</h4>
+            <p><span class="mono">ExtraAiContextReader</span>'s default relative path to <span class="mono">Extra_AI_Context.csv</span> does not exist inside the container's build context. Budget-first generation will fail in Docker with a file-not-found error unless the CSV is mounted — unverified in-container during this audit (only destination-first was exercised live).</p>
+          </div>
+          <div class="card">
+            <h4 style="color:var(--missing)">Staging deploys won't auto-migrate the database</h4>
+            <p><span class="mono">Program.cs</span> runs <span class="mono">db.Database.Migrate()</span> only in Development/Testing — but <span class="mono">render.yaml</span> sets <span class="mono">ASPNETCORE_ENVIRONMENT=Staging</span>. The first Render deploy will boot against a database migrations have never touched. A migration step (release command or one-off job) must be added before go-live (GAP-022).</p>
+          </div>
+        </div>
+
+        <h3 class="section-h">Explicitly out of current team capability (flagged, not silently skipped)</h3>
+        <p>Penetration testing, secrets-management infrastructure, formal compliance review, centralized logging/monitoring (ELK/Application Insights/Grafana), and microservices/distributed-systems operations. All correctly scoped as external or future learning tracks in the project's own planning documents rather than assumed.</p>
+      </section>
+
+      <!-- ============ SLIDE 16 ============ -->
+      <section class="slide" data-title="Documentation Gaps">
+        <div class="eyebrow">15 · Documentation</div>
+        <h2 class="slide-title">Documentation Gaps</h2>
+        <p class="slide-dek">The documentation set is unusually disciplined about flagging its own open questions — the gaps below are places where the code has since moved past what's written.</p>
+
+        <div class="twrap">
+          <table>
+            <thead><tr><th>Document</th><th>Issue</th><th>Priority</th></tr></thead>
+            <tbody>
+              <tr><td class="mono">Backend/docs/API Contract.md</td><td>Still shows Jerusalem/Palestine examples from before the destination was unsupported; missing the <span class="mono">EstimatedCostInBudgetCurrency</span> field added to suggestions.</td><td><span class="badge pr pr-p3">P3</span></td></tr>
+              <tr><td class="mono">05_Database_Design.md</td><td>Documents 17 tables; the shipped schema has 20 (ExchangeRate, PlaceInterest, UserPreferences undocumented).</td><td><span class="badge pr pr-p3">P3</span></td></tr>
+              <tr><td class="mono">06_TECH_STACK.md</td><td>Specifies ".NET 8 LTS." The shipped backend runs on ASP.NET Core <b>9.0</b> per the architecture audit's direct inspection of the <span class="mono">.csproj</span>.</td><td><span class="badge pr pr-p3">P3</span></td></tr>
+              <tr><td class="mono">AI/docs/SCHEMA_CHANGELOG.md</td><td>Line 58 still claims the <span class="mono">BudgetTier</span> join is "marked as TODO" — it is implemented.</td><td><span class="badge pr pr-p3">P3</span></td></tr>
+              <tr><td class="mono">08_SYSTEM_DESIGN.md vs 09_DESIGN.md</td><td>Two conflicting visual-design directions with no stated precedence — see Slide 11.</td><td><span class="badge pr pr-p1">P1</span></td></tr>
+              <tr><td class="mono">07_UI_PAGES.md vs shipped app</td><td>Screen count and structure have drifted (Splash/Onboarding added, Budget+Destination merged) — see Slide 10.</td><td><span class="badge pr pr-p3">P3</span></td></tr>
+              <tr><td class="mono">AI contract §8 provenance</td><td>Requires each generation to declare its schema version; the code stores only the model name.</td><td><span class="badge pr pr-p2">P2</span></td></tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <!-- ============ SLIDE 17 ============ -->
+      <section class="slide" data-title="Requirement Conflicts">
+        <div class="eyebrow">16 · Conflicts</div>
+        <h2 class="slide-title">Requirement Conflicts</h2>
+        <p class="slide-dek">Every disagreement found between documents, shown side by side. None are silently resolved in this audit — each needs an explicit decision.</p>
+
+        <div class="conflict">
+          <h4><span class="badge st-complete">RESOLVED ON MAIN</span> Supported-destination list disagreement</h4>
+          <div class="cgrid">
+            <div class="cside"><div class="src">SRS / Architecture</div><p>"Bounded supported list" of destinations, size TBD (D5).</p></div>
+            <div class="cside"><div class="src">Legacy seed vs. curated dataset</div><p>The original backend seed included Jerusalem; the AI track's authoritative curated dataset only covers Paris / Amman / New York.</p></div>
+          </div>
+          <div class="resolution">Resolved on <span class="mono">main</span> by PR #66's reference-data consolidation: the backend no longer seeds any destinations at all (migration <span class="mono">20260921001200_RemoveBackendStaticSeed</span>) — the AI track's Paris / Amman / New York dataset is the single source of truth, and Jerusalem simply isn't in it. The related code hole (G-05: the validator still doesn't filter by <span class="mono">IsSupported</span>) remains open — see Slide 12.</div>
+        </div>
+
+        <div class="conflict">
+          <h4><span class="badge st-conflicting">OPEN</span> Cost tolerance requirement vs. contract</h4>
+          <div class="cgrid">
+            <div class="cside"><div class="src">SRS D1</div><p>Proposes a ±15% cost tolerance band as the acceptance threshold for AI-generated costs.</p></div>
+            <div class="cside"><div class="src">AI JSON Contract v2.0.0</div><p>States cost tolerance is "no longer applicable" — the model emits no cost fields at all; cost is 100% backend-computed.</p></div>
+          </div>
+          <div class="resolution">The contract effectively supersedes SRS D1, but <span class="mono">GeminiOptions.CostTolerancePercent = 15</span> remains as dead code, misleading anyone reading it. <b>Action:</b> formally close D1 as "not applicable" and delete the dead config.</div>
+        </div>
+
+        <div class="conflict">
+          <h4><span class="badge st-conflicting">OPEN</span> UI/UX visual direction — see Slide 11 for full detail</h4>
+          <div class="cgrid">
+            <div class="cside"><div class="src">08_SYSTEM_DESIGN.md</div><p>Deep Ocean Blue primary, "premium travel-tech" aesthetic.</p></div>
+            <div class="cside"><div class="src">09_DESIGN.md</div><p>Sunset Coral primary, "Experimental Editorial Lifestyle" aesthetic.</p></div>
+          </div>
+          <div class="resolution">No document states which one is authoritative.</div>
+        </div>
+
+        <div class="conflict">
+          <h4><span class="badge st-conflicting">OPEN</span> Cybersecurity ownership — see Slide 13 for full detail</h4>
+          <div class="cgrid">
+            <div class="cside"><div class="src">01_Master_Plan.md</div><p>"No one currently on this track."</p></div>
+            <div class="cside"><div class="src">04_Team_and_Responsibilities.md</div><p>Names Arb Hammad as owner, then his own profile says the same thing as the Master Plan.</p></div>
+          </div>
+          <div class="resolution">Internally inconsistent within Document 4 itself.</div>
+        </div>
+
+        <div class="conflict">
+          <h4><span class="badge st-conflicting">OPEN</span> Tech stack version drift</h4>
+          <div class="cgrid">
+            <div class="cside"><div class="src">06_TECH_STACK.md</div><p>Specifies .NET 8 LTS as the backend framework.</p></div>
+            <div class="cside"><div class="src">Shipped code</div><p>Runs on ASP.NET Core / .NET 9.0 per direct <span class="mono">.csproj</span> inspection.</p></div>
+          </div>
+          <div class="resolution">Documentation lag only — no functional risk, but the stack doc should be updated to reflect the actual, working choice.</div>
+        </div>
+      </section>
+
+      <!-- ============ SLIDE 18 ============ -->
+      <section class="slide" data-title="Critical P0/P1 Items">
+        <div class="eyebrow">17 · Priorities</div>
+        <h2 class="slide-title">Critical P0 / P1 Items</h2>
+        <p class="slide-dek">The highest-priority remaining work, in the order it should actually be done. P0 items block the core feature from working in any environment other than the one manually-patched development machine.</p>
+
+        <h3 class="section-h">P0 — Critical, blocks the core feature</h3>
+        <div class="grid grid-2">
+          <div class="card" style="border-color:#7a1f1f">
+            <h4><span class="badge pr pr-p0">P0</span>&nbsp; Automate dataset provisioning</h4>
+            <p>Fresh clones cannot generate an itinerary — <span class="mono">GenerateItineraryAsync</span> short-circuits on "no active places curated yet," and since PR #66 a fresh DB doesn't even have countries or currencies. The AI seeders are the only path and nothing invokes them. Without automation, every new environment repeats the bug this audit fixed manually.</p>
+          </div>
+          <div class="card" style="border-color:#1c5c47">
+            <h4><span class="badge st-complete">DONE</span>&nbsp; Seed the live database</h4>
+            <p>RESOLVED Sep 21, 2026 — the existing seeders were run against the live DB (3 exchange rates, 57 place-interest links) and the suggestions endpoint was re-verified: HTTP 200 with converted totals. Fresh environments still depend on manual seeding — see GAP-001.</p>
+          </div>
+        </div>
+
+        <h3 class="section-h">P1 — High, should close before calling this MVP-complete</h3>
+        <div class="grid grid-2">
+          <div class="card"><h4><span class="badge pr pr-p1">P1</span>&nbsp; Filter grounding by IsSupported</h4><p>One-line validator fix that closes a real, demonstrated grounding hole (Jerusalem case).</p></div>
+          <div class="card"><h4><span class="badge pr pr-p1">P1</span>&nbsp; Narrow maxItems per planning mode</h4><p>Closes a documented contract violation; reduces wasted tokens and avoidable retries.</p></div>
+          <div class="card"><h4><span class="badge pr pr-p1">P1</span>&nbsp; Negative-path AI tests</h4><p>Proves the project's central "0% invented places" claim at the HTTP layer, not just via a separate Python harness.</p></div>
+          <div class="card"><h4><span class="badge pr pr-p1">P1</span>&nbsp; Prove CI green on main</h4><p>The pipeline now exists — what's unproven is a green run on <span class="mono">main</span> after the recent merges. Diagnose any red run before trusting new backend work.</p></div>
+          <div class="card"><h4><span class="badge pr pr-p1">P1</span>&nbsp; Resolve the UI/UX design conflict</h4><p>Two incompatible visual systems block any further design work from proceeding with confidence.</p></div>
+          <div class="card" style="border-color:#7a5210"><h4><span class="badge pr pr-p1">P1*</span>&nbsp; Start Flutter Web</h4><p>FR-WEB-001 is an SRS Must-have with zero implementation. The backend audit scores this P2, but given it's entirely unbuilt and explicitly in scope, this audit elevates it to P1 — see note below.</p></div>
+        </div>
+        <p class="muted">*Priority judgment call, flagged explicitly: the source backend audit ranks Flutter Web as P2 because it doesn't block the API. This document ranks it P1 because "Must-have, 0% built" is a different kind of risk than a code-quality gap — it's schedule risk against a signed-off scope item.</p>
+      </section>
+
+      <!-- ============ SLIDE 19 ============ -->
+      <section class="slide" data-title="Dependency Map">
+        <div class="eyebrow">18 · Dependencies</div>
+        <h2 class="slide-title">Dependency Map</h2>
+        <p class="slide-dek">What blocks what — so parallel work doesn't stall on an undecided upstream item.</p>
+
+        <div class="diagram" style="flex-direction:column; align-items:flex-start; gap:14px">
+          <div class="dflow">
+            <div class="dbox accent">Dataset seeding automated<span class="small">P0 · Backend + AI</span></div>
+            <div class="darrow">→</div>
+            <div class="dbox">Fresh-env reproducibility<span class="small">unblocks CI, onboarding</span></div>
+            <div class="darrow">→</div>
+            <div class="dbox">Proven-green CI build<span class="small">gates every Render deploy</span></div>
+            <div class="darrow">→</div>
+            <div class="dbox">Reachable staging URL<span class="small">needs a migration step first</span></div>
+          </div>
+          <div class="dflow">
+            <div class="dbox accent">Exchange rate + interest seed<span class="small">P0 · one-time ops task</span></div>
+            <div class="darrow">→</div>
+            <div class="dbox">Budget-first suggestions work<span class="small">FR-TRIP-002 live</span></div>
+          </div>
+          <div class="dflow">
+            <div class="dbox accent">IsSupported grounding fix<span class="small">P1 · Backend</span></div>
+            <div class="darrow">→</div>
+            <div class="dbox">Full FR-AI-002 guarantee<span class="small">closes documented hole</span></div>
+          </div>
+          <div class="dflow">
+            <div class="dbox accent">Negative-path AI tests<span class="small">P1 · needs test seam</span></div>
+            <div class="darrow">→</div>
+            <div class="dbox">Proven FR-AI-002 at HTTP layer<span class="small">not just Python harness</span></div>
+          </div>
+          <div class="dflow">
+            <div class="dbox accent">Budget-check policy decision<span class="small">Leads sign-off · D-item</span></div>
+            <div class="darrow">→</div>
+            <div class="dbox">V-002 implementation<span class="small">can't be coded blind</span></div>
+          </div>
+          <div class="dflow">
+            <div class="dbox accent">Hosting decision (D3)<span class="small">no track has experience</span></div>
+            <div class="darrow">→</div>
+            <div class="dbox">Any real deployment<span class="small">Phase 11 exit criteria</span></div>
+          </div>
+          <div class="dflow">
+            <div class="dbox accent">UI/UX design conflict resolved<span class="small">lead decision</span></div>
+            <div class="darrow">→</div>
+            <div class="dbox">Flutter Web build<span class="small">needs a settled visual system</span></div>
+          </div>
+        </div>
+
+        <h3 class="section-h">Can start immediately, no dependency</h3>
+        <p>Deleting the test-create endpoint · removing dead <span class="mono">CostTolerancePercent</span> config · moving the Gemini API key to a header · adding a migration step for Staging deploys · allowing the Flutter Web origin in CORS (or running web on 5173) · updating stale docs (API Contract examples, DB table inventory, tech-stack version) · adding a concurrency guard to full generation.</p>
+      </section>
+
+      <!-- ============ SLIDE 20 ============ -->
+      <section class="slide" data-title="Implementation Roadmap">
+        <div class="eyebrow">19 · Roadmap</div>
+        <h2 class="slide-title">Implementation Roadmap</h2>
+        <p class="slide-dek">Sequenced by dependency, not by document order. Most of the Master Plan's original 12 phases are substantially complete — this roadmap covers what's actually left.</p>
+
+        <div class="phase">
+          <div class="marker"><div class="dot"></div><div class="line"></div></div>
+          <div class="phase-body">
+            <div class="ph-head"><h4>Phase A — Make it reproducible</h4><span class="badge pr pr-p0">P0</span></div>
+            <p>Automate dataset provisioning; seed exchange rates and place interests in the live/dev database; prove a green CI run. This is the difference between "works on my machine" and "works."</p>
+          </div>
+        </div>
+        <div class="phase">
+          <div class="marker"><div class="dot"></div><div class="line"></div></div>
+          <div class="phase-body">
+            <div class="ph-head"><h4>Phase B — Close the grounding hole</h4><span class="badge pr pr-p1">P1</span></div>
+            <p>Add the <span class="mono">IsSupported</span> filter to the validator; add a matching test fixture. One line of code, high symbolic value against the project's central rule.</p>
+          </div>
+        </div>
+        <div class="phase">
+          <div class="marker"><div class="dot"></div><div class="line"></div></div>
+          <div class="phase-body">
+            <div class="ph-head"><h4>Phase C — Harden the AI test seam</h4><span class="badge pr pr-p1">P1</span></div>
+            <p>Extract a fake <span class="mono">IGeminiClient</span> fixture; add negative-path tests for invented places, invalid JSON, Gemini 5xx, and missing budget tier. Prove FR-AI-002 at the layer that actually serves users.</p>
+          </div>
+        </div>
+        <div class="phase">
+          <div class="marker"><div class="dot"></div><div class="line"></div></div>
+          <div class="phase-body">
+            <div class="ph-head"><h4>Phase D — Contract hygiene</h4><span class="badge pr pr-p1">P1</span></div>
+            <p>Narrow <span class="mono">maxItems</span> per planning mode; get the AI JSON contract v2.0.0 formally signed off by both leads; then implement the budget-check policy (V-002) the right way, against a settled decision instead of guessing.</p>
+          </div>
+        </div>
+        <div class="phase">
+          <div class="marker"><div class="dot"></div><div class="line"></div></div>
+          <div class="phase-body">
+            <div class="ph-head"><h4>Phase E — Resolve the design conflict, then build Web</h4><span class="badge pr pr-p1">P1</span></div>
+            <p>Lead decision on 08 vs. 09 as the authoritative visual system; then start the Flutter Web build (ADR-02, FR-WEB-001) from the same mobile codebase.</p>
+          </div>
+        </div>
+        <div class="phase">
+          <div class="marker"><div class="dot"></div><div class="line"></div></div>
+          <div class="phase-body">
+            <div class="ph-head"><h4>Phase F — Security &amp; ops hygiene</h4><span class="badge pr pr-p2">P2</span></div>
+            <p>Remove the test-create endpoint; move the Gemini key to a header; add a concurrency guard to full generation; mount the AI dataset CSV correctly inside Docker; add a migration step for Staging; set the Render secrets and confirm the staging URL is publicly reachable (D3 is decided — Render).</p>
+          </div>
+        </div>
+        <div class="phase">
+          <div class="marker"><div class="dot"></div></div>
+          <div class="phase-body">
+            <div class="ph-head"><h4>Phase G — Documentation &amp; final validation</h4><span class="badge pr pr-p3">P3</span></div>
+            <p>Refresh stale docs (API contract examples, DB table inventory, tech-stack version, schema changelog); implement or consciously defer the raw-output retention job; run the full acceptance test against the SRS's own criteria.</p>
+          </div>
+        </div>
+      </section>
+
+      <!-- ============ SLIDE 21 ============ -->
+      <section class="slide" data-title="Master Remaining Work">
+        <div class="eyebrow">20 · Checklist</div>
+        <h2 class="slide-title">Master Remaining Work</h2>
+        <p class="slide-dek">Every meaningful remaining action, one row each.</p>
+
+        <div class="twrap">
+          <table class="chk">
+            <thead><tr><th>ID</th><th>Task</th><th>Area</th><th>Pri</th><th>Dependency</th><th>Validation</th></tr></thead>
+            <tbody>
+              <tr><td class="mono">GAP-001</td><td>Automate dataset provisioning for dev/test environments</td><td>Backend+AI</td><td><span class="badge pr pr-p0">P0</span></td><td>None</td><td>Fresh volume → <span class="mono">/generate</span> returns 200</td></tr>
+              <tr><td class="mono">GAP-002</td><td>Seed live DB's ExchangeRates + PlaceInterests</td><td>Data/Ops</td><td><span class="badge st-complete">DONE</span></td><td>GAP-001 optional</td><td>✅ Verified Sep 21, 2026 — endpoint returned 200 with ranked rows (Amman → 840.36 USD)</td></tr>
+              <tr><td class="mono">GAP-003</td><td>Filter destination grounding by <span class="mono">IsSupported</span></td><td>Backend</td><td><span class="badge pr pr-p1">P1</span></td><td>None</td><td>Unit test — unsupported destination fails validation</td></tr>
+              <tr><td class="mono">GAP-004</td><td>Narrow <span class="mono">maxItems</span> per planning mode</td><td>Backend</td><td><span class="badge pr pr-p1">P1</span></td><td>None</td><td>Assert schema mutation in unit test</td></tr>
+              <tr><td class="mono">GAP-005</td><td>Add negative-path AI tests via fake Gemini client</td><td>Backend</td><td><span class="badge pr pr-p1">P1</span></td><td>GAP-006</td><td>Full suite green including failure paths</td></tr>
+              <tr><td class="mono">GAP-006</td><td>Extract test-fixture seam for <span class="mono">IGeminiClient</span></td><td>Backend</td><td><span class="badge pr pr-p1">P1</span></td><td>None</td><td>Tests compile and run</td></tr>
+              <tr><td class="mono">GAP-007</td><td>Prove the new CI pipeline green on <span class="mono">main</span></td><td>Backend</td><td><span class="badge pr pr-p1">P1</span></td><td>None — pipeline merged (PRs #59/#64)</td><td>Green run on the latest main commit</td></tr>
+              <tr><td class="mono">GAP-008</td><td>Resolve 08 vs. 09 design-system conflict</td><td>UI/UX Lead</td><td><span class="badge pr pr-p1">P1</span></td><td>Rania capability decision</td><td>One document marked authoritative</td></tr>
+              <tr><td class="mono">GAP-009</td><td>Begin Flutter Web build (ADR-02, FR-WEB-001)</td><td>Flutter</td><td><span class="badge pr pr-p1">P1</span></td><td>GAP-008; GAP-001/002 for a usable API; GAP-023 CORS origin</td><td>Manual QA checklist passes in one desktop browser</td></tr>
+              <tr><td class="mono">GAP-010</td><td>Decide BUDGET_FIRST minimum-surviving-options policy</td><td>Leads</td><td><span class="badge pr pr-p2">P2</span></td><td>Contract sign-off</td><td>Decision documented + tests written</td></tr>
+              <tr><td class="mono">GAP-011</td><td>Sign off AI JSON Contract v2.0.0 formally</td><td>Leads</td><td><span class="badge pr pr-p2">P2</span></td><td>None</td><td>Doc checkbox + schema-version column added</td></tr>
+              <tr><td class="mono">GAP-012</td><td>Remove <span class="mono">/api/trips/test-create</span> from production</td><td>Backend</td><td><span class="badge pr pr-p2">P2</span></td><td>None</td><td>Endpoint absent from Swagger in Release build</td></tr>
+              <tr><td class="mono">GAP-013</td><td>Move Gemini API key to request header</td><td>Backend</td><td><span class="badge pr pr-p2">P2</span></td><td>None</td><td>Code review + integration test</td></tr>
+              <tr><td class="mono">GAP-014</td><td>Add concurrency guard to full generation</td><td>Backend</td><td><span class="badge pr pr-p2">P2</span></td><td>UX decision on behavior</td><td>Parallel calls → one winner, one 409</td></tr>
+              <tr><td class="mono">GAP-015</td><td>Mount AI dataset CSV correctly inside Docker</td><td>Backend</td><td><span class="badge pr pr-p2">P2</span></td><td>GAP-001</td><td>Budget-first generation succeeds in a container</td></tr>
+              <tr><td class="mono">GAP-016</td><td>Reach a public staging URL (D3 decided: Render)</td><td>Backend/Leads</td><td><span class="badge pr pr-p2">P2</span></td><td>GAP-007, GAP-022</td><td><span class="mono">/health</span> returns 200 on the Render URL</td></tr>
+              <tr><td class="mono">GAP-017</td><td>Clarify Cybersecurity track ownership (Arb Hammad)</td><td>Leads</td><td><span class="badge pr pr-p2">P2</span></td><td>None</td><td>Team doc internally consistent</td></tr>
+              <tr><td class="mono">GAP-018</td><td>Implement or formally defer raw-output retention job</td><td>Backend</td><td><span class="badge pr pr-p3">P3</span></td><td>None</td><td>Policy implemented or ADR note added</td></tr>
+              <tr><td class="mono">GAP-019</td><td>Add per-widget Flutter tests to the shared component library</td><td>Flutter</td><td><span class="badge pr pr-p3">P3</span></td><td>None</td><td>Widget test files exist for the 18 shared components</td></tr>
+              <tr><td class="mono">GAP-020</td><td>Refresh stale docs (API contract, DB inventory, tech stack, schema changelog)</td><td>Docs</td><td><span class="badge pr pr-p3">P3</span></td><td>GAP-003</td><td>Docs match shipped reality on review</td></tr>
+              <tr><td class="mono">GAP-021</td><td>Add Python↔C# validation-rule parity fixtures</td><td>AI+Backend</td><td><span class="badge pr pr-p3">P3</span></td><td>GAP-005</td><td>One fixture set passes both implementations in CI</td></tr>
+              <tr><td class="mono">GAP-022</td><td>Add a DB migration step for Staging deploys (Render runs Staging; auto-migrate is Dev/Test only)</td><td>Backend/DevOps</td><td><span class="badge pr pr-p2">P2</span></td><td>GAP-016 target env</td><td>Fresh Azure SQL gets the full schema before first deploy serves traffic</td></tr>
+              <tr><td class="mono">GAP-023</td><td>Unblock Flutter Web testing (CORS origin)</td><td>Backend+Flutter</td><td><span class="badge pr pr-p2">P2</span></td><td>None</td><td>Web app on port 8765 reaches the API without CORS errors</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <!-- ============ SLIDE 22 ============ -->
+      <section class="slide" data-title="Definition of Done">
+        <div class="eyebrow">21 · Done</div>
+        <h2 class="slide-title">Definition of Done</h2>
+        <p class="slide-dek">What must be true before Triply can reasonably be called MVP-complete — combining the project's own stated definition with what this audit found still open.</p>
+
+        <h3 class="section-h">Per the project's own Definition of Done (Master Plan §13)</h3>
+        <p>A feature is done when it matches its SRS requirement and acceptance criteria, is covered by the owning track's demonstrated testing method, passes the agreed API/JSON contract, and has been reviewed via pull request.</p>
+
+        <h3 class="section-h">Concrete, project-specific completion bar</h3>
+        <div class="grid grid-2">
+          <div class="card"><h4>1 · Reproducible from zero</h4><p>A fresh clone plus <span class="mono">docker compose up</span> can generate a real itinerary without any manual database surgery.</p></div>
+          <div class="card"><h4>2 · The non-negotiable rule is proven, not just enforced</h4><p>0% invented places is demonstrated by an automated test at the HTTP layer, not only by application logic and a separate Python harness.</p></div>
+          <div class="card"><h4>3 · Both planning modes fully work, live</h4><p>Destination-first (already proven) and budget-first (seeded + live-verified Sep 21, 2026) both complete end-to-end against the live Gemini API and a properly seeded database.</p></div>
+          <div class="card"><h4>4 · CI is green and trustworthy</h4><p>The pipeline exists — now prove a green run on <span class="mono">main</span> and keep every change checked against it before being relied upon.</p></div>
+          <div class="card"><h4>5 · Both platforms are real</h4><p>Mobile parity is QA-verified against a live backend (not just self-reported), and Web parity (FR-WEB-001) exists at all.</p></div>
+          <div class="card"><h4>6 · Every open decision is closed</h4><p>D1–D5 (SRS), the AI contract's budget-check policy, the UI/UX visual-system conflict, and the cybersecurity ownership question all have an explicit answer on record.</p></div>
+          <div class="card"><h4>7 · Deployed somewhere real</h4><p>Hosting is decided (Render) and the blueprint is merged — what remains is the staging URL actually answering <span class="mono">/health</span>, with migrations applied.</p></div>
+          <div class="card"><h4>8 · Documentation matches reality</h4><p>Table counts, framework versions, and API examples in the docs reflect what's actually shipped.</p></div>
+        </div>
+      </section>
+
+      <!-- ============ SLIDE 23 ============ -->
+      <section class="slide" data-title="Final Project State">
+        <div class="eyebrow">22 · Summary</div>
+        <h2 class="slide-title">Final Project State</h2>
+        <p class="slide-dek">A one-page answer to: is Triply done, and if not, what's actually left.</p>
+
+        <div class="grid grid-2">
+          <div class="card" style="border-color:#1c5c47">
+            <h4 style="color:var(--complete)">Ready</h4>
+            <p>Auth, trip lifecycle, destination-first planning, AI generation with genuine 0%-invented-place grounding (prompt + validation + DB-FK), cost aggregation, partial regeneration (code), 17 mobile screens wired to real endpoints, a gated CI/CD pipeline + Render blueprint, and a documentation set that flags its own open questions rather than hiding them.</p>
+          </div>
+          <div class="card" style="border-color:#6b4f0d">
+            <h4 style="color:var(--partial)">Incomplete</h4>
+            <p>Budget-first suggestions now work in the live environment (seeded + verified Sep 21, 2026), but provisioning remains manual — automated dataset provisioning is still open (fresh DBs start fully empty by design now). Also open: AI contract steps specified but not wired in (maxItems, budget check, schema provenance), thin negative-path test coverage for the central guarantee, and a Flutter Web build that hasn't started despite being a Must-have.</p>
+          </div>
+          <div class="card" style="border-color:#39435a">
+            <h4 style="color:var(--unknown)">Unverified</h4>
+            <p>Current CI status on <span class="mono">main</span> (pipeline merged after the last red report), the Render staging URL (secrets defined, reachability unproven), 4 mobile QA re-test items, live partial regeneration against real Gemini, in-Docker budget-first generation, and NFR-PERF-001's latency target (TBD).</p>
+          </div>
+          <div class="card" style="border-color:#4a3568">
+            <h4 style="color:var(--conflicting)">Must happen next</h4>
+            <p>In order: automate data seeding (P0) → prove CI green and close the grounding hole (P1) → harden AI tests and sign off the contract (P1) → resolve the design conflict and start Web (P1) → reachable staging + security hygiene (P2) → refresh documentation (P3).</p>
+          </div>
+        </div>
+
+        <div class="hr"></div>
+        <p class="lead">The honest one-line verdict: <b style="color:var(--text)">Triply's hardest problem — building an LLM pipeline nobody on the team had used before, that provably never invents a place — is solved and working, and the pipeline to ship it now exists too.</b> What remains is disciplined finishing work: seed the data, prove the runs, resolve the open decisions, and build the platform that was promised but not yet started.</p>
+      </section>
+
+    </div>
+    <div id="navbar">
+      <button class="navbtn" id="prevBtn">← Prev</button>
+      <span id="counter"><b id="curNum">1</b> / <span id="totNum">23</span></span>
+      <button class="navbtn" id="nextBtn">Next →</button>
+    </div>
+  </div>
+</div>
+
+<script>
+(function(){
+  var slides = Array.prototype.slice.call(document.querySelectorAll('.slide'));
+  var total = slides.length;
+  var idx = 0;
+  var toc = document.getElementById('toc');
+  var curNum = document.getElementById('curNum');
+  var totNum = document.getElementById('totNum');
+  var progressBar = document.getElementById('progress-bar');
+  var prevBtn = document.getElementById('prevBtn');
+  var nextBtn = document.getElementById('nextBtn');
+  var viewport = document.getElementById('viewport');
+
+  totNum.textContent = total;
+
+  slides.forEach(function(s, i){
+    var btn = document.createElement('button');
+    btn.className = 'toc-item';
+    btn.innerHTML = '<span class="toc-num">' + String(i+1).padStart(2,'0') + '</span><span>' + (s.getAttribute('data-title') || 'Slide') + '</span>';
+    btn.addEventListener('click', function(){ goTo(i); });
+    toc.appendChild(btn);
+  });
+  var tocItems = Array.prototype.slice.call(toc.querySelectorAll('.toc-item'));
+
+  function render(){
+    slides.forEach(function(s, i){ s.classList.toggle('active', i === idx); });
+    tocItems.forEach(function(t, i){ t.classList.toggle('active', i === idx); });
+    curNum.textContent = idx + 1;
+    progressBar.style.width = ((idx + 1) / total * 100) + '%';
+    prevBtn.disabled = idx === 0;
+    nextBtn.disabled = idx === total - 1;
+    viewport.scrollTop = 0;
+    var activeItem = tocItems[idx];
+    if(activeItem) activeItem.scrollIntoView({block:'nearest'});
+  }
+
+  function goTo(i){
+    idx = Math.max(0, Math.min(total - 1, i));
+    render();
+  }
+
+  prevBtn.addEventListener('click', function(){ goTo(idx - 1); });
+  nextBtn.addEventListener('click', function(){ goTo(idx + 1); });
+
+  document.addEventListener('keydown', function(e){
+    if(e.key === 'ArrowRight' || e.key === 'ArrowDown'){ e.preventDefault(); goTo(idx + 1); }
+    else if(e.key === 'ArrowLeft' || e.key === 'ArrowUp'){ e.preventDefault(); goTo(idx - 1); }
+    else if(e.key === 'Home'){ e.preventDefault(); goTo(0); }
+    else if(e.key === 'End'){ e.preventDefault(); goTo(total - 1); }
+  });
+
+  render();
+})();
+</script>
+</body>
+</html>
