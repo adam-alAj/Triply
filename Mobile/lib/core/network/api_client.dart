@@ -54,8 +54,21 @@ class ApiClient {
     return _send<T>(() => _dio.get<T>(path, queryParameters: queryParameters));
   }
 
-  Future<T> post<T>(String path, {Object? data}) {
-    return _send<T>(() => _dio.post<T>(path, data: data));
+  /// [receiveTimeout] overrides the default 15s for calls known to run
+  /// long server-side (AI generation can take multiple bounded-retry
+  /// attempts at up to `Gemini:TimeoutSeconds` each) — the default stays
+  /// tight for every other call so a genuinely hung request still fails
+  /// fast.
+  Future<T> post<T>(String path, {Object? data, Duration? receiveTimeout}) {
+    return _send<T>(
+      () => _dio.post<T>(
+        path,
+        data: data,
+        options: receiveTimeout == null
+            ? null
+            : Options(receiveTimeout: receiveTimeout),
+      ),
+    );
   }
 
   Future<T> put<T>(String path, {Object? data}) {

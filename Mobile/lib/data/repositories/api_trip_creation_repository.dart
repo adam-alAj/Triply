@@ -99,8 +99,12 @@ class ApiTripCreationRepository implements TripCreationRepository {
 
   @override
   Future<void> startGeneration(String tripId) async {
+    // AI generation runs up to 3 bounded-retry attempts server-side (each
+    // its own Gemini call), easily exceeding the client's default 15s
+    // timeout even on a successful run.
     await _apiClient.post<Map<String, dynamic>>(
       '/api/trips/$tripId/generate',
+      receiveTimeout: const Duration(seconds: 120),
     );
   }
 
