@@ -239,6 +239,7 @@ class _HomeViewState extends State<_HomeView>
                                   child: HomeRegionCard(
                                     name: region.name,
                                     imageAsset: region.imageAsset,
+                                    imageUrl: region.imageUrl,
                                     badge: region.country,
                                     description: region.description,
                                   ),
