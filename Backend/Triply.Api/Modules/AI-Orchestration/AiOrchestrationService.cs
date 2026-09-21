@@ -254,6 +254,30 @@ _logger.LogWarning(
                 allErrors.Add($"Attempt {attempt}: Gemini call failed - {ex.Message}");
                 continue; // bounded retry also covers transient API failures
             }
+            catch (InvalidOperationException ex)
+            {
+                // A config problem (e.g. Gemini:ApiKey not set) — not a transient
+                // Gemini API failure, so retrying won't help. Without this catch,
+                // the exception escapes GenerateItineraryAsync entirely and the
+                // trip is left stuck at GENERATING forever (the status was
+                // already committed above, and nothing else here reverts it).
+                _logger.LogError(ex, "Generation aborted on attempt {Attempt} for trip {TripId}: {Message}", attempt, tripId, ex.Message);
+
+                aiGeneration.Status = "FAILED_ERROR";
+                aiGeneration.ValidationErrors = ex.Message;
+                aiGeneration.CompletedAt = DateTime.UtcNow;
+                TripLifecycle.Transition(trip, TripLifecycle.Draft);
+                await _db.SaveChangesAsync(cancellationToken);
+
+                return new AiGenerationResult
+                {
+                    Success = false,
+                    AiGenerationId = aiGeneration.Id,
+                    AttemptsUsed = attempt,
+                    Status = "FAILED_ERROR",
+                    Errors = { ex.Message }
+                };
+            }
 
             aiGeneration.RawOutput = rawText;
 
