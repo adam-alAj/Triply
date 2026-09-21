@@ -17,15 +17,18 @@ import 'data/repositories/api_auth_repository.dart';
 import 'data/repositories/auth_repository.dart';
 import 'presentation/providers/auth_provider.dart';
 
-void main() {
+void main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+
   final tokenStorage = TokenStorage();
 
   // Single shared Dio client for the whole app: every authenticated request
   // (trips, destinations, itinerary, cost) goes through this instance so the
-  // Authorization header is attached consistently. See ApiClient's doc
-  // comment for how the base URL is picked per platform (Android emulator
-  // vs. iOS simulator/desktop).
-  final apiClient = ApiClient()
+  // Authorization header is attached consistently. See ApiClient.create's
+  // doc comment for how the base URL is picked per platform (Android
+  // emulator vs. a real device over USB vs. iOS simulator/desktop) — it's
+  // probed once here at startup rather than hardcoded.
+  final apiClient = (await ApiClient.create())
     ..interceptors.add(AuthInterceptor(tokenStorage));
 
   final AuthRepository authRepository = ApiAuthRepository(

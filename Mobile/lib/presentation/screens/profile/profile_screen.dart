@@ -188,7 +188,13 @@ class _ProfileCard extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 6),
-          Text('🧭 Triply Explorer • Member since 2026', style: AppTextStyles.bodySm),
+          Row(
+            children: [
+              const Icon(Icons.explore_outlined, size: 13, color: AppColors.textMuted),
+              const SizedBox(width: 4),
+              Text('Triply Explorer • Member since 2026', style: AppTextStyles.bodySm),
+            ],
+          ),
           const SizedBox(height: 14),
           const Divider(height: 1),
           const SizedBox(height: 14),
