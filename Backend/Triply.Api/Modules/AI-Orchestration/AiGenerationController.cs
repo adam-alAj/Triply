@@ -15,7 +15,7 @@ namespace Triply.Api.Modules.AIOrchestration;
 [ApiController]
 [Route("api/trips/{tripId:guid}/generate")]
 [Authorize]
-[EnableRateLimiting("fixed")]
+[EnableRateLimiting("ai-generation")]
 public class AiGenerationController : ControllerBase
 {
     private readonly ApplicationDbContext _db;
