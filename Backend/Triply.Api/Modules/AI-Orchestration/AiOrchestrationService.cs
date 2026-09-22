@@ -253,13 +253,14 @@ _logger.LogWarning(
 
                 allErrors.Add($"Attempt {attempt}: Gemini call failed - {ex.Message}");
 
-                // A short backoff before the next attempt — Gemini's transient
-                // 503s (observed in practice) tend to clear within a couple of
-                // seconds, but the retries here previously fired back-to-back
-                // with no delay, so all 3 attempts landed in the same brief
-                // overload window and failed together.
+                // Exponential backoff before the next attempt — Gemini's
+                // transient 503/429s (observed in practice) don't always
+                // clear within a couple of seconds, so a longer wait before
+                // later attempts gives a real chance of landing outside the
+                // overload/quota window instead of immediately repeating
+                // into the same one.
                 if (attempt < maxAttempts)
-                    await Task.Delay(TimeSpan.FromSeconds(3), cancellationToken);
+                    await Task.Delay(RetryBackoffDelay(attempt), cancellationToken);
 
                 continue; // bounded retry also covers transient API failures
             }
@@ -773,10 +774,11 @@ _logger.LogWarning(
                 await _db.SaveChangesAsync(cancellationToken);
                 allErrors.Add($"Attempt {attempt}: Gemini call failed - {ex.Message}");
 
-                // See the matching comment in GenerateItineraryAsync — a short
-                // backoff so all attempts don't land in the same brief 503 window.
+                // See the matching comment in GenerateItineraryAsync — an
+                // exponential backoff so later attempts have a real chance
+                // of landing outside a transient 503/429 window.
                 if (attempt < maxAttempts)
-                    await Task.Delay(TimeSpan.FromSeconds(3), cancellationToken);
+                    await Task.Delay(RetryBackoffDelay(attempt), cancellationToken);
 
                 continue;
             }
@@ -1117,5 +1119,15 @@ await transaction.CommitAsync(cancellationToken);
                 })
                 .ToList()
         };
+    }
+
+    /// Exponential backoff (3s, 6s, 12s, 24s, ...) between bounded-retry
+    /// attempts, capped at 20s so it never eats an unreasonable share of the
+    /// caller's own request timeout. `attempt` is 1-based (the attempt that
+    /// just failed) — the delay is before the *next* one.
+    private static TimeSpan RetryBackoffDelay(int attempt)
+    {
+        var seconds = Math.Min(3 * Math.Pow(2, attempt - 1), 20);
+        return TimeSpan.FromSeconds(seconds);
     }
 }

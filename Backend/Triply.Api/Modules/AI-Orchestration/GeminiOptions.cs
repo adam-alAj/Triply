@@ -17,8 +17,12 @@ public string Model { get; set; } = "gemini-3.6-flash";
         "https://generativelanguage.googleapis.com/v1beta/models";
 
     // Bounded regeneration retries — SRS FR-AI-002 / Architecture §9 "alt Invalid" branch.
-    // Total attempts = MaxRetries + 1 (the original attempt).
-    public int MaxRetries { get; set; } = 2;
+    // Total attempts = MaxRetries + 1 (the original attempt). Raised from 2:
+    // in practice this key's free-tier calls hit transient 503/429s often
+    // enough that 3 total attempts (with no backoff, historically) regularly
+    // failed together — see AiOrchestrationService's exponential backoff
+    // between attempts.
+    public int MaxRetries { get; set; } = 4;
 
     public int TimeoutSeconds { get; set; } = 30;
 
