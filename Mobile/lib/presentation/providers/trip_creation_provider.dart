@@ -29,6 +29,7 @@ class TripCreationProvider extends ChangeNotifier {
   List<Map<String, dynamic>> _destinations = [];
   bool _destinationsLoading = false;
   String? _destinationsError;
+  Map<String, String> _destinationImages = {};
 
   String? _errorMessage;
 
@@ -47,6 +48,12 @@ class TripCreationProvider extends ChangeNotifier {
   bool get destinationsLoading => _destinationsLoading;
 
   String? get destinationsError => _destinationsError;
+
+  /// Cover image URL for a destination name, or null if none is available
+  /// (the assets manifest doesn't cover every destination, and the fetch
+  /// itself is best-effort — see [loadDestinations]).
+  String? imageUrlFor(String destinationName) =>
+      _destinationImages[destinationName];
 
   String? get errorMessage => _errorMessage;
 
@@ -107,6 +114,15 @@ class TripCreationProvider extends ChangeNotifier {
 
     _destinationsLoading = false;
     notifyListeners();
+
+    // Best-effort: cover images are cosmetic, so a failure here never blocks
+    // the destination list itself (already loaded and notified above).
+    try {
+      _destinationImages = await _repository.getDestinationImages();
+      notifyListeners();
+    } catch (_) {
+      // Leave whatever images (if any) were already loaded.
+    }
   }
 
   void selectDestination({

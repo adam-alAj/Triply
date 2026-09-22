@@ -4,6 +4,12 @@ import 'my_trips_repository.dart';
 /// Fallback used only when no backend is reachable (see [MyTripsRepository]).
 class MockTripsRepository implements MyTripsRepository {
   @override
+  Future<Map<String, String>> getDestinationImages() async {
+    await Future.delayed(const Duration(milliseconds: 200));
+    return const {};
+  }
+
+  @override
   Future<List<TripSummary>> getMyTrips() async {
     await Future.delayed(const Duration(milliseconds: 600));
 

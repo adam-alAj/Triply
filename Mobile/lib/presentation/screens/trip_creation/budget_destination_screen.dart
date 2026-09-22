@@ -113,12 +113,14 @@ class _DestinationFirstContent extends StatelessWidget {
     final selectedDestination = provider.data.destination;
 
     final destinations = provider.destinations.map((destination) {
+      final name = destination['name'] as String;
       return _DestinationOption(
-        name: destination['name'] as String,
+        name: name,
         country: destination['country'] as String,
         description: destination['description'] as String? ?? '',
         icon: Icons.place_outlined,
         destinationId: destination['destinationId'] as int?,
+        imageUrl: provider.imageUrlFor(name),
       );
     }).toList();
 
@@ -341,6 +343,7 @@ class _DestinationOption {
     required this.description,
     required this.icon,
     this.destinationId,
+    this.imageUrl,
   });
 
   final String name;
@@ -348,6 +351,7 @@ class _DestinationOption {
   final String description;
   final IconData icon;
   final int? destinationId;
+  final String? imageUrl;
 }
 
 class _DestinationCard extends StatelessWidget {
@@ -383,17 +387,27 @@ class _DestinationCard extends StatelessWidget {
           ),
           child: Row(
             children: [
-              Container(
-                width: 48,
-                height: 48,
-                decoration: BoxDecoration(
+              ClipRRect(
+                borderRadius: BorderRadius.circular(14),
+                child: Container(
+                  width: 48,
+                  height: 48,
                   color: AppColors.surfaceContainerLow,
-                  borderRadius: BorderRadius.circular(14),
-                ),
-                child: Icon(
-                  option.icon,
-                  color: AppColors.primary,
-                  size: 23,
+                  child: option.imageUrl != null
+                      ? Image.network(
+                          option.imageUrl!,
+                          fit: BoxFit.cover,
+                          errorBuilder: (_, __, ___) => Icon(
+                            option.icon,
+                            color: AppColors.primary,
+                            size: 23,
+                          ),
+                        )
+                      : Icon(
+                          option.icon,
+                          color: AppColors.primary,
+                          size: 23,
+                        ),
                 ),
               ),
 

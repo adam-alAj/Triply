@@ -29,6 +29,12 @@ class MockTripCreationRepository implements TripCreationRepository {
   }
 
   @override
+  Future<Map<String, String>> getDestinationImages() async {
+    await Future.delayed(const Duration(milliseconds: 200));
+    return const {};
+  }
+
+  @override
   Future<List<Map<String, dynamic>>> getDestinationSuggestions(
       TripCreationData data,
       ) async {

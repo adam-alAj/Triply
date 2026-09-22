@@ -19,6 +19,7 @@ class MyTripsProvider extends ChangeNotifier {
   MyTripsFilter filter = MyTripsFilter.active;
 
   List<TripSummary> _trips = [];
+  Map<String, String> _destinationImages = {};
 
   List<TripSummary> get visibleTrips => _trips
       .where((trip) => filter == MyTripsFilter.archived
@@ -29,6 +30,11 @@ class MyTripsProvider extends ChangeNotifier {
   int get activeCount => _trips.where((trip) => !trip.isArchived).length;
 
   int get archivedCount => _trips.where((trip) => trip.isArchived).length;
+
+  /// Fallback cover image for a trip with no `coverImageUrl` of its own,
+  /// looked up by destination name.
+  String? imageUrlFor(String destinationName) =>
+      _destinationImages[destinationName];
 
   Future<void> loadTrips() async {
     status = MyTripsStatus.loading;
@@ -46,6 +52,14 @@ class MyTripsProvider extends ChangeNotifier {
     }
 
     notifyListeners();
+
+    // Best-effort: cosmetic fallback images never block the trip list itself.
+    try {
+      _destinationImages = await _repository.getDestinationImages();
+      notifyListeners();
+    } catch (_) {
+      // Leave whatever images (if any) were already loaded.
+    }
   }
 
   void setFilter(MyTripsFilter value) {
