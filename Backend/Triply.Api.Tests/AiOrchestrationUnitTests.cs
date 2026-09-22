@@ -99,10 +99,10 @@ public class AiOrchestrationUnitTests
 
         handler.Protected().Verify(
             "SendAsync",
-            Times.Once(),
-            ItExpr.Is<HttpRequestMessage>(request =>
-                request.Method == HttpMethod.Post &&
-                request.RequestUri!.ToString().Contains("test-model:generateContent?key=test-key")),
+            Times.Once(),                ItExpr.Is<HttpRequestMessage>(request =>
+                    request.Method == HttpMethod.Post &&
+                    request.RequestUri!.ToString().Contains("test-model:generateContent") &&
+                    !request.RequestUri!.Query.Contains("key=")),
             ItExpr.IsAny<CancellationToken>());
     }
 
@@ -139,5 +139,65 @@ public class AiOrchestrationUnitTests
 
         Assert.Contains("429", ex.Message);
         Assert.Contains("rate limited", ex.RawResponse);
+    }
+
+    [Fact]
+    public async Task GeminiClient_SendsApiKeyViaHeader_NeverInUrl()
+    {
+        var handler = new RecordingHandler(
+            """{"candidates":[{"content":{"parts":[{"text":"{\"ok\":true}"}]}}]}""");
+
+        using var http = new HttpClient(handler);
+        var options = Options.Create(new GeminiOptions
+        {
+            ApiKey = "test-key",
+            Model = "test-model",
+            BaseUrl = "https://example.test/models",
+            TimeoutSeconds = 5
+        });
+
+        var client = new GeminiClient(http, options, NullLogger<GeminiClient>.Instance);
+
+        await client.GenerateJsonAsync("test prompt");
+
+        Assert.NotNull(handler.LastRequest);
+        var uri = handler.LastRequest!.RequestUri!;
+        Assert.Equal("/models/test-model:generateContent", uri.AbsolutePath);
+        Assert.DoesNotContain("test-key", uri.ToString());
+        Assert.DoesNotContain("key=", uri.Query);
+        Assert.True(handler.LastRequest.Headers.TryGetValues("x-goog-api-key", out var apiKeys));
+        Assert.Equal("test-key", apiKeys!.Single());
+
+        // The structured-output path must use the same header-based auth.
+        handler.LastRequest = null;
+        using var schema = JsonDocument.Parse("""{"type":"object"}""");
+        await client.GenerateJsonWithSchemaAsync("test prompt", "system", schema);
+
+        Assert.NotNull(handler.LastRequest);
+        var schemaUri = handler.LastRequest!.RequestUri!;
+        Assert.DoesNotContain("test-key", schemaUri.ToString());
+        Assert.DoesNotContain("key=", schemaUri.Query);
+        Assert.True(handler.LastRequest.Headers.TryGetValues("x-goog-api-key", out var schemaApiKeys));
+        Assert.Equal("test-key", schemaApiKeys!.Single());
+    }
+
+    private sealed class RecordingHandler : HttpMessageHandler
+    {
+        private readonly string _responseJson;
+
+        public RecordingHandler(string responseJson) => _responseJson = responseJson;
+
+        public HttpRequestMessage? LastRequest { get; set; }
+
+        protected override Task<HttpResponseMessage> SendAsync(
+            HttpRequestMessage request,
+            CancellationToken cancellationToken)
+        {
+            LastRequest = request;
+            return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK)
+            {
+                Content = new StringContent(_responseJson, Encoding.UTF8, "application/json")
+            });
+        }
     }
 }

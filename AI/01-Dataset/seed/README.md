@@ -1,5 +1,11 @@
 # Triply Curated Dataset Seeder — FR-DATA-001
 
+> **Not part of the standard local setup.** The backend provisions the same CSVs
+> automatically at Development startup (`Backend/Triply.Api/Data/SeedData.cs`,
+> see *Backend/README → “Reference data on a fresh database”*), so a fresh clone
+> never needs a manual seeder run. The scripts below remain for offline/ops use:
+> bulk re-imports, repairing a non-development database, and dataset maintenance.
+
 Loads the versioned curated CSVs (`../curated-data/`) into SQL Server:
 `Country`, `Currency`, `PlaceCategory`, `CostCategory` (landed only if missing),
 `Destination`, and `Place` (matched by natural key and upserted).

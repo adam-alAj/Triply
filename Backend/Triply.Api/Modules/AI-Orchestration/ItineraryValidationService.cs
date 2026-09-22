@@ -3,6 +3,7 @@ using Triply.Api.Data;
 using Triply.Api.Entities;
 using Triply.Api.Modules.AIOrchestration.Dtos;
 using TripEntity = Triply.Api.Entities.Trip;
+using PlaceEntity = Triply.Api.Entities.Place;
 
 namespace Triply.Api.Modules.AIOrchestration;
 
@@ -257,12 +258,20 @@ public class ItineraryValidationService : IItineraryValidator
             .Where(p => allPlaceNames.Contains(p.Name) && p.IsActive)
             .ToListAsync(cancellationToken);
 
-        var placeByName = places.ToDictionary(p => p.Name, p => p);
+        // Duplicate-name handling (Gap 6): group by name FIRST. Building a flat
+        // dictionary directly would make ToDictionary throw ArgumentException on an
+        // active duplicate place name, which escaped as an unhandled 400/500 instead
+        // of the AI pipeline's FAILED_VALIDATION semantics.
+        var placesByName = places
+            .GroupBy(p => p.Name, StringComparer.Ordinal)
+            .ToDictionary(g => g.Key, g => g.ToList(), StringComparer.Ordinal);
 
-        // 0% tolerance: every name must resolve
+        var placeByName = new Dictionary<string, PlaceEntity>(StringComparer.Ordinal);
+
+        // 0% tolerance: every name must resolve — and resolve unambiguously.
         foreach (var name in allPlaceNames)
         {
-            if (!placeByName.TryGetValue(name, out var place))
+            if (!placesByName.TryGetValue(name, out var matches))
             {
                 errors.Add(
                     $"{optionPrefix}: place_name '{name}' does not exist " +
@@ -270,22 +279,77 @@ public class ItineraryValidationService : IItineraryValidator
                 continue;
             }
 
-            // Destination scoping: option destination is authoritative in BUDGET_FIRST;
-            // trip destination is additionally enforced when already selected.
-            if (destination is not null && place.DestinationId != destination.Id)
+            if (matches.Count == 1)
             {
-                errors.Add(
-                    $"{optionPrefix}: place_name '{name}' belongs to destination_id {place.DestinationId}, " +
-                    $"not option destination '{destination.Name}' ({destination.Id}).");
+                var place = matches[0];
+
+                // Destination scoping: option destination is authoritative in BUDGET_FIRST;
+                // trip destination is additionally enforced when already selected.
+                if (destination is not null && place.DestinationId != destination.Id)
+                {
+                    errors.Add(
+                        $"{optionPrefix}: place_name '{name}' belongs to destination_id {place.DestinationId}, " +
+                        $"not option destination '{destination.Name}' ({destination.Id}).");
+                }
+
+                if (trip.DestinationId.HasValue && place.DestinationId != trip.DestinationId.Value)
+                {
+                    errors.Add(
+                        $"{optionPrefix}: place_name '{name}' belongs to " +
+                        $"destination_id {place.DestinationId}, not the trip's destination " +
+                        $"({trip.DestinationId.Value}).");
+                }
+
+                placeByName[name] = place;
+                continue;
             }
 
-            if (trip.DestinationId.HasValue && place.DestinationId != trip.DestinationId.Value)
+            // --- Duplicate active rows carry this name: fail closed, never crash. ---
+            if (destination is null)
+            {
+                errors.Add(
+                    $"{optionPrefix}: duplicate active place_name '{name}' in the curated " +
+                    "dataset and no valid destination to disambiguate it (fail closed).");
+                continue;
+            }
+
+            var inDestination = matches
+                .Where(m => m.DestinationId == destination.Id)
+                .ToList();
+
+            if (inDestination.Count > 1)
+            {
+                // Duplicate WITHIN the option's destination — the invalid curated-data
+                // condition (Gap 6). Report it as a validation error so the attempt
+                // becomes FAILED_VALIDATION instead of an unhandled exception.
+                errors.Add(
+                    $"{optionPrefix}: duplicate active place_name '{name}' within destination " +
+                    $"'{destination.Name}' in the curated dataset (fail closed, FR-AI-002).");
+                continue;
+            }
+
+            if (inDestination.Count == 0)
+            {
+                errors.Add(
+                    $"{optionPrefix}: place_name '{name}' belongs to destination_id " +
+                    string.Join(", ", matches.Select(m => m.DestinationId).Distinct()) +
+                    $", not option destination '{destination.Name}' ({destination.Id}).");
+                continue;
+            }
+
+            // The same name in several destinations is legitimate curated data;
+            // the option's destination picks the intended row.
+            var resolved = inDestination[0];
+
+            if (trip.DestinationId.HasValue && resolved.DestinationId != trip.DestinationId.Value)
             {
                 errors.Add(
                     $"{optionPrefix}: place_name '{name}' belongs to " +
-                    $"destination_id {place.DestinationId}, not the trip's destination " +
+                    $"destination_id {resolved.DestinationId}, not the trip's destination " +
                     $"({trip.DestinationId.Value}).");
             }
+
+            placeByName[name] = resolved;
         }
 
         // Category rules

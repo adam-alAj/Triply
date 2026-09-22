@@ -15,7 +15,7 @@ namespace Triply.Api.Modules.AIOrchestration;
 [ApiController]
 [Route("api/trips/{tripId:guid}/generate")]
 [Authorize]
-[EnableRateLimiting("fixed")]
+[EnableRateLimiting("ai-generation")]
 public class AiGenerationController : ControllerBase
 {
     private readonly ApplicationDbContext _db;
@@ -67,7 +67,7 @@ public class AiGenerationController : ControllerBase
         try
         {
             result = scope == "FULL"
-                ? await _orchestrationService.GenerateItineraryAsync(tripId, cancellationToken)
+                ? await _orchestrationService.GenerateItineraryAsync(tripId, request, cancellationToken)
                 : await _orchestrationService.RegeneratePartialAsync(tripId, request, cancellationToken);
         }
         catch (ArgumentException ex)
