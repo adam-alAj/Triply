@@ -121,7 +121,12 @@ class _RegisterScreenState extends State<RegisterScreen> {
             WidgetsBinding.instance.addPostFrameCallback((_) {
               if (!mounted) return;
 
+              // Registration already logged the user in (AuthProvider holds
+              // the token/user from the register call) — go straight to
+              // Home instead of dropping them back at Login to sign in
+              // again with what they just typed.
               _showRegisterSuccess();
+              Navigator.pushReplacementNamed(context, '/home');
             });
           }
 
@@ -145,9 +150,13 @@ class _RegisterScreenState extends State<RegisterScreen> {
                     color: AppColors.surfaceContainerLow,
                     borderRadius: BorderRadius.circular(20),
                   ),
-                  child: Text(
-                    '✦ MINDFUL WANDERING',
-                    style: AppTextStyles.labelSm,
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Icon(Icons.auto_awesome, size: 13, color: AppColors.primary),
+                      const SizedBox(width: 6),
+                      Text('MINDFUL WANDERING', style: AppTextStyles.labelSm),
+                    ],
                   ),
                 ),
 
@@ -304,9 +313,17 @@ class _RegisterScreenState extends State<RegisterScreen> {
                 const SizedBox(height: 14),
 
                 Center(
-                  child: Text(
-                    '🛡 End-to-End Encrypted   •   ◉ Private Itineraries',
-                    style: AppTextStyles.labelSm,
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Icon(Icons.shield_outlined, size: 13, color: AppColors.secondary),
+                      const SizedBox(width: 4),
+                      Text('End-to-End Encrypted', style: AppTextStyles.labelSm),
+                      Text('   •   ', style: AppTextStyles.labelSm),
+                      const Icon(Icons.explore_outlined, size: 13, color: AppColors.secondary),
+                      const SizedBox(width: 4),
+                      Text('Private Itineraries', style: AppTextStyles.labelSm),
+                    ],
                   ),
                 ),
 
