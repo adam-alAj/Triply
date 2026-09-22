@@ -1,7 +1,7 @@
-import 'dart:io' show Platform, Socket, SocketException;
-
 import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
+
+import 'api_config.dart';
 
 /// Thin wrapper around [Dio] that owns every piece of HTTP configuration in
 /// the app: base URL, timeouts, headers, interceptors and error translation.
@@ -32,71 +32,16 @@ class ApiClient {
     }
   }
 
-  /// Resolves the base URL (probing candidates on Android — see
-  /// [resolveDefaultBaseUrl]) and constructs the client with it. The
-  /// composition root (`main()`) awaits this once at startup instead of
-  /// every caller needing to know the resolution is asynchronous.
+  /// Resolves the base URL — see [ApiConfig] for the full emulator/real-
+  /// device/simulator/override resolution logic — and constructs the
+  /// client with it. The composition root (`main()`) awaits this once at
+  /// startup instead of every caller needing to know the resolution is
+  /// asynchronous.
   static Future<ApiClient> create({Dio? dio, String? baseUrl}) async {
     return ApiClient(
       dio: dio,
-      baseUrl: baseUrl ?? await resolveDefaultBaseUrl(),
+      baseUrl: baseUrl ?? await ApiConfig.resolve(),
     );
-  }
-
-  /// Local-dev backend port. Kept as one named constant rather than typed
-  /// into each candidate URL below.
-  static const int _devPort = 8080;
-
-  /// Local-dev backend URL. Android has two possible run targets that need
-  /// different hosts to reach the same machine, and there's no reliable way
-  /// to know which one a given run is *before* trying:
-  /// - **Emulator**: reaches the host machine via the special loopback
-  ///   alias `10.0.2.2` — `localhost` on an emulator means the emulator
-  ///   itself.
-  /// - **Real device over USB**: `10.0.2.2` doesn't exist on real hardware
-  ///   at all. Reachable via `localhost` instead, once `adb reverse tcp:8080
-  ///   tcp:8080` has forwarded the device's own `localhost:8080` to the
-  ///   host's — run that once per USB connection (a fresh `flutter run`
-  ///   after reconnecting the cable is a common time to re-run it, since
-  ///   the forward doesn't survive a device disconnect).
-  ///
-  /// Rather than hardcode one and require editing this file to run on the
-  /// other target, this probes both with a short timeout and caches
-  /// whichever answers first — same app build works unmodified on either.
-  /// iOS simulator / desktop / web reach the host directly via `localhost`,
-  /// so they skip probing entirely. A physical device reached over Wi-Fi
-  /// instead of USB (no adb bridge available) needs an explicit `baseUrl`
-  /// passed to the constructor instead — neither candidate here can reach
-  /// it.
-  static Future<String> resolveDefaultBaseUrl() async {
-    if (kIsWeb || !Platform.isAndroid) {
-      return 'http://localhost:$_devPort';
-    }
-
-    const candidateHosts = ['10.0.2.2', 'localhost'];
-    for (final host in candidateHosts) {
-      if (await _canReach(host, _devPort)) {
-        return 'http://$host:$_devPort';
-      }
-    }
-
-    // Neither answered (e.g. backend isn't running yet) — fall back to the
-    // emulator address so behavior matches what this used to always return.
-    return 'http://${candidateHosts.first}:$_devPort';
-  }
-
-  static Future<bool> _canReach(String host, int port) async {
-    try {
-      final socket = await Socket.connect(
-        host,
-        port,
-        timeout: const Duration(milliseconds: 800),
-      );
-      socket.destroy();
-      return true;
-    } on SocketException {
-      return false;
-    }
   }
 
   final Dio _dio;
