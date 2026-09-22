@@ -67,7 +67,7 @@ public class AiGenerationController : ControllerBase
         try
         {
             result = scope == "FULL"
-                ? await _orchestrationService.GenerateItineraryAsync(tripId, cancellationToken)
+                ? await _orchestrationService.GenerateItineraryAsync(tripId, request, cancellationToken)
                 : await _orchestrationService.RegeneratePartialAsync(tripId, request, cancellationToken);
         }
         catch (ArgumentException ex)
