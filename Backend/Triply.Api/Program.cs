@@ -208,6 +208,15 @@ builder.Services.AddScoped<IItineraryValidator, ItineraryValidationService>();
 builder.Services.AddScoped<IExtraAiContextReader, ExtraAiContextReader>();
 builder.Services.AddScoped<IAiOrchestrationService, AiOrchestrationService>();
 
+// Gap 4 — 30-day AI raw-output retention (Docs/05 §16): nulls
+// AIGeneration.RawOutput for attempts older than DataRetention:RawOutputDays
+// (default 30). The hosted runner is inert in the Testing environment — tests
+// call IAiRawOutputRetentionService directly.
+builder.Services.Configure<DataRetentionOptions>(
+    builder.Configuration.GetSection(DataRetentionOptions.SectionName));
+builder.Services.AddScoped<IAiRawOutputRetentionService, AiRawOutputRetentionService>();
+builder.Services.AddHostedService<AiRawOutputRetentionBackgroundService>();
+
 builder.Services.AddControllers();
 
 builder.Services.AddEndpointsApiExplorer();

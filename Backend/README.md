@@ -275,11 +275,15 @@ migrating (`Data/SeedData.cs`):
   existing user/trip/reference data,
 - imports the real curated dataset (countries, currencies, categories,
   destinations, places, place↔interest links, placeholder exchange rates),
-- needs no Python/pyodbc/ODBC inside the container (unlike the manual
-  `AI/01-Dataset/seed/*.py` scripts, which remain the source-of-truth tooling),
+- needs no Python/pyodbc/ODBC inside the container — the manual
+  `AI/01-Dataset/seed/*.py` scripts stay available for offline/ops dataset work
+  but are **not** part of the standard setup (the automatic startup path above is),
 - dataset path configurable via `AI:CuratedDataPath` (default
   `../../AI/01-Dataset/curated-data` relative to the content root — in Docker the
   compose `../AI:/AI` mount resolves this to `/AI/01-Dataset/curated-data`),
+- **fails fast**: a missing dataset directory/file or a required reference
+  table that would remain empty aborts startup with a clear error — the
+  environment never continues silently unprovisioned,
 - **Development only**: `Testing` keeps its test fixtures, and
   Staging/Production are never seeded by the application.
 

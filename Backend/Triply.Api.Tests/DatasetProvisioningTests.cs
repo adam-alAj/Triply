@@ -134,9 +134,9 @@ public sealed class DatasetProvisioningTests : IClassFixture<SeedProvisioningTes
 
         // --- First provisioning run imports the real curated dataset ---
         var first = await RunProvisioningAsync();
-        Assert.False(
-            first.Skipped,
-            $"Curated dataset directory was not found (looked at '{first.DataDirectory}').");
+        Assert.True(
+            Directory.Exists(first.DataDirectory),
+            $"Curated dataset directory must exist after provisioning (looked at '{first.DataDirectory}').");
         Assert.True(first.AnyRowsInserted, "First run should insert the curated reference rows.");
         Assert.True(first.PlacesAdded > 0, "First run should insert curated places.");
 
@@ -182,7 +182,6 @@ public sealed class DatasetProvisioningTests : IClassFixture<SeedProvisioningTes
 
         // --- Second run: fully idempotent, zero inserts, counts unchanged ---
         var second = await RunProvisioningAsync();
-        Assert.False(second.Skipped);
         Assert.False(second.AnyRowsInserted,
             $"Second run must insert nothing but inserted: places={second.PlacesAdded}, " +
             $"destinations={second.DestinationsAdded}, links={second.PlaceInterestsAdded}, " +
@@ -266,5 +265,32 @@ public sealed class DatasetProvisioningTests : IClassFixture<SeedProvisioningTes
         Assert.True(
             suggestions.GetProperty("suggestions").GetArrayLength() >= 1,
             $"Expected at least one budget-fit suggestion from curated data.\n{suggestionsBody}");
+    }
+
+    [Fact]
+    public async Task MissingDatasetDirectory_ProvisioningThrows_NeverContinuesSilently()
+    {
+        // GAP-001: a provisioning failure must be visible — startup must never
+        // continue with a silently unprovisioned reference database.
+        using var scope = _factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+        var environment = scope.ServiceProvider.GetRequiredService<IHostEnvironment>();
+        var logger = scope.ServiceProvider
+            .GetRequiredService<ILoggerFactory>()
+            .CreateLogger("SeedDataTest");
+
+        var missingPath = Path.Combine(
+            Path.GetTempPath(), $"triply-missing-dataset-{Guid.NewGuid():N}");
+        var configuration = new ConfigurationBuilder()
+            .AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                ["AI:CuratedDataPath"] = missingPath
+            })
+            .Build();
+
+        var ex = await Assert.ThrowsAsync<InvalidOperationException>(
+            () => SeedData.EnsureCuratedDatasetAsync(db, configuration, environment, logger));
+
+        Assert.Contains("Curated dataset directory not found", ex.Message);
     }
 }
