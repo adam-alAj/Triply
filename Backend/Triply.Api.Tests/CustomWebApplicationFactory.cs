@@ -1,8 +1,10 @@
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
+using Microsoft.AspNetCore.TestHost;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 using Triply.Api.Data;
 using Triply.Api.Entities;
 
@@ -235,6 +237,8 @@ public class CustomWebApplicationFactory : WebApplicationFactory<Program>
         builder.UseSetting("Jwt:Issuer", "Triply");
         builder.UseSetting("Jwt:Audience", "TriplyClients");
         builder.UseSetting("Jwt:ExpiresMinutes", "60");
+        builder.UseSetting("Jwt:RefreshTokenExpiresDays", "30");
+        builder.UseSetting("Auth:RequireConfirmedEmail", "false");
 
         builder.ConfigureAppConfiguration((context, config) =>
         {
@@ -249,8 +253,20 @@ public class CustomWebApplicationFactory : WebApplicationFactory<Program>
 
                 ["Jwt:Audience"] = "TriplyClients",
 
-                ["Jwt:ExpiresMinutes"] = "60"
+                ["Jwt:ExpiresMinutes"] = "60",
+
+                ["Jwt:RefreshTokenExpiresDays"] = "30",
+
+                ["Auth:RequireConfirmedEmail"] = "false"
             });
+        });
+
+        // Capture "sent" emails in memory instead of just logging them, so tests can
+        // assert on the email-confirmation / password-reset tokens end to end.
+        builder.ConfigureTestServices(services =>
+        {
+            services.RemoveAll<Triply.Api.Modules.Auth.IEmailSender>();
+            services.AddSingleton<Triply.Api.Modules.Auth.IEmailSender, TestEmailSender>();
         });
     }
 }
