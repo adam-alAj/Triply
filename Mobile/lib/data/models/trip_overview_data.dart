@@ -1,3 +1,62 @@
+import 'package:flutter/material.dart' show IconData;
+
+/// A small pill badge overlaid on an item's hero image (e.g. "UNESCO
+/// Sanctuary", "Official Partner") — icon + label, purely decorative.
+class HeroBadgeData {
+  const HeroBadgeData({required this.icon, required this.label});
+
+  final IconData icon;
+  final String label;
+}
+
+/// How busy a place currently is vs. its daily peak — drives the "Optimal
+/// Crowd Cadence" panel on the Place Detail Sheet. No backend field for
+/// this yet; populated only where the mock/demo data supplies it.
+enum CrowdCadenceLevel { low, moderate, high }
+
+class CrowdCadenceData {
+  const CrowdCadenceData({
+    required this.level,
+    required this.moodLabel, // "SERENE"
+    required this.currentTimeLabel, // "09:30 AM"
+    required this.currentCapacityPercent, // 18
+    required this.peakTimeLabel, // "12:00 PM"
+    required this.peakCapacityPercent, // 85
+  });
+
+  final CrowdCadenceLevel level;
+  final String moodLabel;
+  final String currentTimeLabel;
+  final int currentCapacityPercent;
+  final String peakTimeLabel;
+  final int peakCapacityPercent;
+
+  String get levelLabel => switch (level) {
+        CrowdCadenceLevel.low => 'LOW',
+        CrowdCadenceLevel.moderate => 'MODERATE',
+        CrowdCadenceLevel.high => 'HIGH',
+      };
+}
+
+/// Formats a minutes-from-midnight clock value as "09:30 AM".
+String formatClockTime(int minutesFromMidnight) {
+  final normalized = minutesFromMidnight % (24 * 60);
+  final hour24 = normalized ~/ 60;
+  final minute = normalized % 60;
+  final period = hour24 >= 12 ? 'PM' : 'AM';
+  final hour12 = hour24 % 12 == 0 ? 12 : hour24 % 12;
+  return '${hour12.toString().padLeft(2, '0')}:${minute.toString().padLeft(2, '0')} $period';
+}
+
+/// Formats a duration in minutes as "2 hrs" / "1 hr 30 min" / "45 min".
+String formatDurationLabel(int minutes) {
+  final hours = minutes ~/ 60;
+  final mins = minutes % 60;
+  if (hours == 0) return '$mins min';
+  if (mins == 0) return '$hours hr${hours == 1 ? '' : 's'}';
+  return '$hours hr${hours == 1 ? '' : 's'} $mins min';
+}
+
 /// Mirrors the backend's `ItineraryItemResponse` shape (Backend/Triply.Api/
 /// Modules/Itinerary/Dtos) so swapping the mock repository for a real one
 /// later is a pure data-source change, not a model rewrite.
@@ -13,6 +72,16 @@ class ItineraryItemData {
     required this.isAiGenerated,
     this.tipText,
     this.notes,
+    this.heroImageUrl,
+    this.locationLabel,
+    this.startTimeMinutes,
+    this.durationMinutes,
+    this.priceUsdLabel,
+    this.priceLocalLabel,
+    this.priceContextLabel,
+    this.heroBadges = const [],
+    this.crowdCadence,
+    this.isPlaceholderEnrichment = false,
   });
 
   /// The itinerary item's own GUID — needed for `PATCH .../items/{itemId}`.
@@ -30,24 +99,60 @@ class ItineraryItemData {
   final String? tipText;
   final String? notes;
 
+  // Rich Place Detail Sheet / Edit Item Modal fields — no backend
+  // equivalent yet (PENDING BACKEND), null/empty until one exists.
+  final String? heroImageUrl;
+  final String? locationLabel; // "Arashiyama District • West Kyoto"
+  final int? startTimeMinutes; // minutes since midnight
+  final int? durationMinutes;
+  final String? priceUsdLabel; // "~$12"
+  final String? priceLocalLabel; // "¥1,800"
+  final String? priceContextLabel; // "Verified Entry Fee (Gardens + Hodo)"
+  final List<HeroBadgeData> heroBadges;
+  final CrowdCadenceData? crowdCadence;
+
+  /// True when the fields above were filled with generic placeholder
+  /// values by [ApiTripOverviewRepository] rather than real backend data
+  /// (no source fields exist there yet) — drives a small "Preview data"
+  /// label on the Place Detail Sheet instead of presenting them as fact.
+  final bool isPlaceholderEnrichment;
+
+  int? get endTimeMinutes => (startTimeMinutes != null && durationMinutes != null)
+      ? startTimeMinutes! + durationMinutes!
+      : null;
+
   ItineraryItemData copyWith({
     String? timeSlot,
+    int? orderIndex,
+    String? placeName,
     String? subtitle,
     String? estimatedCostLabel,
     bool? isAiGenerated,
     String? notes,
+    int? startTimeMinutes,
+    int? durationMinutes,
   }) {
     return ItineraryItemData(
       id: id,
       placeId: placeId,
       timeSlot: timeSlot ?? this.timeSlot,
-      orderIndex: orderIndex,
-      placeName: placeName,
+      orderIndex: orderIndex ?? this.orderIndex,
+      placeName: placeName ?? this.placeName,
       subtitle: subtitle ?? this.subtitle,
       estimatedCostLabel: estimatedCostLabel ?? this.estimatedCostLabel,
       isAiGenerated: isAiGenerated ?? this.isAiGenerated,
       tipText: tipText,
       notes: notes ?? this.notes,
+      heroImageUrl: heroImageUrl,
+      locationLabel: locationLabel,
+      startTimeMinutes: startTimeMinutes ?? this.startTimeMinutes,
+      durationMinutes: durationMinutes ?? this.durationMinutes,
+      priceUsdLabel: priceUsdLabel,
+      priceLocalLabel: priceLocalLabel,
+      priceContextLabel: priceContextLabel,
+      heroBadges: heroBadges,
+      crowdCadence: crowdCadence,
+      isPlaceholderEnrichment: isPlaceholderEnrichment,
     );
   }
 }
@@ -142,11 +247,18 @@ class StayHighlightData {
     required this.imageAsset,
     required this.title,
     required this.subtitle,
+    this.imageUrl,
   });
 
   final String imageAsset;
   final String title;
   final String subtitle;
+
+  /// Real cover photo, preferred over [imageAsset] when present. There's no
+  /// per-place image yet (see progress.md), so this is the trip's
+  /// destination cover photo as a stand-in — not the hotel itself, but a
+  /// real photo of where it is rather than a generic local asset.
+  final String? imageUrl;
 }
 
 /// The subset of `TripResponse` the Trip Overview screen needs: header
@@ -160,6 +272,7 @@ class TripOverviewData {
     required this.totalDays,
     required this.travelerCount,
     required this.status,
+    required this.version,
     required this.totalEstimatedCostUsd,
     required this.avgPerDayPerTravelerUsd,
     required this.isOnTarget,
@@ -177,6 +290,11 @@ class TripOverviewData {
   final int totalDays;
   final int travelerCount;
   final String status; // DRAFT, GENERATING, GENERATED, MODIFIED, SAVED, ARCHIVED
+
+  /// Optimistic-concurrency token (`Trip.Version` server-side). Sent back as
+  /// `expectedVersion` on partial regeneration so a stale regenerate-sheet
+  /// request can't overwrite a trip that changed elsewhere.
+  final int version;
   final double totalEstimatedCostUsd;
   final double avgPerDayPerTravelerUsd;
   final bool isOnTarget;
@@ -188,6 +306,7 @@ class TripOverviewData {
 
   TripOverviewData copyWith({
     String? status,
+    int? version,
     List<ItineraryDayData>? days,
   }) {
     return TripOverviewData(
@@ -198,6 +317,7 @@ class TripOverviewData {
       totalDays: totalDays,
       travelerCount: travelerCount,
       status: status ?? this.status,
+      version: version ?? this.version,
       totalEstimatedCostUsd: totalEstimatedCostUsd,
       avgPerDayPerTravelerUsd: avgPerDayPerTravelerUsd,
       isOnTarget: isOnTarget,

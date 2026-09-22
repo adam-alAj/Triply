@@ -949,7 +949,14 @@ class _ItineraryBody extends StatelessWidget {
 
                   final itemIndex = selectedDay.items.indexOf(item);
                   if (action == PlaceDetailAction.edit) {
-                    await _editItem(context, provider.selectedDayIndex, itemIndex, item);
+                    await _editItem(
+                      context,
+                      provider.selectedDayIndex,
+                      itemIndex,
+                      item,
+                      selectedDay: selectedDay,
+                      orderedItems: orderedItems,
+                    );
                   } else if (action == PlaceDetailAction.remove) {
                     context.read<TripOverviewProvider>().removeItem(
                           provider.selectedDayIndex,
@@ -962,6 +969,8 @@ class _ItineraryBody extends StatelessWidget {
                   provider.selectedDayIndex,
                   selectedDay.items.indexOf(item),
                   item,
+                  selectedDay: selectedDay,
+                  orderedItems: orderedItems,
                 ),
                 onRegenerate: () async {
                   final scope = await showRegenerateSheet(context);
@@ -991,9 +1000,18 @@ class _ItineraryBody extends StatelessWidget {
     BuildContext context,
     int dayIndex,
     int itemIndex,
-    ItineraryItemData item,
-  ) async {
-    final edited = await showEditItemModal(context, item);
+    ItineraryItemData item, {
+    required ItineraryDayData selectedDay,
+    required List<ItineraryItemData> orderedItems,
+  }) async {
+    final position = orderedItems.indexOf(item) + 1;
+    final edited = await showEditItemModal(
+      context,
+      item,
+      dayLabel: 'Day ${selectedDay.dayNumber} • ${item.locationLabel ?? item.subtitle}',
+      position: position < 1 ? 1 : position,
+      totalItems: orderedItems.length,
+    );
     if (edited == null || !context.mounted) return;
 
     final provider = context.read<TripOverviewProvider>();
@@ -1949,25 +1967,32 @@ class _StayHighlightCard
         child: Stack(
           fit: StackFit.expand,
           children: [
-            Image.asset(
-              highlight.imageAsset,
-              fit: BoxFit.cover,
-              errorBuilder:
-                  (_, __, ___) {
-                return Container(
-                  color:
-                  AppColors
-                      .surfaceContainer,
-                  child: const Icon(
-                    Icons
-                        .image_not_supported_outlined,
-                    color:
-                    AppColors.secondary,
-                    size: 32,
+            highlight.imageUrl != null
+                ? Image.network(
+                    highlight.imageUrl!,
+                    fit: BoxFit.cover,
+                    errorBuilder: (_, __, ___) =>
+                        Image.asset(highlight.imageAsset, fit: BoxFit.cover),
+                  )
+                : Image.asset(
+                    highlight.imageAsset,
+                    fit: BoxFit.cover,
+                    errorBuilder:
+                        (_, __, ___) {
+                      return Container(
+                        color:
+                        AppColors
+                            .surfaceContainer,
+                        child: const Icon(
+                          Icons
+                              .image_not_supported_outlined,
+                          color:
+                          AppColors.secondary,
+                          size: 32,
+                        ),
+                      );
+                    },
                   ),
-                );
-              },
-            ),
 
             Container(
               decoration:
