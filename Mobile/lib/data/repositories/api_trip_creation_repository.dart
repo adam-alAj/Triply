@@ -1,4 +1,5 @@
 import '../../core/network/api_client.dart';
+import '../../core/network/destination_assets_cache.dart';
 import '../models/trip_creation_data.dart';
 import 'trip_creation_repository.dart';
 
@@ -12,9 +13,10 @@ class ApiTripCreationRepository implements TripCreationRepository {
 
   @override
   Future<List<Map<String, dynamic>>> getDestinations() async {
-    final response = await _apiClient.get<List<dynamic>>('/api/destinations');
+    final destinations =
+        await DestinationAssetsCache.instance.getDestinations(_apiClient);
 
-    return response.cast<Map<String, dynamic>>().map((destination) {
+    return destinations.map((destination) {
       return <String, dynamic>{
         'id': destination['id'].toString(),
         'destinationId': destination['id'] as int,
@@ -26,16 +28,8 @@ class ApiTripCreationRepository implements TripCreationRepository {
   }
 
   @override
-  Future<Map<String, String>> getDestinationImages() async {
-    final response =
-        await _apiClient.get<Map<String, dynamic>>('/api/destinations/assets');
-
-    final entries = (response['destinations'] as List<dynamic>?) ?? [];
-
-    return {
-      for (final entry in entries.cast<Map<String, dynamic>>())
-        entry['destinationName'] as String: entry['url'] as String,
-    };
+  Future<Map<String, String>> getDestinationImages() {
+    return DestinationAssetsCache.instance.getImages(_apiClient);
   }
 
   @override
@@ -105,8 +99,12 @@ class ApiTripCreationRepository implements TripCreationRepository {
 
   @override
   Future<void> startGeneration(String tripId) async {
+    // AI generation runs up to 3 bounded-retry attempts server-side (each
+    // its own Gemini call), easily exceeding the client's default 15s
+    // timeout even on a successful run.
     await _apiClient.post<Map<String, dynamic>>(
       '/api/trips/$tripId/generate',
+      receiveTimeout: const Duration(seconds: 120),
     );
   }
 

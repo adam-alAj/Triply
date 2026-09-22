@@ -35,6 +35,15 @@ services:
     container_name: triply-api
     ports:
       - "8080:8080"
+    volumes:
+      # BUDGET_FIRST generation reads Extra_AI_Context.csv from
+      # ../../AI/01-Dataset/curated-data (relative to ContentRootPath=/app,
+      # i.e. /AI/... in the container) via appsettings.json's
+      # AI:ExtraAiContextPath. The AI/ folder lives outside this service's
+      # build context (./Triply.Api), so it was never copied into the image
+      # at all — mount it read-only instead of baking it in, since it's
+      # reference data the AI track updates independently of backend code.
+      - ../AI:/AI:ro
     environment:
       ASPNETCORE_ENVIRONMENT: Development
       # Double underscore ("__") is how ASP.NET Core maps env vars to nested

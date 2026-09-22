@@ -12,7 +12,7 @@ public class GeminiOptions
 
     // Flash-family model per the Recommended Technology Stack (free tier). Confirm exact model
     // name with the AI track once Latency Testing (Gemini Flash vs Flash-Lite) concludes.
-public string Model { get; set; } = "gemini-flash-lite-latest";
+public string Model { get; set; } = "gemini-3.6-flash";
  public string BaseUrl { get; set; } =
         "https://generativelanguage.googleapis.com/v1beta/models";
 

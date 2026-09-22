@@ -252,7 +252,40 @@ _logger.LogWarning(
                 await _db.SaveChangesAsync(cancellationToken);
 
                 allErrors.Add($"Attempt {attempt}: Gemini call failed - {ex.Message}");
+
+                // A short backoff before the next attempt — Gemini's transient
+                // 503s (observed in practice) tend to clear within a couple of
+                // seconds, but the retries here previously fired back-to-back
+                // with no delay, so all 3 attempts landed in the same brief
+                // overload window and failed together.
+                if (attempt < maxAttempts)
+                    await Task.Delay(TimeSpan.FromSeconds(3), cancellationToken);
+
                 continue; // bounded retry also covers transient API failures
+            }
+            catch (InvalidOperationException ex)
+            {
+                // A config problem (e.g. Gemini:ApiKey not set) — not a transient
+                // Gemini API failure, so retrying won't help. Without this catch,
+                // the exception escapes GenerateItineraryAsync entirely and the
+                // trip is left stuck at GENERATING forever (the status was
+                // already committed above, and nothing else here reverts it).
+                _logger.LogError(ex, "Generation aborted on attempt {Attempt} for trip {TripId}: {Message}", attempt, tripId, ex.Message);
+
+                aiGeneration.Status = "FAILED_ERROR";
+                aiGeneration.ValidationErrors = ex.Message;
+                aiGeneration.CompletedAt = DateTime.UtcNow;
+                TripLifecycle.Transition(trip, TripLifecycle.Draft);
+                await _db.SaveChangesAsync(cancellationToken);
+
+                return new AiGenerationResult
+                {
+                    Success = false,
+                    AiGenerationId = aiGeneration.Id,
+                    AttemptsUsed = attempt,
+                    Status = "FAILED_ERROR",
+                    Errors = { ex.Message }
+                };
             }
 
             aiGeneration.RawOutput = rawText;
@@ -739,6 +772,12 @@ _logger.LogWarning(
                 aiGeneration.CompletedAt = DateTime.UtcNow;
                 await _db.SaveChangesAsync(cancellationToken);
                 allErrors.Add($"Attempt {attempt}: Gemini call failed - {ex.Message}");
+
+                // See the matching comment in GenerateItineraryAsync — a short
+                // backoff so all attempts don't land in the same brief 503 window.
+                if (attempt < maxAttempts)
+                    await Task.Delay(TimeSpan.FromSeconds(3), cancellationToken);
+
                 continue;
             }
 

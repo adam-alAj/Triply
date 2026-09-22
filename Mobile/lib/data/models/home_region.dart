@@ -8,10 +8,17 @@ class HomeRegion {
     required this.country,
     required this.description,
     required this.imageAsset,
+    this.imageUrl,
   });
 
   final String name;
   final String country;
   final String description;
+
+  /// Local-asset fallback, used when [imageUrl] is null or fails to load.
   final String imageAsset;
+
+  /// Real cover photo from `GET /api/destinations/assets`, keyed by
+  /// destination name — preferred over [imageAsset] when present.
+  final String? imageUrl;
 }

@@ -1,4 +1,5 @@
 import '../../core/network/api_client.dart';
+import '../../core/network/destination_assets_cache.dart';
 import '../models/trip_summary.dart';
 import 'my_trips_repository.dart';
 
@@ -20,15 +21,7 @@ class ApiMyTripsRepository implements MyTripsRepository {
   }
 
   @override
-  Future<Map<String, String>> getDestinationImages() async {
-    final response =
-        await _apiClient.get<Map<String, dynamic>>('/api/destinations/assets');
-
-    final entries = (response['destinations'] as List<dynamic>?) ?? [];
-
-    return {
-      for (final entry in entries.cast<Map<String, dynamic>>())
-        entry['destinationName'] as String: entry['url'] as String,
-    };
+  Future<Map<String, String>> getDestinationImages() {
+    return DestinationAssetsCache.instance.getImages(_apiClient);
   }
 }

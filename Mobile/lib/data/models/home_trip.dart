@@ -11,6 +11,7 @@ class HomeTrip {
     required this.dayLabel,
     required this.totalDays,
     required this.imageAsset,
+    this.imageUrl,
   });
 
   final String id;
@@ -23,5 +24,11 @@ class HomeTrip {
   final String nextActivityTime;
   final String dayLabel;
   final int totalDays;
+
+  /// Local-asset fallback, used when [imageUrl] is null or fails to load.
   final String imageAsset;
+
+  /// Real cover photo from `GET /api/destinations/assets`, keyed by
+  /// destination name — preferred over [imageAsset] when present.
+  final String? imageUrl;
 }

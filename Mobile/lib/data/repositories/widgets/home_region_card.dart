@@ -12,6 +12,7 @@ class HomeRegionCard extends StatelessWidget {
     required this.badge,
     this.guides,
     required this.description,
+    this.imageUrl,
   });
 
   final String name;
@@ -19,6 +20,7 @@ class HomeRegionCard extends StatelessWidget {
   final String badge;
   final String? guides;
   final String description;
+  final String? imageUrl;
 
   @override
   Widget build(BuildContext context) {
@@ -42,10 +44,17 @@ class HomeRegionCard extends StatelessWidget {
               children: [
                 AspectRatio(
                   aspectRatio: 1.25,
-                  child: Image.asset(
-                    imageAsset,
-                    fit: BoxFit.cover,
-                  ),
+                  child: imageUrl != null
+                      ? Image.network(
+                          imageUrl!,
+                          fit: BoxFit.cover,
+                          errorBuilder: (_, __, ___) =>
+                              Image.asset(imageAsset, fit: BoxFit.cover),
+                        )
+                      : Image.asset(
+                          imageAsset,
+                          fit: BoxFit.cover,
+                        ),
                 ),
                 Positioned(
                   top: 8,

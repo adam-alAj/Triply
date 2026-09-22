@@ -14,9 +14,10 @@ import '../../widgets/secondary_button.dart';
 ///
 /// This screen (not Review) owns triggering the actual network calls, so
 /// a slow or failed request never leaves Review's button stuck mid-press.
-/// Every request already carries a bounded 15s timeout (see ApiClient), so
-/// "never spins forever" is satisfied by the network layer itself — no
-/// separate manual timeout timer needed here.
+/// Every request already carries a bounded timeout (see ApiClient — 15s by
+/// default, 120s for the generate call itself since it runs bounded-retry
+/// AI attempts server-side), so "never spins forever" is satisfied by the
+/// network layer itself — no separate manual timeout timer needed here.
 class GeneratingScreen extends StatefulWidget {
   const GeneratingScreen({super.key});
 
