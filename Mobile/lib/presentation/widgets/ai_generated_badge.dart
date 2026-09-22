@@ -5,6 +5,11 @@ import '../../core/theme/app_text_styles.dart';
 /// Figma source: Trip Overview - Itinerary (node 1:2), "AI-generated" pill.
 /// Per 08_SYSTEM_DESIGN.md Principle 04: AI should feel helpful, not
 /// magical — subtle badge only, no fake confidence scores/animations.
+///
+/// This marks *content* provenance (AI-authored copy/itinerary). Cost
+/// provenance uses [EstimatedBadge] (an estimate) or [VerifiedBadge]
+/// (checked against real data) — three distinct treatments kept in
+/// deliberate opposition so they are never confused (Principle 05).
 class AIGeneratedBadge extends StatelessWidget {
   const AIGeneratedBadge({super.key, this.label = 'AI-generated'});
 

@@ -10,11 +10,13 @@ import '../../providers/trip_overview_provider.dart';
 import '../../widgets/app_bottom_navigation.dart';
 import '../../widgets/day_selector.dart';
 import '../../widgets/error_state.dart';
+import '../../widgets/estimated_badge.dart';
 import '../../widgets/itinerary_item_card.dart';
 import '../../widgets/loading_skeleton.dart';
 import '../../widgets/primary_button.dart';
 import '../../widgets/secondary_button.dart';
 import '../../widgets/status_badge.dart';
+import '../../widgets/verified_badge.dart';
 import '../../widgets/trip_overview/archive_delete_dialog.dart';
 import '../../widgets/trip_overview/edit_item_modal.dart';
 import '../../widgets/trip_overview/place_detail_sheet.dart';
@@ -1872,75 +1874,13 @@ class _AccuracyBadge
 
   @override
   Widget build(BuildContext context) {
-    if (accuracy ==
-        CostAccuracy.estimated) {
-      return Container(
-        padding:
-        const EdgeInsets.symmetric(
-          horizontal: 8,
-          vertical: 3,
-        ),
-        decoration: BoxDecoration(
-          color:
-          AppColors.surfaceContainerLow,
-          borderRadius:
-          BorderRadius.circular(9999),
-        ),
-        child: Text(
-          'Estimated',
-          style:
-          AppTextStyles.labelSm.copyWith(
-            fontSize: 9,
-            color:
-            AppColors.secondary,
-            fontWeight:
-            FontWeight.w700,
-          ),
-        ),
-      );
-    }
-
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Container(
-          padding:
-          const EdgeInsets.symmetric(
-            horizontal: 8,
-            vertical: 3,
-          ),
-          decoration: BoxDecoration(
-            color:
-            AppColors.tertiaryFixed,
-            borderRadius:
-            BorderRadius.circular(9999),
-          ),
-          child: Text(
-            'Verified / AI-matched',
-            style:
-            AppTextStyles.labelSm.copyWith(
-              fontSize: 9,
-              color:
-              AppColors.secondary,
-              fontWeight:
-              FontWeight.w700,
-            ),
-          ),
-        ),
-
-        const SizedBox(width: 5),
-
-        Text(
-          'Accurate',
-          style:
-          AppTextStyles.labelSm.copyWith(
-            fontSize: 9,
-            color: AppColors.success,
-            fontWeight: FontWeight.w800,
-          ),
-        ),
-      ],
-    );
+    // Verified/matched values and plain estimates must read differently, and
+    // neither may reuse the AI-generated content marker's treatment — the
+    // previous "Verified / AI-matched" pill shared the AI badge's color, which
+    // is exactly the ambiguity 07_UI_PAGES.md §13 flagged (08 §Principle 05).
+    return accuracy == CostAccuracy.estimated
+        ? const EstimatedBadge()
+        : const VerifiedBadge();
   }
 }
 

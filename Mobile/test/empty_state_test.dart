@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:triply_project/presentation/widgets/empty_state.dart';
 import 'package:triply_project/presentation/widgets/primary_button.dart';
+import 'package:triply_project/presentation/widgets/secondary_button.dart';
 
 import 'test_helpers.dart';
 
@@ -89,6 +90,43 @@ void main() {
       );
 
       expect(find.byType(PrimaryButton), findsNothing);
+    });
+
+    testWidgets('shows a secondary action when both label and callback are given',
+        (tester) async {
+      var tapCount = 0;
+      await pumpApp(
+        tester,
+        EmptyState(
+          title: 'No destinations match your budget',
+          description: 'Try a higher budget.',
+          actionLabel: 'Adjust budget',
+          onAction: () {},
+          secondaryActionLabel: 'Change interests',
+          onSecondaryAction: () => tapCount++,
+        ),
+      );
+
+      expect(find.byType(SecondaryButton), findsOneWidget);
+      expect(find.text('Change interests'), findsOneWidget);
+
+      await tester.tap(find.text('Change interests'));
+      await tester.pump();
+      expect(tapCount, 1);
+    });
+
+    testWidgets('hides the secondary action when only the label is given',
+        (tester) async {
+      await pumpApp(
+        tester,
+        const EmptyState(
+          title: 'No destinations match your budget',
+          description: 'Try a higher budget.',
+          secondaryActionLabel: 'Change interests',
+        ),
+      );
+
+      expect(find.byType(SecondaryButton), findsNothing);
     });
   });
 }

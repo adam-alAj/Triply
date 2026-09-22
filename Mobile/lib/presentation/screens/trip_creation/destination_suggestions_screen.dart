@@ -4,7 +4,9 @@ import 'package:provider/provider.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_text_styles.dart';
 import '../../providers/trip_creation_provider.dart';
+import '../../widgets/empty_state.dart';
 import '../../widgets/error_state.dart';
+import '../../widgets/loading_skeleton.dart';
 import '../../widgets/primary_button.dart';
 
 class DestinationSuggestionsScreen extends StatelessWidget {
@@ -31,9 +33,12 @@ class DestinationSuggestionsScreen extends StatelessWidget {
                           'Something went wrong. Please try again.',
                       onAction: provider.loadSuggestions,
                     )
-                  : suggestions.isEmpty
-                  ? const _EmptySuggestions()
-                  : ListView(
+                  : provider.status == TripCreationStatus.loading &&
+                          suggestions.isEmpty
+                      ? const _SuggestionsLoadingSkeleton()
+                      : suggestions.isEmpty
+                          ? const _NoBudgetMatches()
+                          : ListView(
                 padding: const EdgeInsets.fromLTRB(
                   20,
                   8,
@@ -80,8 +85,10 @@ class DestinationSuggestionsScreen extends StatelessWidget {
               ),
             ),
 
-            _ContinueButton(),
-            const SizedBox(height: 16),
+            if (suggestions.isNotEmpty) ...[
+              _ContinueButton(),
+              const SizedBox(height: 16),
+            ],
           ],
         ),
       ),
@@ -390,36 +397,54 @@ class _SuggestionCard extends StatelessWidget {
 // EMPTY
 // -----------------------------------------------------------------------------
 
-class _EmptySuggestions extends StatelessWidget {
-  const _EmptySuggestions();
+/// Skeleton shown while the budget-first suggestion request is in flight
+/// (07_UI_PAGES.md §8: "skeleton (generation feel)"). Reuses the shared
+/// [LoadingSkeleton] rather than a bespoke shimmer.
+class _SuggestionsLoadingSkeleton extends StatelessWidget {
+  const _SuggestionsLoadingSkeleton();
 
   @override
   Widget build(BuildContext context) {
+    return ListView(
+      padding: const EdgeInsets.fromLTRB(20, 8, 20, 24),
+      children: const [
+        LoadingSkeleton(width: 150, height: 32, borderRadius: 20),
+        SizedBox(height: 22),
+        LoadingSkeleton(width: 220, height: 30, borderRadius: 10),
+        SizedBox(height: 12),
+        LoadingSkeleton(height: 18),
+        SizedBox(height: 24),
+        LoadingSkeleton(height: 240, borderRadius: 24),
+        SizedBox(height: 16),
+        LoadingSkeleton(height: 240, borderRadius: 24),
+      ],
+    );
+  }
+}
+
+/// Budget-first empty state (07_UI_PAGES.md §8, 08_SYSTEM_DESIGN.md §35):
+/// "No destinations match your budget" -> offer a real way forward instead of
+/// a dead end ("Adjust budget" / "Change interests"). Reuses [EmptyState] so
+/// it stays visually identical to every other empty state in the app.
+class _NoBudgetMatches extends StatelessWidget {
+  const _NoBudgetMatches();
+
+  @override
+  Widget build(BuildContext context) {
+    final provider = context.read<TripCreationProvider>();
+
     return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(30),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            const Icon(
-              Icons.travel_explore_outlined,
-              size: 48,
-              color: AppColors.secondary,
-            ),
-            const SizedBox(height: 16),
-            Text(
-              'No suggestions available',
-              style: AppTextStyles.headlineSm,
-            ),
-            const SizedBox(height: 8),
-            Text(
-              'We could not find destinations for these preferences.',
-              textAlign: TextAlign.center,
-              style: AppTextStyles.bodyMd.copyWith(
-                color: AppColors.secondary,
-              ),
-            ),
-          ],
+      child: SingleChildScrollView(
+        child: EmptyState(
+          icon: Icons.travel_explore_outlined,
+          title: 'No destinations match your budget',
+          description: "We couldn't find destinations that fit this budget yet. "
+              'Raise your budget or tweak your interests and Triply will '
+              're-check what fits.',
+          actionLabel: 'Adjust budget',
+          onAction: provider.jumpToDestinationStep,
+          secondaryActionLabel: 'Change interests',
+          onSecondaryAction: provider.jumpToInterestsStep,
         ),
       ),
     );
