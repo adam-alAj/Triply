@@ -53,6 +53,8 @@ class ApiTripCreationRepository implements TripCreationRepository {
         (response['suggestions'] as List<dynamic>? ?? const [])
             .cast<Map<String, dynamic>>();
 
+    final images = await DestinationAssetsCache.instance.getImages(_apiClient);
+
     return suggestions.map((suggestion) {
       final destinationId = suggestion['destinationId'] as int;
       final name = suggestion['destinationName'] as String;
@@ -65,8 +67,9 @@ class ApiTripCreationRepository implements TripCreationRepository {
         'destinationId': destinationId,
         'name': name,
         'country': country,
-        // The backend doesn't serve destination imagery yet; the suggestion
-        // card already falls back to a placeholder icon on a missing asset.
+        'imageUrl': images[name],
+        // Falls back to a placeholder icon (see _SuggestionCard's
+        // errorBuilder) when there's no real cover photo for this name.
         'image': 'assets/images/trip_creation/placeholder.jpg',
         'description': 'AI-curated pick in $country',
         'estimatedCost': '$currency $cost avg.',
