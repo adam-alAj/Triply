@@ -24,7 +24,10 @@ namespace Triply.Api.Modules.AIOrchestration;
 /// </summary>
 public interface IAiOrchestrationService
 {
-    Task<AiGenerationResult> GenerateItineraryAsync(Guid tripId, CancellationToken cancellationToken = default);
+    Task<AiGenerationResult> GenerateItineraryAsync(
+        Guid tripId,
+        GenerateItineraryRequest? request = null,
+        CancellationToken cancellationToken = default);
 
     Task<AiGenerationResult> RegeneratePartialAsync(
         Guid tripId,
@@ -76,6 +79,7 @@ public class AiOrchestrationService : IAiOrchestrationService
 
     public async Task<AiGenerationResult> GenerateItineraryAsync(
         Guid tripId,
+        GenerateItineraryRequest? request = null,
         CancellationToken cancellationToken = default)
     {
         var trip = await _db.Trips
@@ -95,28 +99,46 @@ public class AiOrchestrationService : IAiOrchestrationService
             throw new InvalidOperationException(
                 "Budget-first trips require the user to select one of the suggested destinations before generation.");
 
-        if (!TripLifecycle.CanTransition(trip.Status, TripLifecycle.Generating) && trip.Status != TripLifecycle.Generating)
-            throw new InvalidOperationException($"Trip in status '{trip.Status}' cannot start generation.");
+        // --- Full-generation concurrency guard (Gap 3) ---
+        // Mirrors the proven partial-regeneration pattern (ExpectedVersion +
+        // ExecuteUpdate + affected-row check): a single conditional UPDATE claims the
+        // trip (DRAFT@version N -> GENERATING@version N+1) atomically. Two parallel
+        // /generate requests can both read DRAFT/N, but only one conditional UPDATE
+        // can match it; the loser gets 0 affected rows and is rejected with 409
+        // (InvalidOperationException mapping in AiGenerationController) before any
+        // generation work or Gemini spend happens.
+        if (trip.Status == TripLifecycle.Generating)
+            throw new InvalidOperationException(
+                "Trip is already generating. Only one generation request can run at a time.");
 
-        if (trip.Status != TripLifecycle.Generating)
-            TripLifecycle.Transition(trip, TripLifecycle.Generating);
-var trackerDebug = _db.ChangeTracker
-    .Entries<ItineraryItem>()
-    .Select(e => new
-    {
-        Id = e.Entity.Id,
-        State = e.State.ToString(),
-        DayId = e.Entity.ItineraryDayId,
-        PlaceId = e.Entity.PlaceId,
-        TimeSlot = e.Entity.TimeSlot,
-        IsAiGenerated = e.Entity.IsAiGenerated
-    })
-    .ToList();
+        if (!TripLifecycle.CanTransition(trip.Status, TripLifecycle.Generating))
+            throw new InvalidOperationException(
+                $"Trip in status '{trip.Status}' cannot start generation.");
 
-_logger.LogWarning(
-    "DAY regeneration ItineraryItem tracker: {@Items}",
-    trackerDebug);
-        await _db.SaveChangesAsync(cancellationToken);
+        // Optional client-observed version for FULL generation — same semantics as
+        // partial regeneration's ExpectedVersion: a stale value is rejected.
+        if (request?.ExpectedVersion is { } expectedVersion && expectedVersion != trip.Version)
+            throw new InvalidOperationException("Trip has been modified by another request.");
+
+        var claimVersion = trip.Version + 1;
+        var claimed = await _db.Trips
+            .Where(t => t.Id == tripId &&
+                        t.Status == TripLifecycle.Draft &&
+                        t.Version == trip.Version)
+            .ExecuteUpdateAsync(setters => setters
+                .SetProperty(t => t.Status, TripLifecycle.Generating)
+                .SetProperty(t => t.UpdatedAt, DateTime.UtcNow)
+                .SetProperty(t => t.Version, claimVersion), cancellationToken);
+
+        if (claimed != 1)
+            throw new InvalidOperationException(
+                "Another generation request has claimed this trip, or the trip was modified by another request.");
+
+        // ExecuteUpdate bypasses EF's change tracker: reload the tracked trip so its
+        // original values match the committed claim — every later SaveChanges must
+        // see GENERATING@claimVersion, not the pre-claim snapshot (Trip.Version is an
+        // EF concurrency token).
+        await _db.Entry(trip).ReloadAsync(cancellationToken);
 
         // --- Fetch dataset context (active places; destination-scoped for destination-first) ---
         var placeQuery = _db.Places
@@ -331,10 +353,6 @@ _logger.LogWarning(
             // BUDGET_FIRST picks the first valid one — user selection comes later).
             var selectedOption = output.DestinationOptions.First();
 
-            // Resolve place names to Place IDs for persistence
-            var nameToPlace = places.ToDictionary(p => p.Name, p => p);
-            var accommodationPlaceId = nameToPlace[selectedOption.Accommodation.PlaceName].Id;
-
             var selectedDestination = await _db.Destinations
                 .FirstOrDefaultAsync(d => d.Name == selectedOption.DestinationName, cancellationToken);
 
@@ -342,18 +360,49 @@ _logger.LogWarning(
                 throw new InvalidOperationException(
                     $"Generated destination '{selectedOption.DestinationName}' could not be resolved to the internal dataset.");
 
+            // Duplicate-name handling (Gap 6): build the destination-scoped name
+            // lookup defensively so an active duplicate place name inside the curated
+            // dataset becomes an explicit FAILED_VALIDATION attempt failure instead of
+            // an ArgumentException escaping from ToDictionary (unhandled 400/500).
+            // Fail closed: ambiguous curated data can never produce an accepted itinerary.
+            var scopedPlaces = places
+                .Where(p => p.DestinationId == selectedDestination.Id)
+                .ToList();
+
+            var duplicatePlaceNames = scopedPlaces
+                .GroupBy(p => p.Name, StringComparer.Ordinal)
+                .Where(g => g.Count() > 1)
+                .Select(g => g.Key)
+                .ToList();
+
+            if (duplicatePlaceNames.Count > 0)
+            {
+                var duplicateList = string.Join(", ", duplicatePlaceNames);
+
+                aiGeneration.Status = "FAILED_VALIDATION";
+                aiGeneration.ValidationErrors =
+                    "Duplicate active place name(s) in curated dataset for destination " +
+                    $"'{selectedDestination.Name}': {duplicateList}.";
+                aiGeneration.CompletedAt = DateTime.UtcNow;
+                await _db.SaveChangesAsync(cancellationToken);
+                allErrors.Add(
+                    $"Attempt {attempt}: duplicate active place name(s) in curated dataset: {duplicateList}.");
+                continue;
+            }
+
             if (trip.DestinationId is null)
                 trip.DestinationId = selectedDestination.Id;
 
-            var selectedPlaceLookup = places
-                .Where(p => p.DestinationId == selectedDestination.Id)
-                .ToDictionary(p => p.Name, p => p);
+            // Resolve place names to Place IDs for persistence. Validation above has
+            // already grounded every referenced name to an active row in this
+            // destination, and duplicates were rejected just above.
+            var nameToPlace = scopedPlaces.ToDictionary(p => p.Name, p => p, StringComparer.Ordinal);
 
-            if (!selectedPlaceLookup.ContainsKey(selectedOption.Accommodation.PlaceName))
+            if (!nameToPlace.TryGetValue(selectedOption.Accommodation.PlaceName, out var accommodationPlace))
                 throw new InvalidOperationException(
                     $"Accommodation '{selectedOption.Accommodation.PlaceName}' is not grounded to the selected destination.");
 
-            nameToPlace = selectedPlaceLookup;
+            var accommodationPlaceId = accommodationPlace.Id;
 
             // Deterministic backend budget guard. The AI never supplies prices:
             // every amount is resolved from the authoritative Place.reference_price,
@@ -833,9 +882,34 @@ _logger.LogWarning(
                 continue;
             }
 
-            var placeLookup = places
+            var scopedPlaces = places
                 .Where(p => p.DestinationName == selectedOption.DestinationName)
-                .ToDictionary(p => p.Name, p => p);
+                .ToList();
+
+            // Duplicate-name handling (Gap 6): same fail-closed guard as full
+            // generation — an active duplicate place name becomes FAILED_VALIDATION
+            // for this attempt instead of an ArgumentException from ToDictionary.
+            var duplicatePlaceNames = scopedPlaces
+                .GroupBy(p => p.Name, StringComparer.Ordinal)
+                .Where(g => g.Count() > 1)
+                .Select(g => g.Key)
+                .ToList();
+
+            if (duplicatePlaceNames.Count > 0)
+            {
+                var duplicateList = string.Join(", ", duplicatePlaceNames);
+
+                aiGeneration.Status = "FAILED_VALIDATION";
+                aiGeneration.ValidationErrors =
+                    $"Duplicate active place name(s) in curated dataset: {duplicateList}.";
+                aiGeneration.CompletedAt = DateTime.UtcNow;
+                await _db.SaveChangesAsync(cancellationToken);
+                allErrors.Add(
+                    $"Attempt {attempt}: duplicate active place name(s) in curated dataset: {duplicateList}.");
+                continue;
+            }
+
+            var placeLookup = scopedPlaces.ToDictionary(p => p.Name, p => p, StringComparer.Ordinal);
 
             if (scope == "ITEM")
             {

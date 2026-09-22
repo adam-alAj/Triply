@@ -26,6 +26,7 @@ public class ApplicationDbContext : IdentityDbContext<ApplicationUser, IdentityR
     public DbSet<AIGeneration> AIGenerations => Set<AIGeneration>();
     public DbSet<UserPreferences> UserPreferences => Set<UserPreferences>();
     public DbSet<ExchangeRate> ExchangeRates => Set<ExchangeRate>();
+    public DbSet<RefreshToken> RefreshTokens => Set<RefreshToken>();
 
     protected override void OnModelCreating(ModelBuilder b)
     {
@@ -182,6 +183,14 @@ public class ApplicationDbContext : IdentityDbContext<ApplicationUser, IdentityR
 
         // email UNIQUE enforced at DB level, not just app-level RequireUniqueEmail
         b.Entity<ApplicationUser>().HasIndex(x => x.NormalizedEmail).IsUnique();
+
+        // ---- RefreshToken (Task 1: refresh tokens + logout/revocation) ----
+        b.Entity<RefreshToken>().HasIndex(x => x.TokenHash).IsUnique();
+        b.Entity<RefreshToken>().HasIndex(x => x.UserId); // IX_RefreshToken_UserId
+        b.Entity<RefreshToken>()
+            .HasOne(x => x.User).WithMany()
+            .HasForeignKey(x => x.UserId)
+            .OnDelete(DeleteBehavior.Cascade);
         // ---- CHECK constraints (§16 Data Integrity Rules) ----
         b.Entity<Trip>().ToTable(t => t.HasCheckConstraint(
             "CK_Trip_TravelerCount", "[TravelerCount] > 0"));

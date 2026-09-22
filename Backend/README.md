@@ -262,6 +262,31 @@ docker compose ps
 
 Health: `http://localhost:8080/health` · Swagger: `http://localhost:8080/swagger`
 
+### Reference data on a fresh database (development provisioning)
+
+PR #66 removed the backend's static seed on purpose: a fresh database starts with
+**zero** reference rows, and the AI track's versioned CSVs in
+`AI/01-Dataset/curated-data/` are the single source of truth. In the
+`Development` environment the API now provisions them automatically right after
+migrating (`Data/SeedData.cs`):
+
+- additive and idempotent — every row is matched by natural key and only inserted
+  when missing; re-running never duplicates rows and never updates or deletes
+  existing user/trip/reference data,
+- imports the real curated dataset (countries, currencies, categories,
+  destinations, places, place↔interest links, placeholder exchange rates),
+- needs no Python/pyodbc/ODBC inside the container — the manual
+  `AI/01-Dataset/seed/*.py` scripts stay available for offline/ops dataset work
+  but are **not** part of the standard setup (the automatic startup path above is),
+- dataset path configurable via `AI:CuratedDataPath` (default
+  `../../AI/01-Dataset/curated-data` relative to the content root — in Docker the
+  compose `../AI:/AI` mount resolves this to `/AI/01-Dataset/curated-data`),
+- **fails fast**: a missing dataset directory/file or a required reference
+  table that would remain empty aborts startup with a clear error — the
+  environment never continues silently unprovisioned,
+- **Development only**: `Testing` keeps its test fixtures, and
+  Staging/Production are never seeded by the application.
+
 ---
 
 ## 14. CI/CD & Git Workflow

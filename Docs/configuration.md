@@ -39,6 +39,7 @@ Examples:
 - Jwt__ExpiresMinutes
 - Gemini__ApiKey
 - Cors__AllowedOrigins
+- DataRetention__RawOutputDays
 
 ## Local development
 
@@ -78,3 +79,18 @@ while .env.example contains:
 Jwt__Key=REPLACE_WITH_A_LONG_RANDOM_SECRET
 
 Only the example value is committed.
+
+## AI raw-output retention
+
+`Docs/05` (§16, raw AI payload retention) defines a 30-day retention window for
+`AIGeneration.raw_output`. The backend enforces it with
+`AiRawOutputRetentionService`: payloads older than the window are nulled by a
+background pass that runs shortly after startup and then every 12 hours.
+Generation attempt rows, statuses, validation errors and timestamps are
+preserved — only the raw payload column is purged.
+
+- Configuration key: `DataRetention:RawOutputDays` (default `30`)
+- Environment variable: `DataRetention__RawOutputDays`
+- `0` or a negative value disables the purge (not recommended — the documented
+  policy is 30 days)
+- Committed template: `appsettings.Example.json`

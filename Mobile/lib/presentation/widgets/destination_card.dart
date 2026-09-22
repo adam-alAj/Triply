@@ -30,9 +30,15 @@ class DestinationCard extends StatelessWidget {
         width: 200,
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(32),
-          border: selected ? Border.all(color: AppColors.primary, width: 2) : null,
+          border: selected
+              ? Border.all(color: AppColors.primary, width: 2)
+              : null,
           boxShadow: const [
-            BoxShadow(color: AppColors.shadowAmbient, blurRadius: 6, offset: Offset(0, 3)),
+            BoxShadow(
+              color: AppColors.shadowAmbient,
+              blurRadius: 6,
+              offset: Offset(0, 3),
+            ),
           ],
         ),
         clipBehavior: Clip.antiAlias,
@@ -43,7 +49,13 @@ class DestinationCard extends StatelessWidget {
               height: 120,
               width: double.infinity,
               child: imageUrl != null
-                  ? Image.network(imageUrl!, fit: BoxFit.cover)
+                  ? Image.network(
+                      imageUrl!,
+                      fit: BoxFit.cover,
+                      errorBuilder: (context, error, stackTrace) {
+                        return Container(color: AppColors.surfaceContainer);
+                      },
+                    )
                   : Container(color: AppColors.surfaceContainer),
             ),
             Container(
@@ -53,7 +65,12 @@ class DestinationCard extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(name, style: AppTextStyles.headlineSm, maxLines: 1, overflow: TextOverflow.ellipsis),
+                  Text(
+                    name,
+                    style: AppTextStyles.headlineSm,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
                   Text(supportingAttribute, style: AppTextStyles.bodySm),
                 ],
               ),

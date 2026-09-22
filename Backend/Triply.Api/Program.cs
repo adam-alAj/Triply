@@ -31,6 +31,17 @@ var connectionString = builder.Configuration.GetConnectionString("Default")
     ?? throw new InvalidOperationException(
         "ConnectionStrings:Default is not configured.");
 
+// ---------- Request size limit (Security Task 2) ----------
+// Nothing previously stopped a client from sending an oversized request body
+// (Kestrel's own default is ~28.6 MB — far larger than anything this API needs).
+// 1 MB comfortably covers every JSON payload this API accepts today.
+const long MaxRequestBodyBytes = 1 * 1024 * 1024;
+
+builder.WebHost.ConfigureKestrel(serverOptions =>
+{
+    serverOptions.Limits.MaxRequestBodySize = MaxRequestBodyBytes;
+});
+
 // ---------- EF Core + SQL Server ----------
 
 builder.Services.AddDbContext<ApplicationDbContext>(opt =>
@@ -47,7 +58,12 @@ builder.Services
         opt.User.RequireUniqueEmail = true;
     })
     .AddRoles<IdentityRole<Guid>>()
-    .AddEntityFrameworkStores<ApplicationDbContext>();
+    .AddEntityFrameworkStores<ApplicationDbContext>()
+    // Needed for GenerateEmailConfirmationTokenAsync / GeneratePasswordResetTokenAsync
+    // (Security Task 1: email verification + password reset).
+    .AddDefaultTokenProviders();
+
+builder.Services.AddScoped<IEmailSender, LoggingEmailSender>();
 
 // ---------- JWT Authentication ----------
 
@@ -99,27 +115,62 @@ builder.Services.AddFluentValidationAutoValidation();
 builder.Services.AddValidatorsFromAssemblyContaining<Program>();
 
 // ---------- Rate Limiting ----------
+// Every limiter below is partitioned per caller (authenticated user id, falling back
+// to remote IP for anonymous requests like login/register) instead of one shared
+// global counter — otherwise one abusive client throttles every other user at once
+// (Security Task 3, confirmed by SecurityHardeningTests / RateLimitingTests).
+static string PartitionKey(HttpContext context)
+{
+    var userId = context.User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value
+        ?? context.User.FindFirst("sub")?.Value;
+
+    if (!string.IsNullOrEmpty(userId))
+        return $"user:{userId}";
+
+    return $"ip:{context.Connection.RemoteIpAddress}";
+}
+
 builder.Services.AddRateLimiter(options =>
 {
     options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
 
     options.AddFixedWindowLimiter("fixed", opt =>
     {
+        // 200 (was 100): the Testing budget must cover the full integration suite
+        // including the gap-regression tests added for generation concurrency,
+        // duplicate-place validation, and dataset provisioning. Production stays 10.
         opt.PermitLimit =
-            builder.Environment.IsEnvironment("Testing") ? 100 : 10;
+            builder.Environment.IsEnvironment("Testing") ? 200 : 10;
 
-        opt.Window = TimeSpan.FromMinutes(1);
-        opt.QueueProcessingOrder = QueueProcessingOrder.OldestFirst;
-        opt.QueueLimit = 0;
-    });
+    options.AddPolicy("fixed", context =>
+        RateLimitPartition.GetFixedWindowLimiter(PartitionKey(context), _ => new FixedWindowRateLimiterOptions
+        {
+            PermitLimit = generalPermitLimit,
+            Window = TimeSpan.FromMinutes(1),
+            QueueProcessingOrder = QueueProcessingOrder.OldestFirst,
+            QueueLimit = 0
+        }));
 
-    options.AddFixedWindowLimiter("login", opt =>
-    {
-        opt.PermitLimit = 5;
-        opt.Window = TimeSpan.FromMinutes(1);
-        opt.QueueProcessingOrder = QueueProcessingOrder.OldestFirst;
-        opt.QueueLimit = 0;
-    });
+    options.AddPolicy("login", context =>
+        RateLimitPartition.GetFixedWindowLimiter(PartitionKey(context), _ => new FixedWindowRateLimiterOptions
+        {
+            PermitLimit = 5,
+            Window = TimeSpan.FromMinutes(1),
+            QueueProcessingOrder = QueueProcessingOrder.OldestFirst,
+            QueueLimit = 0
+        }));
+
+    // AI generation is the most expensive action in the app (costs money + time),
+    // so it gets its own, much tighter, per-user budget instead of sharing "fixed"
+    // (Security Task 3): 10 generations per hour per user.
+    options.AddPolicy("ai-generation", context =>
+        RateLimitPartition.GetFixedWindowLimiter(PartitionKey(context), _ => new FixedWindowRateLimiterOptions
+        {
+            PermitLimit = builder.Environment.IsEnvironment("Testing") ? 100 : 10,
+            Window = TimeSpan.FromHours(1),
+            QueueProcessingOrder = QueueProcessingOrder.OldestFirst,
+            QueueLimit = 0
+        }));
 });
 
 // ---------- CORS ----------
@@ -156,6 +207,15 @@ builder.Services.AddScoped<IItineraryPromptBuilder, ItineraryPromptBuilder>();
 builder.Services.AddScoped<IItineraryValidator, ItineraryValidationService>();
 builder.Services.AddScoped<IExtraAiContextReader, ExtraAiContextReader>();
 builder.Services.AddScoped<IAiOrchestrationService, AiOrchestrationService>();
+
+// Gap 4 — 30-day AI raw-output retention (Docs/05 §16): nulls
+// AIGeneration.RawOutput for attempts older than DataRetention:RawOutputDays
+// (default 30). The hosted runner is inert in the Testing environment — tests
+// call IAiRawOutputRetentionService directly.
+builder.Services.Configure<DataRetentionOptions>(
+    builder.Configuration.GetSection(DataRetentionOptions.SectionName));
+builder.Services.AddScoped<IAiRawOutputRetentionService, AiRawOutputRetentionService>();
+builder.Services.AddHostedService<AiRawOutputRetentionBackgroundService>();
 
 builder.Services.AddControllers();
 
@@ -227,10 +287,14 @@ if (app.Environment.IsDevelopment())
 app.UseHttpsRedirection();
 
 app.UseCors("FlutterClients");
-app.UseRateLimiter();
-app.UseAuthentication();
 
+// UseAuthentication() must run before UseRateLimiter(): the rate limiter partitions
+// by authenticated user id (see PartitionKey above), which only exists on
+// HttpContext.User once the JWT middleware has run.
+app.UseAuthentication();
 app.UseAuthorization();
+
+app.UseRateLimiter();
 
 app.MapControllers();
 
@@ -239,12 +303,30 @@ app.MapControllers();
 app.MapGet("/health", () =>
     Results.Ok(new { status = "ok" }));
 
-// ---------- Database Migration ----------
+// ---------- Database Migration + Development reference-data provisioning ----------
 if (app.Environment.IsDevelopment() || app.Environment.IsEnvironment("Testing"))
 {
     using var scope = app.Services.CreateScope();
     var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
     db.Database.Migrate();
+
+    // Gap 1 — a fresh database intentionally has zero reference rows (PR #66 removed
+    // the static seed; the AI track's curated CSVs are the source of truth). In the
+    // Development environment only, provision them at startup from
+    // AI/01-Dataset/curated-data: additive, idempotent, never deletes rows, and cheap
+    // (small fixed CSVs, insert-if-missing only — not an expensive import on every
+    // startup, and never run outside Development). Testing keeps its own fixture
+    // seeding; Staging/Production are never seeded by the application.
+    if (app.Environment.IsDevelopment())
+    {
+        await SeedData.EnsureCuratedDatasetAsync(
+            db,
+            app.Configuration,
+            app.Environment,
+            scope.ServiceProvider
+                .GetRequiredService<ILoggerFactory>()
+                .CreateLogger("SeedData"));
+    }
 }
 
 app.Run();
