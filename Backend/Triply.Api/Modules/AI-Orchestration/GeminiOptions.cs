@@ -22,9 +22,8 @@ public string Model { get; set; } = "gemini-3.6-flash";
 
     public int TimeoutSeconds { get; set; } = 30;
 
-    // SRS §17 D1 — proposed ±15%, pending team sign-off. Used only if the AI-agreed
-    // output schema ever echoes back a price to sanity-check against Place.reference_price;
-    // the persisted cost is always recomputed deterministically from Place.reference_price
-    // regardless (Database Design §15), so this never controls what gets stored.
-    public decimal CostTolerancePercent { get; set; } = 15m;
+    // NOTE: the former CostTolerancePercent (SRS §17 D1, ±15%) was removed as dead
+    // configuration — AI JSON Schema Contract v2.0.0 dropped the AI-echoed cost
+    // summary, so nothing ever consumed it. Cost is always recomputed
+    // deterministically from Place.reference_price (Database Design §15).
 }

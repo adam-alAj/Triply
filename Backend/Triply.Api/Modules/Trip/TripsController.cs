@@ -102,27 +102,6 @@ public class TripsController : ControllerBase
         return Ok(ToResponse(trip, itinerary, costEstimate));
     }
 
-    [HttpPost("test-create")]
-    public async Task<IActionResult> TestCreate(
-        CancellationToken cancellationToken)
-    {
-        var userId = GetUserId();
-        if (userId is null) return Unauthorized();
-
-        var trip = new Triply.Api.Entities.Trip
-        {
-            UserId = userId.Value,
-            PlanningMode = "DESTINATION_FIRST",
-            Status = TripLifecycle.Draft,
-            TravelerCount = 1
-        };
-
-        _db.Trips.Add(trip);
-        await _db.SaveChangesAsync(cancellationToken);
-
-        return Ok(new { trip.Id });
-    }
-
     [HttpPost]
     public async Task<IActionResult> Create(
         [FromBody] CreateTripRequest request,

@@ -134,7 +134,13 @@ builder.Services.AddRateLimiter(options =>
 {
     options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
 
-    var generalPermitLimit = builder.Environment.IsEnvironment("Testing") ? 100 : 10;
+    options.AddFixedWindowLimiter("fixed", opt =>
+    {
+        // 200 (was 100): the Testing budget must cover the full integration suite
+        // including the gap-regression tests added for generation concurrency,
+        // duplicate-place validation, and dataset provisioning. Production stays 10.
+        opt.PermitLimit =
+            builder.Environment.IsEnvironment("Testing") ? 200 : 10;
 
     options.AddPolicy("fixed", context =>
         RateLimitPartition.GetFixedWindowLimiter(PartitionKey(context), _ => new FixedWindowRateLimiterOptions
@@ -288,12 +294,30 @@ app.MapControllers();
 app.MapGet("/health", () =>
     Results.Ok(new { status = "ok" }));
 
-// ---------- Database Migration ----------
+// ---------- Database Migration + Development reference-data provisioning ----------
 if (app.Environment.IsDevelopment() || app.Environment.IsEnvironment("Testing"))
 {
     using var scope = app.Services.CreateScope();
     var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
     db.Database.Migrate();
+
+    // Gap 1 — a fresh database intentionally has zero reference rows (PR #66 removed
+    // the static seed; the AI track's curated CSVs are the source of truth). In the
+    // Development environment only, provision them at startup from
+    // AI/01-Dataset/curated-data: additive, idempotent, never deletes rows, and cheap
+    // (small fixed CSVs, insert-if-missing only — not an expensive import on every
+    // startup, and never run outside Development). Testing keeps its own fixture
+    // seeding; Staging/Production are never seeded by the application.
+    if (app.Environment.IsDevelopment())
+    {
+        await SeedData.EnsureCuratedDatasetAsync(
+            db,
+            app.Configuration,
+            app.Environment,
+            scope.ServiceProvider
+                .GetRequiredService<ILoggerFactory>()
+                .CreateLogger("SeedData"));
+    }
 }
 
 app.Run();

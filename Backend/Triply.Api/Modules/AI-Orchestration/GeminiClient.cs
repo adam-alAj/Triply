@@ -59,7 +59,7 @@ public class GeminiClient : IGeminiClient
                 "Gemini:ApiKey is not configured. Set it via environment variable / secrets, never commit it.");
         }
 
-        var url = $"{_options.BaseUrl}/{_options.Model}:generateContent?key={_options.ApiKey}";
+        var url = $"{_options.BaseUrl}/{_options.Model}:generateContent";
 
         // responseMimeType=application/json asks Gemini's structured-output mode to return
         // JSON only, no surrounding prose — reduces (does not replace) the need for validation.
@@ -105,7 +105,7 @@ public class GeminiClient : IGeminiClient
                 "Gemini:ApiKey is not configured. Set it via environment variable / secrets, never commit it.");
         }
 
-        var url = $"{_options.BaseUrl}/{_options.Model}:generateContent?key={_options.ApiKey}";
+        var url = $"{_options.BaseUrl}/{_options.Model}:generateContent";
 
         var requestBody = new
         {
@@ -140,7 +140,18 @@ public class GeminiClient : IGeminiClient
         HttpResponseMessage response;
         try
         {
-            response = await _http.PostAsJsonAsync(url, requestBody, JsonOptions, cancellationToken);
+            // Auth via the x-goog-api-key header (Google's documented API-key
+            // authentication header), never via the query string: a ?key= URL leaks
+            // the secret into HTTP request logs, proxies, and tracing output
+            // (Gap 4 / audit R-05). Model selection, payload, parsing, timeout and
+            // retry behavior are unchanged.
+            using var request = new HttpRequestMessage(HttpMethod.Post, url)
+            {
+                Content = JsonContent.Create(requestBody, options: JsonOptions)
+            };
+            request.Headers.TryAddWithoutValidation("x-goog-api-key", _options.ApiKey);
+
+            response = await _http.SendAsync(request, cancellationToken);
         }
         catch (TaskCanceledException ex) when (!cancellationToken.IsCancellationRequested)
         {
