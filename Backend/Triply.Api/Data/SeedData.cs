@@ -25,7 +25,10 @@ namespace Triply.Api.Data;
 ///     and only INSERTED when missing - re-running never duplicates and never
 ///     updates or deletes existing rows, so user and trip data is untouched,
 ///   - mirrors the semantics of AI/01-Dataset/seed/*.py but needs no Python,
-///     pyodbc or ODBC driver inside the container (the backend image has none).
+///     pyodbc or ODBC driver inside the container (the backend image has none),
+///   - FAILS FAST: a missing dataset directory/file or a required reference table
+///     that would stay empty throws instead of letting the environment start
+///     silently unprovisioned (provisioning failure must always be visible).
 ///
 /// Production/Staging behavior is unchanged: Program.cs never calls this outside
 /// Development, and there is no code path here that deletes data.
@@ -63,12 +66,15 @@ public static class SeedData
 
         if (!Directory.Exists(dataDirectory))
         {
-            logger.LogWarning(
-                "Curated dataset directory not found at '{Path}' - skipping reference-data " +
-                "provisioning. Set AI:CuratedDataPath (relative to the content root) or make " +
-                "the AI/01-Dataset/curated-data folder available to enable it.",
-                dataDirectory);
-            return new SeedSummary(Skipped: true, DataDirectory: dataDirectory);
+            // GAP-001/GAP-002: never continue silently unprovisioned. The default path
+            // only exists inside the repository checkout (or the compose /AI mount);
+            // outside it the operator must point AI:CuratedDataPath at the dataset.
+            throw new InvalidOperationException(
+                $"Curated dataset directory not found at '{dataDirectory}' - cannot provision " +
+                "the required reference data. Run from a repository checkout (default: " +
+                "../../AI/01-Dataset/curated-data relative to the content root, /AI/... in " +
+                "Docker) or set AI:CuratedDataPath (rooted or content-root-relative) to the " +
+                "curated-data directory.");
         }
 
         logger.LogInformation(
@@ -92,7 +98,65 @@ public static class SeedData
             summary.PlaceInterestsAdded,
             summary.ExchangeRatesAdded);
 
+        // Provisioning failure must be visible: refuse to hand back a database whose
+        // required reference tables are still empty despite source rows being present.
+        await VerifyRequiredReferenceDataAsync(db, dataDirectory, cancellationToken);
+
         return summary;
+    }
+
+    /// <summary>
+    /// Post-import verification (GAP-001: "fail clearly if provisioning cannot
+    /// complete"). Required tables - the ones destination-first/budget-first
+    /// suggestions, cost aggregation, currency conversion and AI generation read:
+    /// Countries, Currencies, Place/Cost/Interest categories, Destinations, Places,
+    /// PlaceInterests and ExchangeRates. A table fails only when its source data had
+    /// rows but nothing landed in the database (an empty source CSV is legitimate and
+    /// does not fail startup). User-scoped tables (Trips, UserPreferences, ...) are
+    /// deliberately not checked - empty is valid there.
+    /// </summary>
+    private static async Task VerifyRequiredReferenceDataAsync(
+        ApplicationDbContext db,
+        string dataDirectory,
+        CancellationToken cancellationToken)
+    {
+        var sourceHasRows = new Func<string, bool>(
+            fileName => ReadCsvRequired(dataDirectory, fileName).Count > 0);
+
+        var empty = new List<string>();
+
+        if (sourceHasRows("Country.csv") && !await db.Countries.AnyAsync(cancellationToken))
+            empty.Add("Countries");
+        if (sourceHasRows("Currency.csv") && !await db.Currencies.AnyAsync(cancellationToken))
+            empty.Add("Currencies");
+        if (sourceHasRows("PlaceCategory.csv") && !await db.PlaceCategories.AnyAsync(cancellationToken))
+            empty.Add("PlaceCategories");
+        if (sourceHasRows("CostCategory.csv") && !await db.CostCategories.AnyAsync(cancellationToken))
+            empty.Add("CostCategories");
+        if (sourceHasRows("InterestCategory.csv") && !await db.InterestCategories.AnyAsync(cancellationToken))
+            empty.Add("InterestCategories");
+        if (sourceHasRows("Destination.csv") && !await db.Destinations.AnyAsync(cancellationToken))
+            empty.Add("Destinations");
+        if (sourceHasRows("Place.csv") && !await db.Places.AnyAsync(cancellationToken))
+            empty.Add("Places");
+        if (sourceHasRows("PlaceInterest_seed_draft.csv") && !await db.PlaceInterests.AnyAsync(cancellationToken))
+            empty.Add("PlaceInterests");
+
+        // Exchange rates are code constants, not a CSV: they are required as soon as
+        // any currency they cover was seeded (the curated dataset ships USD/JOD/EUR).
+        var rateCurrencyIsos = PlaceholderExchangeRates.Select(p => p.IsoCode).ToArray();
+        var hasCoveredCurrency = await db.Currencies
+            .AnyAsync(c => rateCurrencyIsos.Contains(c.IsoCode), cancellationToken);
+        if (hasCoveredCurrency && !await db.ExchangeRates.AnyAsync(cancellationToken))
+            empty.Add("ExchangeRates");
+
+        if (empty.Count > 0)
+        {
+            throw new InvalidOperationException(
+                "Reference-data provisioning could not complete: required table(s) still empty " +
+                $"after import from '{dataDirectory}': {string.Join(", ", empty)}. " +
+                "Refusing to continue with a partially provisioned database.");
+        }
     }
 
     /// <summary>
@@ -479,7 +543,6 @@ public static class SeedData
             await db.SaveChangesAsync(cancellationToken);
 
         return new SeedSummary(
-            Skipped: false,
             DataDirectory: dataDirectory,
             CountriesAdded: addedCountries.Count,
             CurrenciesAdded: addedCurrencies.Count,
@@ -607,7 +670,6 @@ public static class SeedData
 
 /// <summary>Row counts inserted by one provisioning run (all zero when already provisioned).</summary>
 public sealed record SeedSummary(
-    bool Skipped,
     string DataDirectory,
     int CountriesAdded = 0,
     int CurrenciesAdded = 0,
