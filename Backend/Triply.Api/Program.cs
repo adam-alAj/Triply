@@ -22,6 +22,22 @@ using Triply.Api.Modules.Currency;
 
 var builder = WebApplication.CreateBuilder(args);
 
+// ---------- Monitoring / structured request logging ----------
+// Staging uses JSON console logging so ILogger events are machine-readable and
+// can be collected by the hosting platform. Request logging is enabled only in
+// Staging so local development/test output stays focused.
+if (builder.Environment.IsStaging())
+{
+    builder.Services.AddHttpLogging(options =>
+    {
+        options.LoggingFields =
+            Microsoft.AspNetCore.HttpLogging.HttpLoggingFields.RequestMethod |
+            Microsoft.AspNetCore.HttpLogging.HttpLoggingFields.RequestPath |
+            Microsoft.AspNetCore.HttpLogging.HttpLoggingFields.ResponseStatusCode |
+            Microsoft.AspNetCore.HttpLogging.HttpLoggingFields.Duration;
+    });
+}
+
 // ---------- Configuration ----------
 // Connection string + JWT key + Gemini key all come from configuration/env vars,
 // never hardcoded. See .env.example / appsettings.Example.json.
@@ -240,6 +256,12 @@ var app = builder.Build();
 
 app.UseMiddleware<ExceptionHandlingMiddleware>();
 
+// Structured request/response telemetry for staging smoke tests.
+if (app.Environment.IsStaging())
+{
+    app.UseHttpLogging();
+}
+
 // ---------- Security Headers ----------
 
 app.Use(async (context, next) =>
@@ -284,10 +306,8 @@ app.UseRateLimiter();
 app.MapControllers();
 
 // ---------- Health ----------
-
-app.MapGet("/health", () =>
+app.MapMethods("/health", new[] { "GET", "HEAD" }, () =>
     Results.Ok(new { status = "ok" }));
-
 // ---------- Database Migration ----------
 if (app.Environment.IsDevelopment() || app.Environment.IsEnvironment("Testing"))
 {
