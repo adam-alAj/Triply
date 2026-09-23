@@ -381,12 +381,14 @@ public class AiOrchestrationService : IAiOrchestrationService
 
                 aiGeneration.Status = "FAILED_VALIDATION";
                 aiGeneration.ValidationErrors =
-                    "Duplicate active place name(s) in curated dataset for destination " +
-                    $"'{selectedDestination.Name}': {duplicateList}.";
+                    "duplicate active place_name(s) in curated dataset for destination " +
+                    $"'{selectedDestination.Name}': {duplicateList} " +
+                    "(duplicate active place name).";
                 aiGeneration.CompletedAt = DateTime.UtcNow;
                 await _db.SaveChangesAsync(cancellationToken);
                 allErrors.Add(
-                    $"Attempt {attempt}: duplicate active place name(s) in curated dataset: {duplicateList}.");
+                    $"Attempt {attempt}: duplicate active place_name(s) in curated dataset: {duplicateList} " +
+                    "(duplicate active place name).");
                 continue;
             }
 

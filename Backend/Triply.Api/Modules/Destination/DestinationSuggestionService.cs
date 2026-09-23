@@ -22,9 +22,10 @@ public class DestinationSuggestionService : IDestinationSuggestionService
         DestinationSuggestionRequest request,
         CancellationToken cancellationToken = default)
     {
-        // Budget-first suggestions are interest-aware. The destination cost
-        // aggregation remains unchanged; PlaceInterest adds an interest
-        // overlap score used for filtering and ranking.
+        // Budget-first suggestions are interest-aware. Only active places that
+        // match at least one requested interest contribute to the destination
+        // estimate; this keeps the budget comparison aligned with the user's
+        // selected interests instead of charging unrelated places.
         var requestedInterestIds = request.InterestCategoryIds
             .Distinct()
             .ToList();
@@ -39,7 +40,8 @@ public class DestinationSuggestionService : IDestinationSuggestionService
             .AsNoTracking()
             .Where(p =>
                 p.IsActive &&
-                p.Destination.IsSupported)
+                p.Destination.IsSupported &&
+                p.PlaceInterests.Any(pi => requestedInterestIds.Contains(pi.InterestCategoryId)))
             .GroupBy(p => new
             {
                 p.DestinationId,
