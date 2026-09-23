@@ -280,6 +280,21 @@ builder.Services.AddSwaggerGen(options =>
 
 var app = builder.Build();
 
+if (args.Any(arg => string.Equals(arg, "--migrate", StringComparison.OrdinalIgnoreCase)))
+{
+    using var scope = app.Services.CreateScope();
+    var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+    var logger = scope.ServiceProvider
+        .GetRequiredService<ILoggerFactory>()
+        .CreateLogger("DatabaseMigration");
+
+    logger.LogInformation("Applying EF Core migrations and exiting before web startup.");
+    db.Database.Migrate();
+    logger.LogInformation("EF Core migrations completed successfully.");
+
+    return;
+}
+
 // ---------- Centralized Error Handling ----------
 
 app.UseMiddleware<ExceptionHandlingMiddleware>();

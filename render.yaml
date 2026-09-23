@@ -11,7 +11,7 @@ services:
     runtime: docker
     plan: free
     dockerfilePath: ./Backend/Triply.Api/Dockerfile
-    dockerContext: ./Backend/Triply.Api
+    dockerContext: .
     healthCheckPath: /health
     autoDeploy: false
     envVars:

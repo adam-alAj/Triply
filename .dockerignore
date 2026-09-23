@@ -1,0 +1,17 @@
+**/bin/
+**/obj/
+**/.vs/
+**/*.user
+**/*.trx
+**/TestResults/
+.git/
+.github/
+Mobile/build/
+Mobile/.dart_tool/
+Frontend/node_modules/
+Backend/Triply.Api/appsettings.json
+Backend/Triply.Api/appsettings.*.json
+!Backend/Triply.Api/appsettings.Example.json
+.env
+.env.*
+!.env.example

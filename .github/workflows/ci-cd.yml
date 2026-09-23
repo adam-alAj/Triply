@@ -147,6 +147,32 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup .NET 9
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '9.0.x'
+
+      - name: Run staging EF Core migrations
+        env:
+          ConnectionStrings__Default: ${{ secrets.RENDER_STAGING_CONNECTION_STRING }}
+          Jwt__Key: Migration-Only-Jwt-Key-Not-Used-By-Running-Service-12345
+          Jwt__Issuer: Triply
+          Jwt__Audience: TriplyClients
+          ASPNETCORE_ENVIRONMENT: Staging
+        run: |
+          if [ -z "$ConnectionStrings__Default" ]; then
+            echo "::error::RENDER_STAGING_CONNECTION_STRING secret is not set. Add the staging database connection string in Settings > Secrets and variables > Actions."
+            exit 1
+          fi
+
+          dotnet run \
+            --project Backend/Triply.Api/Triply.Api.csproj \
+            --configuration Release \
+            -- --migrate
+
       - name: Trigger Render deploy hook
         run: |
           if [ -z "${{ secrets.RENDER_DEPLOY_HOOK_URL }}" ]; then
