@@ -7,6 +7,7 @@ import '../../../data/models/trip_creation_data.dart';
 import '../../providers/trip_creation_provider.dart';
 
 import '../../widgets/primary_button.dart';
+import '../../widgets/notifications_sheet.dart';
 
 class PlanningModeScreen extends StatelessWidget {
   const PlanningModeScreen({super.key});
@@ -198,7 +199,7 @@ class _TopBar extends StatelessWidget {
             ),
             const Spacer(),
             IconButton(
-              onPressed: () {},
+              onPressed: () => showNotificationsSheet(context),
               icon: const Icon(
                 Icons.notifications_none_rounded,
                 size: 22,

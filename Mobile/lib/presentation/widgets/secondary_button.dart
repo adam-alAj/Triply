@@ -34,7 +34,12 @@ class SecondaryButton extends StatelessWidget {
         mainAxisSize: MainAxisSize.min,
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Text(label, style: AppTextStyles.labelLg.copyWith(color: AppColors.secondary)),
+          Flexible(
+            child: FittedBox(
+              fit: BoxFit.scaleDown,
+              child: Text(label, maxLines: 1, style: AppTextStyles.labelLg.copyWith(color: AppColors.secondary)),
+            ),
+          ),
           if (icon != null) ...[
             const SizedBox(width: 8),
             Icon(icon, size: 16, color: AppColors.secondary),

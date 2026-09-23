@@ -169,6 +169,40 @@ class TripOverviewProvider extends ChangeNotifier {
     }
   }
 
+  /// Real backend call — `PUT /api/trips/{id}`. That endpoint replaces the
+  /// whole trip setup, so the current raw trip is fetched first and every
+  /// other field is sent back unchanged. Returns whether it succeeded; check
+  /// [errorMessage] on failure.
+  Future<bool> updateBudget(ApiClient apiClient, double budgetAmount) async {
+    try {
+      final current =
+          await apiClient.get<Map<String, dynamic>>('/api/trips/$_tripId');
+
+      await apiClient.put<Map<String, dynamic>>(
+        '/api/trips/$_tripId',
+        data: {
+          'destinationId': current['destinationId'],
+          'startDate': current['startDate'],
+          'endDate': current['endDate'],
+          'travelerCount': current['travelerCount'],
+          'budgetAmount': budgetAmount,
+          'budgetCurrencyId': current['budgetCurrencyId'],
+          'interestCategoryIds': current['interestCategoryIds'] ?? const [],
+          'expectedVersion': current['version'],
+        },
+      );
+
+      await _load();
+      return true;
+    } catch (error) {
+      _errorMessage = error is ApiException
+          ? error.message
+          : 'Unable to update the budget. Please try again.';
+      notifyListeners();
+      return false;
+    }
+  }
+
   /// Partial regeneration — `POST /api/trips/{id}/generate` with
   /// `scope: DAY` (whole day re-planned) or `ITEM` (one item re-planned).
   /// Reloads the trip afterward rather than trying to splice the response's
