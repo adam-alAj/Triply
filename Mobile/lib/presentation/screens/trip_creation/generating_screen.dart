@@ -7,6 +7,7 @@ import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_text_styles.dart';
 import '../../providers/trip_creation_provider.dart';
 import '../../widgets/generation_wait_notice.dart';
+import '../../widgets/over_budget_notice.dart';
 import '../../widgets/primary_button.dart';
 import '../../widgets/secondary_button.dart';
 
@@ -125,8 +126,10 @@ class _GeneratingScreenState extends State<GeneratingScreen>
                   onRetry: _retry,
                   onBackToReview: _backToReview,
                 ),
-              TripCreationStatus.success =>
-                _SuccessView(tripId: provider.createdTripId),
+              TripCreationStatus.success => _SuccessView(
+                  tripId: provider.createdTripId,
+                  isOverBudget: provider.isOverBudget,
+                ),
               _ => GenerationWaitNotice(
                   spinner: _buildSpinner(),
                   message: _messages[_messageIndex],
@@ -180,9 +183,12 @@ class _FailureView extends StatelessWidget {
 /// Overview has real content to display, per UI Pages §8 ("auto-advance to
 /// Trip Overview").
 class _SuccessView extends StatelessWidget {
-  const _SuccessView({required this.tripId});
+  const _SuccessView({required this.tripId, this.isOverBudget = false});
 
   final String? tripId;
+
+  /// Backend over-budget signal for DESTINATION_FIRST plans (V-002 §5.3).
+  final bool isOverBudget;
 
   @override
   Widget build(BuildContext context) {
@@ -206,6 +212,10 @@ class _SuccessView extends StatelessWidget {
           style: AppTextStyles.bodyMd.copyWith(color: AppColors.secondary),
           textAlign: TextAlign.center,
         ),
+        if (isOverBudget) ...[
+          const SizedBox(height: 20),
+          const OverBudgetNotice(),
+        ],
         const SizedBox(height: 24),
         PrimaryButton(
           label: 'View My Trip',

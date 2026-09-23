@@ -8,6 +8,7 @@ import '../../../data/models/trip_overview_data.dart';
 import '../../../data/repositories/api_trip_overview_repository.dart';
 import '../../providers/trip_overview_provider.dart';
 import '../../widgets/app_bottom_navigation.dart';
+import '../../widgets/budget_status_chip.dart';
 import '../../widgets/day_selector.dart';
 import '../../widgets/error_state.dart';
 import '../../widgets/estimated_badge.dart';
@@ -792,25 +793,7 @@ class _EstimateCard extends StatelessWidget {
                 ),
               ),
 
-              if (trip.isOnTarget) ...[
-                const SizedBox(width: 9),
-
-                const Icon(
-                  Icons.check_circle_rounded,
-                  size: 14,
-                  color: AppColors.success,
-                ),
-
-                const SizedBox(width: 3),
-
-                Text(
-                  'On Target',
-                  style: AppTextStyles.labelSm.copyWith(
-                    color: AppColors.success,
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
-              ],
+              BudgetStatusChip(isOnTarget: trip.isOnTarget),
             ],
           ),
         ],

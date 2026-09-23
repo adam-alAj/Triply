@@ -1,4 +1,5 @@
 using System.Text.Json;
+using System.Text.Json.Serialization;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 using Triply.Api.Data;
@@ -39,7 +40,16 @@ public class AiOrchestrationService : IAiOrchestrationService
 {
     private static readonly JsonSerializerOptions JsonOptions = new()
     {
-        PropertyNameCaseInsensitive = true
+        PropertyNameCaseInsensitive = true,
+
+        // Independent in-process schema strictness: the contract schema declares
+        // "additionalProperties": false at every object level (Design Principle 2 —
+        // "No invented fields"). System.Text.Json would otherwise silently ignore
+        // unknown members, so an unmapped field now throws JsonException and the
+        // attempt becomes FAILED_VALIDATION instead of being accepted. This closes
+        // the one schema constraint DTO binding alone could not enforce without
+        // adding a new JSON-Schema dependency (see AI_OUTPUT_VALIDATION_RULES §6).
+        UnmappedMemberHandling = JsonUnmappedMemberHandling.Disallow
     };
 
     private readonly ApplicationDbContext _db;
@@ -95,9 +105,14 @@ public class AiOrchestrationService : IAiOrchestrationService
             throw new InvalidOperationException(
                 "Destination-first trips require a confirmed destination before generation.");
 
-        if (trip.PlanningMode == "BUDGET_FIRST" && trip.DestinationId is null)
-            throw new InvalidOperationException(
-                "Budget-first trips require the user to select one of the suggested destinations before generation.");
+        // BUDGET_FIRST deliberately allows generation with NO destination selected yet:
+        // proposing destinations the budget can actually afford is the point of the
+        // mode. With no destination the prompt offers every supported destination, the
+        // model may return up to three distinct candidate options, and the ones within
+        // budget are kept (V-002 §5.3). The chosen option's destination is persisted
+        // onto the trip, and the user can switch via the SelectDestination endpoint.
+        // When a destination IS already set the prompt stays scoped to it, so the
+        // selected-destination flow behaves exactly as before.
 
         // --- Full-generation concurrency guard (Gap 3) ---
         // Mirrors the proven partial-regeneration pattern (ExpectedVersion +
@@ -230,12 +245,10 @@ public class AiOrchestrationService : IAiOrchestrationService
                 .ToListAsync(cancellationToken)
             : new List<DestinationContextDto>();
 
-        var schemaPath = Path.Combine(_environment.ContentRootPath, "AI-Schemas", "triply-trip-plan-generation.schema.json");
-        if (!File.Exists(schemaPath))
-            throw new InvalidOperationException($"AI response schema was not found at '{schemaPath}'.");
-
-        await using var schemaStream = File.OpenRead(schemaPath);
-        using var responseSchema = await JsonDocument.ParseAsync(schemaStream, cancellationToken: cancellationToken);
+        // Contract §5 step 0: derive destination_options.maxItems from the trip's
+        // planning mode (1 for DESTINATION_FIRST, 3 for BUDGET_FIRST) before the
+        // schema is sent to Gemini — never a single universal value.
+        using var responseSchema = ItineraryGenerationSchema.LoadForMode(_environment, trip.PlanningMode);
         var systemInstruction = "You are Triply's backend itinerary generator. Return only data allowed by the supplied JSON schema. Never invent destinations or places, never output database IDs or prices, and use only the grounded dataset provided in the user prompt.";
 
         var maxAttempts = _options.MaxRetries + 1;
@@ -349,9 +362,45 @@ public class AiOrchestrationService : IAiOrchestrationService
             }
 
             // --- Valid — persist itinerary + cost estimates as one all-or-nothing transaction ---
-            // Use the first destination option (DESTINATION_FIRST always has 1,
-            // BUDGET_FIRST picks the first valid one — user selection comes later).
+            // Contract §5 step 4 / V-002 §5.3 budget policy:
+            //   DESTINATION_FIRST — exactly one option; an over-budget plan is FLAGGED
+            //                       (`isOverBudget`), never failed.
+            //   BUDGET_FIRST      — up to three candidate options; the ones that fit are
+            //                       kept and the attempt fails only when none survive.
+            var budgetEnforced = trip.BudgetAmount.HasValue && trip.BudgetCurrencyId.HasValue;
+            var isOverBudget = false;
+
             var selectedOption = output.DestinationOptions.First();
+
+            if (trip.PlanningMode == "BUDGET_FIRST" && budgetEnforced)
+            {
+                var budgetRejections = new List<string>();
+
+                var optionWithinBudget = await SelectFirstOptionWithinBudgetAsync(
+                    output.DestinationOptions, trip, places, budgetRejections, cancellationToken);
+
+                if (optionWithinBudget is null)
+                {
+                    aiGeneration.Status = "FAILED_VALIDATION";
+                    aiGeneration.ValidationErrors =
+                        "ALL_OPTIONS_OVER_BUDGET: no generated destination option fits the budget. " +
+                        string.Join(" | ", budgetRejections);
+                    aiGeneration.CompletedAt = DateTime.UtcNow;
+
+                    // Release the destination so the user can pick another suggestion.
+                    trip.DestinationId = null;
+                    await _db.SaveChangesAsync(cancellationToken);
+
+                    // Carry the V-002 failure code into the orchestrator's error list too,
+                    // so the 422 body identifies the cause (")V-002 §5.7).
+                    allErrors.Add(
+                        $"Attempt {attempt}: ALL_OPTIONS_OVER_BUDGET — no BUDGET_FIRST destination " +
+                        "option fits the requested budget.");
+                    continue;
+                }
+
+                selectedOption = optionWithinBudget;
+            }
 
             var selectedDestination = await _db.Destinations
                 .FirstOrDefaultAsync(d => d.Name == selectedOption.DestinationName, cancellationToken);
@@ -409,38 +458,52 @@ public class AiOrchestrationService : IAiOrchestrationService
             // Deterministic backend budget guard. The AI never supplies prices:
             // every amount is resolved from the authoritative Place.reference_price,
             // including accommodation nights.
-            if (trip.BudgetAmount.HasValue && trip.BudgetCurrencyId.HasValue)
+            if (budgetEnforced)
             {
                 // Deterministically calculate every line from Place.reference_price,
                 // convert each currency into the user's budget currency, and compare
-                // the real total before anything is persisted. If the result is over
-                // budget, this attempt is rejected and the bounded AI retry loop gets
-                // another chance with the same budget constraint.
+                // the real total before anything is persisted.
                 var totalInBudgetCurrency = await CalculateGeneratedOptionCostInBudgetCurrencyAsync(
                     selectedOption,
                     nameToPlace,
-                    trip.BudgetCurrencyId.Value,
+                    // GetValueOrDefault() rather than .Value: the enclosing
+                    // `budgetEnforced` guard already proved HasValue, but the compiler
+                    // cannot see through a bool local and warns CS8629.
+                    trip.BudgetCurrencyId.GetValueOrDefault(),
                     cancellationToken);
 
-                var budgetCheck = (
-                    IsWithinBudget: totalInBudgetCurrency <= trip.BudgetAmount.Value,
-                    TotalInBudgetCurrency: totalInBudgetCurrency);
+                var isWithinBudget = totalInBudgetCurrency <= trip.BudgetAmount.GetValueOrDefault();
 
-                if (!budgetCheck.IsWithinBudget)
+                if (!isWithinBudget && trip.PlanningMode == "BUDGET_FIRST")
                 {
+                    // BUDGET_FIRST was already filtered to a fitting option above, so
+                    // reaching this branch means the selected option's cost moved
+                    // between selection and persistence. Reject and retry rather than
+                    // persist a plan the user's budget cannot cover.
                     aiGeneration.Status = "FAILED_VALIDATION";
                     aiGeneration.ValidationErrors =
-                        $"Generated itinerary exceeds budget: {budgetCheck.TotalInBudgetCurrency:F2} " +
-                        $"{trip.BudgetCurrency?.IsoCode ?? "budget currency"} > {trip.BudgetAmount.Value:F2}.";
+                        $"Generated option exceeds budget: {totalInBudgetCurrency:F2} " +
+                        $"{trip.BudgetCurrency?.IsoCode ?? "budget currency"} > {trip.BudgetAmount.GetValueOrDefault():F2}.";
 
                     aiGeneration.CompletedAt = DateTime.UtcNow;
-                    if (trip.PlanningMode == "BUDGET_FIRST")
-                        trip.DestinationId = null;
+                    trip.DestinationId = null;
                     await _db.SaveChangesAsync(cancellationToken);
                     allErrors.Add(
                         $"Attempt {attempt}: generated itinerary exceeds the requested budget " +
-                        $"({budgetCheck.TotalInBudgetCurrency:F2} > {trip.BudgetAmount.Value:F2}).");
+                        $"({totalInBudgetCurrency:F2} > {trip.BudgetAmount.GetValueOrDefault():F2}).");
                     continue;
+                }
+
+                if (!isWithinBudget)
+                {
+                    // DESTINATION_FIRST — V-002 §5.3: flag an over-budget plan instead of
+                    // failing it. The user picked the destination, so they receive the
+                    // itinerary together with the over-budget signal.
+                    isOverBudget = true;
+                    _logger.LogInformation(
+                        "Attempt {Attempt} for trip {TripId} is over budget ({Total:F2} > {Budget:F2}); " +
+                        "flagging the generated plan for DESTINATION_FIRST.",
+                        attempt, tripId, totalInBudgetCurrency, trip.BudgetAmount.GetValueOrDefault());
                 }
             }
 
@@ -563,10 +626,14 @@ public class AiOrchestrationService : IAiOrchestrationService
                 throw;
             }
 
-            // Final persisted-cost guard. The cost service recomputes the exact
-            // persisted itinerary from Place.reference_price; compare its result
-            // once more before allowing GENERATED.
-            if (trip.BudgetAmount.HasValue && trip.BudgetCurrencyId.HasValue)
+            // Final persisted-cost guard, for BUDGET_FIRST only. The cost service
+            // recomputes the exact persisted itinerary from Place.reference_price;
+            // compare its result once more before allowing GENERATED. DESTINATION_FIRST
+            // is deliberately excluded — V-002 §5.3 flags an over-budget plan instead of
+            // failing it (see `isOverBudget` above).
+            if (trip.PlanningMode == "BUDGET_FIRST" &&
+                trip.BudgetAmount.HasValue &&
+                trip.BudgetCurrencyId.HasValue)
             {
                 var persistedCurrencyId = await _db.CostEstimates
                     .AsNoTracking()
@@ -607,6 +674,7 @@ public class AiOrchestrationService : IAiOrchestrationService
                 AiGenerationId = aiGeneration.Id,
                 AttemptsUsed = attempt,
                 TripVersion = trip.Version,
+                IsOverBudget = isOverBudget,
                 Itinerary = ToItineraryResponse(itinerary, nameToPlace),
                 Cost = costResult
             };
@@ -761,12 +829,10 @@ public class AiOrchestrationService : IAiOrchestrationService
                 .ToListAsync(cancellationToken)
             : new List<DestinationContextDto>();
 
-        var schemaPath = Path.Combine(_environment.ContentRootPath, "AI-Schemas", "triply-trip-plan-generation.schema.json");
-        if (!File.Exists(schemaPath))
-            throw new InvalidOperationException($"AI response schema was not found at '{schemaPath}'.");
-
-        await using var schemaStream = File.OpenRead(schemaPath);
-        using var responseSchema = await JsonDocument.ParseAsync(schemaStream, cancellationToken: cancellationToken);
+        // Contract §5 step 0: derive destination_options.maxItems from the trip's
+        // planning mode (1 for DESTINATION_FIRST, 3 for BUDGET_FIRST) before the
+        // schema is sent to Gemini — never a single universal value.
+        using var responseSchema = ItineraryGenerationSchema.LoadForMode(_environment, trip.PlanningMode);
 
         var basePrompt = trip.PlanningMode == "BUDGET_FIRST"
             ? _promptBuilder.BuildBudgetFirst(trip, places, destinations, interestLabels, dayCount)
@@ -1122,6 +1188,84 @@ await transaction.CommitAsync(cancellationToken);
             AttemptsUsed = maxAttempts,
             Errors = allErrors
         };
+    }
+
+    /// <summary>
+    /// Contract §5 step 4 / V-002 §5.3 for BUDGET_FIRST: the model returns up to three
+    /// candidate options and only some may fit the budget. Returns the first candidate
+    /// whose deterministic cost (from <c>Place.reference_price</c>, converted into the
+    /// trip's budget currency) is within budget, or null when none survives.
+    /// A candidate that cannot be grounded is skipped — the attempt only fails when no
+    /// candidate both resolves and fits. Rejection reasons are appended to
+    /// <paramref name="rejectionReasons"/> for the auditable failure record.
+    /// </summary>
+    private async Task<GeminiDestinationOptionDto?> SelectFirstOptionWithinBudgetAsync(
+        IReadOnlyList<GeminiDestinationOptionDto> options,
+        Entities.Trip trip,
+        IReadOnlyList<PlaceContextDto> places,
+        List<string> rejectionReasons,
+        CancellationToken cancellationToken)
+    {
+        foreach (var option in options)
+        {
+            // Resolve each candidate against its own named destination. In the current
+            // BUDGET_FIRST flow the user has already selected one destination, so the
+            // candidates normally share it — resolving per option keeps the rule general
+            // and correct if the model is ever allowed to propose several.
+            var destination = await _db.Destinations
+                .AsNoTracking()
+                .FirstOrDefaultAsync(d => d.Name == option.DestinationName, cancellationToken);
+
+            if (destination is null)
+            {
+                rejectionReasons.Add(
+                    $"destination_option('{option.DestinationName}'): destination could not be resolved " +
+                    "to the internal dataset.");
+                continue;
+            }
+
+            var optionPlaces = places
+                .Where(p => p.DestinationId == destination.Id)
+                .ToList();
+
+            // Fail closed on ambiguous curated data rather than scoring a candidate
+            // whose costs could resolve to the wrong row.
+            var duplicateNames = optionPlaces
+                .GroupBy(p => p.Name, StringComparer.Ordinal)
+                .Where(g => g.Count() > 1)
+                .Select(g => g.Key)
+                .ToList();
+
+            if (duplicateNames.Count > 0)
+            {
+                rejectionReasons.Add(
+                    "Duplicate active place name(s) in curated dataset for destination " +
+                    $"'{destination.Name}': {string.Join(", ", duplicateNames)}.");
+                continue;
+            }
+
+            var optionLookup = optionPlaces.ToDictionary(p => p.Name, p => p, StringComparer.Ordinal);
+
+            if (!optionLookup.ContainsKey(option.Accommodation.PlaceName))
+            {
+                rejectionReasons.Add(
+                    $"destination_option('{option.DestinationName}'): accommodation " +
+                    $"'{option.Accommodation.PlaceName}' is not grounded to that destination.");
+                continue;
+            }
+
+            var totalInBudgetCurrency = await CalculateGeneratedOptionCostInBudgetCurrencyAsync(
+                option, optionLookup, trip.BudgetCurrencyId!.Value, cancellationToken);
+
+            if (totalInBudgetCurrency <= trip.BudgetAmount!.Value)
+                return option;
+
+            rejectionReasons.Add(
+                $"destination_option('{option.DestinationName}') exceeds budget: " +
+                $"{totalInBudgetCurrency:F2} > {trip.BudgetAmount.Value:F2}.");
+        }
+
+        return null;
     }
 
     private async Task<decimal> CalculateGeneratedOptionCostInBudgetCurrencyAsync(

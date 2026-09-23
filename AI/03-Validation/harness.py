@@ -19,6 +19,7 @@ import csv
 import json
 import sys
 from dataclasses import dataclass, field
+from datetime import date, timedelta
 from decimal import Decimal, ROUND_HALF_UP
 from pathlib import Path
 from typing import Any
@@ -115,6 +116,9 @@ CATEGORY_MAP = {
     "5": "TRANSPORT",
 }
 
+# Spec §6 Step 1 — the only time slots the contract permits.
+VALID_TIME_SLOTS = {"MORNING", "AFTERNOON", "EVENING"}
+
 
 def load_csv(filename: str) -> list[dict]:
     filepath = DATASET_DIR / filename
@@ -131,12 +135,17 @@ def load_dataset() -> dict:
     cost_categories = load_csv("CostCategory.csv")
 
     # Build lookup structures
-    # Authorized active places keyed by name (exact string match per spec §4.9)
+    # Authorized active places keyed by name (exact string match per spec §4.9).
+    # `active_places_by_name` keeps EVERY active row per name, because the same
+    # name may legitimately exist in more than one destination. Building a flat
+    # name->row dict let a duplicate silently overwrite the earlier row (last CSV
+    # row wins), which is neither spec §4.9 nor what the C# validator does.
     active_places: dict[str, dict] = {}
+    active_places_by_name: dict[str, list[dict]] = {}
     for p in places:
         if p["is_active"] == "True":
             cat_code = CATEGORY_MAP.get(p["place_category_id"], "UNKNOWN")
-            active_places[p["name"]] = {
+            entry = {
                 "id": int(p["id"]),
                 "destination_id": int(p["destination_id"]),
                 "name": p["name"],
@@ -145,6 +154,8 @@ def load_dataset() -> dict:
                 "currency_id": int(p["currency_id"]),
                 "cost_category_id": int(p["cost_category_id"]),
             }
+            active_places.setdefault(p["name"], entry)
+            active_places_by_name.setdefault(p["name"], []).append(entry)
 
     # Supported destinations keyed by name
     supported_destinations: dict[str, dict] = {}
@@ -160,6 +171,7 @@ def load_dataset() -> dict:
 
     return {
         "places": active_places,
+        "places_by_name": active_places_by_name,
         "destinations": supported_destinations,
         "currencies": currency_by_id,
         "total_places": len(active_places),
@@ -246,18 +258,30 @@ def validate_places(
             place_result.failure_codes.append("PLACE_NAME_EMPTY")
             continue
 
-        place = dataset["places"].get(name)
-        if place is None:
+        matches = dataset.get("places_by_name", {}).get(name, [])
+        if not matches:
             invalid_places.append(name)
             place_result.failure_codes.append("PLACE_NOT_FOUND")
             continue
 
-        if place["destination_id"] != dest_id:
+        in_destination = [m for m in matches if m["destination_id"] == dest_id]
+
+        if len(in_destination) > 1:
+            # An active duplicate name inside one destination is invalid curated
+            # data. Fail closed instead of picking arbitrarily (parity with the C#
+            # validator's duplicate-name handling).
+            invalid_places.append(name)
+            place_result.failure_codes.append("DUPLICATE_PLACE_NAME")
+            continue
+
+        if not in_destination:
             invalid_places.append(name)
             place_result.failure_codes.append("PLACE_WRONG_DESTINATION")
             continue
 
-        resolved_places[name] = place
+        # A name that also exists in other destinations is legitimate curated
+        # data; the option's destination selects the intended row.
+        resolved_places[name] = in_destination[0]
 
     place_result.resolved_place_count = len(resolved_places)
     place_result.invalid_place_count = len(invalid_places)
@@ -341,6 +365,112 @@ def validate_places(
     result._resolved_places = resolved_places  # type: ignore
 
     return result
+
+# ============================================================================
+# STRUCTURAL CONSISTENCY (Step 1 per spec §6)
+# ============================================================================
+
+def _parse_date(value: Any) -> date | None:
+    """Parse an ISO ``YYYY-MM-DD`` value; returns None when absent/unparseable."""
+    if value is None:
+        return None
+    if isinstance(value, date):
+        return value
+    try:
+        return date.fromisoformat(str(value))
+    except ValueError:
+        return None
+
+
+def validate_structure(
+    option: dict,
+    option_prefix: str,
+    start_date: date | None = None,
+    expected_day_count: int | None = None,
+) -> list[str]:
+    """
+    Implement Step 1 per AI_OUTPUT_VALIDATION_RULES.md §6.
+
+    Mirrors the C# validator: day count, 1-indexed contiguous ``day_number``,
+    date alignment against the trip's start_date, non-empty days/items, valid
+    time_slot, ``order_index`` >= 1, and no duplicate (time_slot, order_index)
+    within a day.
+
+    The day-count and date-alignment checks only run when the caller supplies
+    trip dates — the rules derive them from the trip, not from the itinerary.
+    """
+    errors: list[str] = []
+
+    days = option.get("days") or []
+    if not days:
+        return [f"{option_prefix}: days is empty or missing."]
+
+    if expected_day_count is not None and len(days) != expected_day_count:
+        errors.append(
+            f"{option_prefix}: days has {len(days)} entries, "
+            f"expected {expected_day_count} (trip duration)."
+        )
+
+    sorted_days = sorted(days, key=lambda d: d.get("day_number") or 0)
+
+    for i, day in enumerate(sorted_days):
+        day_number = day.get("day_number")
+        expected_day_number = i + 1
+
+        if day_number != expected_day_number:
+            errors.append(
+                f"{option_prefix} day[{i}]: day_number is {day_number}, "
+                f"expected {expected_day_number} (must be contiguous starting at 1)."
+            )
+
+        if start_date is not None:
+            expected_date = start_date + timedelta(days=i)
+            if _parse_date(day.get("date")) != expected_date:
+                errors.append(
+                    f"{option_prefix} day {day_number}: date is {day.get('date')}, "
+                    f"expected {expected_date.isoformat()} (start_date + day_number - 1)."
+                )
+
+        items = day.get("items") or []
+        if not items:
+            errors.append(f"{option_prefix} day {day_number}: items is empty.")
+            continue
+
+        slot_counts: dict[tuple[str | None, Any], int] = {}
+        for item in items:
+            place_name = item.get("place_name")
+            if not str(place_name or "").strip():
+                errors.append(f"{option_prefix} day {day_number}: item has empty place_name.")
+                continue
+
+            slot = item.get("time_slot")
+            normalized_slot = slot.upper() if isinstance(slot, str) else None
+            if normalized_slot not in VALID_TIME_SLOTS:
+                errors.append(
+                    f"{option_prefix} day {day_number}, item '{place_name}': "
+                    f"invalid time_slot '{slot}'."
+                )
+
+            order_index = item.get("order_index")
+            if not isinstance(order_index, int) or order_index < 1:
+                errors.append(
+                    f"{option_prefix} day {day_number}, item '{place_name}': "
+                    f"order_index must be >= 1, got {order_index}."
+                )
+
+            key = (normalized_slot, order_index)
+            slot_counts[key] = slot_counts.get(key, 0) + 1
+
+        duplicates = [key for key, count in slot_counts.items() if count > 1]
+        if duplicates:
+            slot_name, order_index = duplicates[0]
+            errors.append(
+                f"{option_prefix} day {day_number}: duplicate "
+                f"(time_slot='{slot_name}', order_index={order_index})."
+            )
+
+    return errors
+
 
 # ============================================================================
 # V-002: BUDGET FEASIBILITY CHECK (Step 4 per spec §6)
@@ -446,14 +576,20 @@ def validate_generation(
     budget_amount: Decimal | None = None,
     test_id: str = "",
     source_file: str = "",
+    trip_start_date: str | date | None = None,
+    trip_end_date: str | date | None = None,
 ) -> GenerationResult:
     """
     Validate a single generation through the full pipeline per spec §6:
     Step 0: Schema validation
-    Step 1: Structural consistency (partial — day count, date alignment)
+    Step 1: Structural consistency (day count, contiguity, date alignment, slots)
     Step 2: Dataset grounding (V-001)
     Step 3: Category rules (part of V-001)
     Step 4: Budget feasibility (V-002)
+
+    Trip dates are optional; when supplied they drive the day-count and
+    date-alignment checks (the rules derive expected dates from the trip, not
+    from the itinerary).
     """
     result = GenerationResult(test_id=test_id, source_file=source_file)
     result.planning_mode = itinerary.get("planning_mode", "")
@@ -465,14 +601,46 @@ def validate_generation(
         result.failure_codes.extend(result.schema_validation.errors)
         return result
 
+    # Step 1 context: expected duration comes from the trip, when known.
+    start_date = _parse_date(trip_start_date)
+    end_date = _parse_date(trip_end_date)
+    expected_day_count = (
+        (end_date - start_date).days + 1
+        if start_date is not None and end_date is not None and end_date >= start_date
+        else None
+    )
+
     # Process each destination option
     options = itinerary.get("destination_options", [])
     option_results: list[OptionValidationResult] = []
     option_data: list[tuple[dict, str]] = []
 
+    option_destination_names = [
+        (opt.get("destination_name") or "").strip() for opt in options
+    ]
+    named = [n for n in option_destination_names if n]
+    if len(named) != len(set(named)):
+        result.overall_passed = False
+        result.failure_codes.append(
+            "destination_options must contain distinct destination_name values."
+        )
+
     for opt in options:
         dest_name = opt.get("destination_name", "")
         opt_result = validate_places(opt, dest_name, dataset)
+
+        # Step 1: structural consistency (independent of grounding)
+        structure_errors = validate_structure(
+            opt,
+            f"destination_option('{dest_name}')",
+            start_date=start_date,
+            expected_day_count=expected_day_count,
+        )
+        if structure_errors:
+            opt_result.passed = False
+            opt_result.errors = list(dict.fromkeys(opt_result.errors + structure_errors))
+            opt_result.place_grounding.failure_codes.append("STRUCTURE_INVALID")
+
         option_results.append(opt_result)
         option_data.append((opt, dest_name))
 
@@ -480,6 +648,7 @@ def validate_generation(
             result.overall_passed = False
             result.failure_codes.extend(opt_result.place_grounding.failure_codes)
 
+    result.failure_codes = list(dict.fromkeys(result.failure_codes))
     result.options = option_results
 
     # Step 4: Budget feasibility (V-002)

@@ -45,10 +45,20 @@ public sealed class ExtraAiContextReader : IExtraAiContextReader
             throw new InvalidOperationException(
                 "Extra_AI_Context.csv must contain a 'budget_tier' column.");
 
-        var keyIndex = FindFirstColumn(header, "place_id", "id", "place_name", "name");
-        if (keyIndex < 0)
+        // The CSV is the AI track's file and its id column is named `source_place_id`.
+        // Rather than picking one identifier shape, index every row under BOTH its id
+        // (when present) and its place name: AiOrchestrationService looks a place up by
+        // `Place.id` first and falls back to `Place.name`, so either keying resolves and
+        // neither a renamed id column nor a renamed place can silently yield no tier.
+        var idIndex = FindFirstColumn(header, "place_id", "id", "source_place_id");
+        var nameIndex = FindFirstColumn(header, "place_name", "name");
+
+        if (idIndex < 0 && nameIndex < 0)
             throw new InvalidOperationException(
-                "Extra_AI_Context.csv must contain a place identifier column ('place_id'/'id') or place name column ('place_name'/'name').");
+                "Extra_AI_Context.csv must contain a place identifier column " +
+                "('place_id'/'id'/'source_place_id') or a place name column ('place_name'/'name').");
+
+        var widestIndex = new[] { budgetTierIndex, idIndex, nameIndex }.Max();
 
         var result = new Dictionary<string, string>(StringComparer.Ordinal);
         for (var lineIndex = 1; lineIndex < lines.Length; lineIndex++)
@@ -56,13 +66,22 @@ public sealed class ExtraAiContextReader : IExtraAiContextReader
             if (string.IsNullOrWhiteSpace(lines[lineIndex])) continue;
 
             var row = ParseCsvLine(lines[lineIndex]);
-            if (row.Count <= Math.Max(keyIndex, budgetTierIndex)) continue;
+            if (row.Count <= widestIndex) continue;
 
-            var key = row[keyIndex].Trim();
             var tier = row[budgetTierIndex].Trim();
-            if (key.Length == 0 || tier.Length == 0) continue;
+            if (tier.Length == 0) continue;
 
-            result[key] = tier;
+            if (idIndex >= 0)
+            {
+                var id = row[idIndex].Trim();
+                if (id.Length > 0) result[id] = tier;
+            }
+
+            if (nameIndex >= 0)
+            {
+                var name = row[nameIndex].Trim();
+                if (name.Length > 0) result[name] = tier;
+            }
         }
 
         return result;

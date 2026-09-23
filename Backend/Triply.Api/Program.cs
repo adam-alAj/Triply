@@ -160,16 +160,20 @@ builder.Services.AddRateLimiter(options =>
     var generalPermitLimit =
         builder.Environment.IsEnvironment("Testing") ? 200 : 10;
 
-    options.AddPolicy("fixed", context =>
-        RateLimitPartition.GetFixedWindowLimiter(
-            PartitionKey(context),
-            _ => new FixedWindowRateLimiterOptions
-            {
-                PermitLimit = generalPermitLimit,
-                Window = TimeSpan.FromMinutes(1),
-                QueueProcessingOrder = QueueProcessingOrder.OldestFirst,
-                QueueLimit = 0
-            }));
+        // Required: FixedWindowRateLimiterOptions.Window defaults to
+        // TimeSpan.Zero, which throws at runtime ("Window must be set to a value
+        // greater than TimeSpan.Zero") the first time any endpoint is rate
+        // limited — a 500 on every route, not just the limited one.
+        opt.Window = TimeSpan.FromMinutes(1);
+    });
+
+    // NOTE: the "fixed" policy is registered once above via AddFixedWindowLimiter.
+    // A second AddPolicy("fixed", ...) used to sit here and referenced an undefined
+    // `generalPermitLimit`, which is what broke the Backend build. It was also a
+    // duplicate registration of the same policy name, so it was removed rather than
+    // having a value invented for it. The bad merge that produced it had also
+    // swallowed the `opt.Window` assignment above, which is why the limiter threw
+    // at runtime even once it compiled.
 
     options.AddPolicy("login", context =>
         RateLimitPartition.GetFixedWindowLimiter(

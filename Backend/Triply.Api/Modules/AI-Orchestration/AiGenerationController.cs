@@ -111,6 +111,9 @@ catch (DbUpdateConcurrencyException ex)
             aiGenerationId = result.AiGenerationId,
             attemptsUsed = result.AttemptsUsed,
             tripVersion = result.TripVersion ?? trip.Version,
+            // DESTINATION_FIRST over-budget signal (V-002 §5.3). Additive: existing
+            // clients keep working and simply ignore it.
+            isOverBudget = result.IsOverBudget,
             itinerary = result.Itinerary,
             cost = result.Cost
         });

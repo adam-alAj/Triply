@@ -1,3 +1,4 @@
+import '../models/generation_outcome.dart';
 import '../models/trip_creation_data.dart';
 
 abstract class TripCreationRepository {
@@ -19,5 +20,10 @@ abstract class TripCreationRepository {
   Future<String> createTrip(TripCreationData data);
 
   /// Starts AI generation for an already-created trip.
-  Future<void> startGeneration(String tripId);
+  /// Runs AI generation for [tripId] and returns the Backend's outcome.
+  ///
+  /// The outcome carries the `isOverBudget` signal (V-002 §5.3) that only the
+  /// generate response reports; everything else the client needs comes from
+  /// `GET /api/trips/{id}`.
+  Future<GenerationOutcome> startGeneration(String tripId);
 }

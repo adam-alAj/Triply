@@ -2,6 +2,7 @@ using System.Net;
 using System.Net.Http;
 using System.Text;
 using System.Text.Json;
+using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using Moq;
@@ -180,6 +181,61 @@ public class AiOrchestrationUnitTests
         Assert.True(handler.LastRequest.Headers.TryGetValues("x-goog-api-key", out var schemaApiKeys));
         Assert.Equal("test-key", schemaApiKeys!.Single());
     }
+
+    // --- Contract §5 step 0: destination_options.maxItems is mode-specific ---
+
+    [Fact]
+    public void ItineraryGenerationSchema_DestinationFirst_SetsMaxItemsToOne()
+    {
+        using var schema = ItineraryGenerationSchema.LoadForMode(
+            TestEnvironment(), ItineraryGenerationSchema.DestinationFirstMode);
+
+        Assert.Equal(1, DestinationOptionsMaxItems(schema));
+    }
+
+    [Fact]
+    public void ItineraryGenerationSchema_BudgetFirst_SetsMaxItemsToThree()
+    {
+        using var schema = ItineraryGenerationSchema.LoadForMode(
+            TestEnvironment(), ItineraryGenerationSchema.BudgetFirstMode);
+
+        Assert.Equal(3, DestinationOptionsMaxItems(schema));
+    }
+
+    [Fact]
+    public void ItineraryGenerationSchema_UnknownMode_FallsBackToBudgetFirstCap()
+    {
+        using var schema = ItineraryGenerationSchema.LoadForMode(TestEnvironment(), "SOMETHING_ELSE");
+
+        Assert.Equal(3, DestinationOptionsMaxItems(schema));
+    }
+
+    [Fact]
+    public void ItineraryGenerationSchema_PreservesMinItemsOne()
+    {
+        using var schema = ItineraryGenerationSchema.LoadForMode(
+            TestEnvironment(), ItineraryGenerationSchema.BudgetFirstMode);
+
+        var destinationOptions = schema.RootElement
+            .GetProperty("properties")
+            .GetProperty("destination_options");
+
+        Assert.Equal(1, destinationOptions.GetProperty("minItems").GetInt32());
+    }
+
+    private static IHostEnvironment TestEnvironment()
+    {
+        var environment = new Mock<IHostEnvironment>();
+        environment.SetupGet(e => e.ContentRootPath).Returns(AppContext.BaseDirectory);
+        return environment.Object;
+    }
+
+    private static int DestinationOptionsMaxItems(JsonDocument schema) =>
+        schema.RootElement
+            .GetProperty("properties")
+            .GetProperty("destination_options")
+            .GetProperty("maxItems")
+            .GetInt32();
 
     private sealed class RecordingHandler : HttpMessageHandler
     {
