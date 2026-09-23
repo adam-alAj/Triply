@@ -289,7 +289,7 @@ class _HeroBadgePill extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
       decoration: BoxDecoration(
-        color: Colors.white.withOpacity(0.92),
+        color: Colors.white.withValues(alpha: 0.92),
         borderRadius: BorderRadius.circular(9999),
       ),
       child: Row(
@@ -417,7 +417,7 @@ class _CrowdCadenceCard extends StatelessWidget {
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                 decoration: BoxDecoration(
-                  color: _accent.withOpacity(0.15),
+                  color: _accent.withValues(alpha: 0.15),
                   borderRadius: BorderRadius.circular(9999),
                 ),
                 child: Text(

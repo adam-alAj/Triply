@@ -277,7 +277,7 @@ class _SuggestionCard extends StatelessWidget {
                         width: 28,
                         height: 28,
                         decoration: BoxDecoration(
-                          color: Colors.white.withOpacity(0.92),
+                          color: Colors.white.withValues(alpha: 0.92),
                           shape: BoxShape.circle,
                         ),
                         child: selected
@@ -303,7 +303,7 @@ class _SuggestionCard extends StatelessWidget {
                           vertical: 5,
                         ),
                         decoration: BoxDecoration(
-                          color: Colors.black.withOpacity(0.58),
+                          color: Colors.black.withValues(alpha: 0.58),
                           borderRadius: BorderRadius.circular(12),
                         ),
                         child: Text(

@@ -14,7 +14,6 @@ class ReviewScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final provider = context.watch<TripCreationProvider>();
-    final data = provider.data;
 
     return AppScaffold(
       body: Column(
@@ -246,7 +245,7 @@ class ReviewScreen extends StatelessWidget {
         vertical: 7,
       ),
       decoration: BoxDecoration(
-        color: AppColors.primaryContainerLight.withOpacity(0.55),
+        color: AppColors.primaryContainerLight.withValues(alpha: 0.55),
         borderRadius: BorderRadius.circular(10),
       ),
       child: Row(

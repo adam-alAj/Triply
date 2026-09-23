@@ -59,7 +59,7 @@ class HomeActiveTripCard extends StatelessWidget {
                       end: Alignment.bottomCenter,
                       colors: [
                         Colors.transparent,
-                        Colors.black.withOpacity(0.72),
+                        Colors.black.withValues(alpha: 0.72),
                       ],
                     ),
                   ),
@@ -75,7 +75,7 @@ class HomeActiveTripCard extends StatelessWidget {
                     vertical: 5,
                   ),
                   decoration: BoxDecoration(
-                    color: Colors.white.withOpacity(0.92),
+                    color: Colors.white.withValues(alpha: 0.92),
                     borderRadius: BorderRadius.circular(999),
                   ),
                   child: Text(

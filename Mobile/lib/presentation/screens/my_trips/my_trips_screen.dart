@@ -338,7 +338,7 @@ class _FilterTab extends StatelessWidget {
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 1),
               decoration: BoxDecoration(
-                color: selected ? Colors.white.withOpacity(0.25) : AppColors.surfaceContainer,
+                color: selected ? Colors.white.withValues(alpha: 0.25) : AppColors.surfaceContainer,
                 borderRadius: BorderRadius.circular(999),
               ),
               child: Text(
@@ -440,7 +440,7 @@ class _TripCard extends StatelessWidget {
                       top: 10,
                       right: 10,
                       child: _Pill(
-                        bg: Colors.black.withOpacity(0.45),
+                        bg: Colors.black.withValues(alpha: 0.45),
                         fg: Colors.white,
                         label: 'EST. ${trip.formattedBudget}',
                       ),
