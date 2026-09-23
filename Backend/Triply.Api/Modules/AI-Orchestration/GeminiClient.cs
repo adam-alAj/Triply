@@ -1,4 +1,5 @@
 using System.Net.Http.Json;
+using System.Text;
 using System.Text.Json;
 using Microsoft.Extensions.Options;
 
@@ -14,8 +15,12 @@ namespace Triply.Api.Modules.AIOrchestration;
 /// </summary>
 public interface IGeminiClient
 {
-    /// <summary>Sends a prompt to Gemini and returns the raw JSON text of its response.</summary>
-    Task<string> GenerateJsonAsync(string prompt, CancellationToken cancellationToken = default);
+    /// <summary>
+    /// Sends a prompt to Gemini and returns the raw JSON text of its response.
+    /// </summary>
+    Task<string> GenerateJsonAsync(
+        string prompt,
+        CancellationToken cancellationToken = default);
 
     /// <summary>
     /// Sends a prompt with a response schema to Gemini for structured output.
@@ -37,23 +42,33 @@ public class GeminiClient : IGeminiClient
     private static readonly JsonSerializerOptions JsonOptions = new()
     {
         PropertyNameCaseInsensitive = true,
-        DefaultIgnoreCondition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull
+        DefaultIgnoreCondition =
+            System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull
     };
 
-    public GeminiClient(HttpClient http, IOptions<GeminiOptions> options, ILogger<GeminiClient> logger)
+    public GeminiClient(
+        HttpClient http,
+        IOptions<GeminiOptions> options,
+        ILogger<GeminiClient> logger)
     {
         _http = http;
         _options = options.Value;
         _logger = logger;
 
         if (_http.Timeout == Timeout.InfiniteTimeSpan)
+        {
             _http.Timeout = TimeSpan.FromSeconds(_options.TimeoutSeconds);
+        }
     }
 
-    public async Task<string> GenerateJsonAsync(string prompt, CancellationToken cancellationToken = default)
+    public async Task<string> GenerateJsonAsync(
+        string prompt,
+        CancellationToken cancellationToken = default)
     {
         if (string.IsNullOrWhiteSpace(_options.ApiKey) ||
-            _options.ApiKey.StartsWith("REPLACE_WITH", StringComparison.OrdinalIgnoreCase))
+            _options.ApiKey.StartsWith(
+                "REPLACE_WITH",
+                StringComparison.OrdinalIgnoreCase))
         {
             throw new InvalidOperationException(
                 "Gemini:ApiKey is not configured. Set it via environment variable / secrets, never commit it.");
@@ -61,8 +76,6 @@ public class GeminiClient : IGeminiClient
 
         var url = $"{_options.BaseUrl}/{_options.Model}:generateContent";
 
-        // responseMimeType=application/json asks Gemini's structured-output mode to return
-        // JSON only, no surrounding prose — reduces (does not replace) the need for validation.
         var requestBody = new
         {
             contents = new[]
@@ -70,7 +83,13 @@ public class GeminiClient : IGeminiClient
                 new
                 {
                     role = "user",
-                    parts = new[] { new { text = prompt } }
+                    parts = new[]
+                    {
+                        new
+                        {
+                            text = prompt
+                        }
+                    }
                 }
             },
             generationConfig = new
@@ -80,17 +99,15 @@ public class GeminiClient : IGeminiClient
             }
         };
 
-        return await SendRequestAsync(url, requestBody, cancellationToken);
+        return await SendRequestAsync(
+            url,
+            requestBody,
+            cancellationToken);
     }
 
     /// <summary>
     /// Sends a prompt with a responseJsonSchema to Gemini.
     /// This enforces structured output matching the v2.0.0 contract schema.
-    ///
-    /// Per Gemini API docs, responseJsonSchema accepts a full JSON Schema (draft 2020-12)
-    /// including $defs, $ref, and all standard keywords.
-    /// The maxItems for destination_options should be set on the schema before calling
-    /// this method (per contract §5, step 0).
     /// </summary>
     public async Task<string> GenerateJsonWithSchemaAsync(
         string prompt,
@@ -99,7 +116,9 @@ public class GeminiClient : IGeminiClient
         CancellationToken cancellationToken = default)
     {
         if (string.IsNullOrWhiteSpace(_options.ApiKey) ||
-            _options.ApiKey.StartsWith("REPLACE_WITH", StringComparison.OrdinalIgnoreCase))
+            _options.ApiKey.StartsWith(
+                "REPLACE_WITH",
+                StringComparison.OrdinalIgnoreCase))
         {
             throw new InvalidOperationException(
                 "Gemini:ApiKey is not configured. Set it via environment variable / secrets, never commit it.");
@@ -111,14 +130,26 @@ public class GeminiClient : IGeminiClient
         {
             system_instruction = new
             {
-                parts = new[] { new { text = systemInstruction } }
+                parts = new[]
+                {
+                    new
+                    {
+                        text = systemInstruction
+                    }
+                }
             },
             contents = new[]
             {
                 new
                 {
                     role = "user",
-                    parts = new[] { new { text = prompt } }
+                    parts = new[]
+                    {
+                        new
+                        {
+                            text = prompt
+                        }
+                    }
                 }
             },
             generationConfig = new
@@ -129,7 +160,10 @@ public class GeminiClient : IGeminiClient
             }
         };
 
-        return await SendRequestAsync(url, requestBody, cancellationToken);
+        return await SendRequestAsync(
+            url,
+            requestBody,
+            cancellationToken);
     }
 
     private async Task<string> SendRequestAsync(
@@ -138,32 +172,50 @@ public class GeminiClient : IGeminiClient
         CancellationToken cancellationToken)
     {
         HttpResponseMessage response;
+
         try
         {
-            // Auth via the x-goog-api-key header (Google's documented API-key
-            // authentication header), never via the query string: a ?key= URL leaks
-            // the secret into HTTP request logs, proxies, and tracing output
-            // (Gap 4 / audit R-05). Model selection, payload, parsing, timeout and
-            // retry behavior are unchanged.
-            using var request = new HttpRequestMessage(HttpMethod.Post, url)
+            var json = JsonSerializer.Serialize(
+                requestBody,
+                JsonOptions);
+
+            using var request = new HttpRequestMessage(
+                HttpMethod.Post,
+                url)
             {
-                Content = JsonContent.Create(requestBody, options: JsonOptions)
+                Content = new StringContent(
+                    json,
+                    Encoding.UTF8,
+                    "application/json")
             };
-            request.Headers.TryAddWithoutValidation("x-goog-api-key", _options.ApiKey);
+
+            request.Content.Headers.ContentLength =
+                Encoding.UTF8.GetByteCount(json);
+
+            request.Headers.TryAddWithoutValidation(
+                "x-goog-api-key",
+                _options.ApiKey);
 
             _logger.LogInformation(
                 "Sending Gemini API request to {RequestPath} using {ApiKeyHeader} header (key redacted)",
                 request.RequestUri!.GetLeftPart(UriPartial.Path),
                 "x-goog-api-key");
 
-            response = await _http.SendAsync(request, cancellationToken);
+            response = await _http.SendAsync(
+                request,
+                cancellationToken);
         }
-        catch (TaskCanceledException ex) when (!cancellationToken.IsCancellationRequested)
+        catch (TaskCanceledException ex)
+            when (!cancellationToken.IsCancellationRequested)
         {
-            throw new GeminiApiException("Gemini API call timed out.", string.Empty, ex);
+            throw new GeminiApiException(
+                "Gemini API call timed out.",
+                string.Empty,
+                ex);
         }
 
-        var raw = await response.Content.ReadAsStringAsync(cancellationToken);
+        var raw = await response.Content.ReadAsStringAsync(
+            cancellationToken);
 
         if (!response.IsSuccessStatusCode)
         {
@@ -178,9 +230,11 @@ public class GeminiClient : IGeminiClient
         }
 
         string? text;
+
         try
         {
             using var doc = JsonDocument.Parse(raw);
+
             text = doc.RootElement
                 .GetProperty("candidates")[0]
                 .GetProperty("content")
@@ -188,27 +242,38 @@ public class GeminiClient : IGeminiClient
                 .GetProperty("text")
                 .GetString();
         }
-        catch (Exception ex) when (ex is KeyNotFoundException or IndexOutOfRangeException or InvalidOperationException or JsonException)
+        catch (Exception ex)
         {
-            _logger.LogError(ex, "Unexpected Gemini response envelope: {Body}", raw);
-            throw new GeminiApiException("Gemini response did not match the expected envelope shape.", raw, ex);
+            throw new GeminiApiException(
+                "Gemini API returned an unexpected response format.",
+                raw,
+                ex);
         }
 
         if (string.IsNullOrWhiteSpace(text))
-            throw new GeminiApiException("Gemini returned an empty candidate.", raw);
+        {
+            throw new GeminiApiException(
+                "Gemini API returned an empty response.",
+                raw);
+        }
 
         return text;
     }
 }
 
-/// <summary>Raised for any failure calling or parsing the Gemini API envelope itself
-/// (network, non-2xx, malformed envelope) — distinct from itinerary *content* validation,
-/// which is handled by IItineraryValidator against the internal dataset.</summary>
+/// <summary>
+/// Raised for any failure calling or parsing the Gemini API envelope itself
+/// (network, non-2xx, malformed envelope) — distinct from itinerary content
+/// validation, which is handled by IItineraryValidator against the internal dataset.
+/// </summary>
 public class GeminiApiException : Exception
 {
     public string RawResponse { get; }
 
-    public GeminiApiException(string message, string rawResponse, Exception? inner = null)
+    public GeminiApiException(
+        string message,
+        string rawResponse,
+        Exception? inner = null)
         : base(message, inner)
     {
         RawResponse = rawResponse;
