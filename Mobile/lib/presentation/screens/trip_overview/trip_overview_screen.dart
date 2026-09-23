@@ -22,6 +22,8 @@ import '../../widgets/trip_overview/archive_delete_dialog.dart';
 import '../../widgets/trip_overview/edit_item_modal.dart';
 import '../../widgets/trip_overview/place_detail_sheet.dart';
 import '../../widgets/trip_overview/regenerate_sheet.dart';
+import '../../widgets/trip_overview/adjust_budget_sheet.dart';
+import '../../widgets/trip_overview/trip_share.dart';
 
 /// MOB-TRIP-09 — Trip Overview
 ///
@@ -392,12 +394,7 @@ class _ActionBar extends StatelessWidget {
           _CircleIconButton(
             tooltip: 'Share',
             icon: Icons.ios_share_outlined,
-            onPressed: () {
-              _placeholder(
-                context,
-                'Sharing',
-              );
-            },
+            onPressed: () => _withTrip(context, shareTripSummary),
           ),
 
           const SizedBox(width: 8),
@@ -405,12 +402,7 @@ class _ActionBar extends StatelessWidget {
           _CircleIconButton(
             tooltip: 'Invite',
             icon: Icons.person_add_alt_outlined,
-            onPressed: () {
-              _placeholder(
-                context,
-                'Inviting collaborators',
-              );
-            },
+            onPressed: () => _withTrip(context, shareTripInvite),
           ),
 
           const SizedBox(width: 8),
@@ -538,17 +530,40 @@ class _CircleIconButton extends StatelessWidget {
 }
 
 // -----------------------------------------------------------------------------
-// PLACEHOLDER
+// SHARE / BUDGET ACTIONS
 // -----------------------------------------------------------------------------
 
-void _placeholder(
-    BuildContext context,
-    String feature,
-    ) {
+Future<void> _withTrip(
+  BuildContext context,
+  Future<void> Function(BuildContext, TripOverviewData) action,
+) async {
+  final trip = context.read<TripOverviewProvider>().trip;
+  if (trip == null) return;
+  await action(context, trip);
+}
+
+Future<void> _handleAdjustBudget(BuildContext context) async {
+  final provider = context.read<TripOverviewProvider>();
+  final trip = provider.trip;
+  if (trip == null) return;
+
+  final budget = await showAdjustBudgetSheet(
+    context,
+    currentBudgetUsd: trip.budgetHealth.targetCapUsd,
+    estimatedTotalUsd: trip.totalEstimatedCostUsd,
+  );
+  if (budget == null || !context.mounted) return;
+
+  final succeeded =
+      await provider.updateBudget(context.read<ApiClient>(), budget);
+  if (!context.mounted) return;
+
   ScaffoldMessenger.of(context).showSnackBar(
     SnackBar(
       content: Text(
-        '$feature is coming soon.',
+        succeeded
+            ? 'Budget updated to \$${budget.round()}.'
+            : provider.errorMessage ?? 'Unable to update the budget.',
       ),
       behavior: SnackBarBehavior.floating,
     ),
@@ -675,7 +690,7 @@ class _EstimateCard extends StatelessWidget {
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
           colors: [
-            AppColors.primaryContainerLight.withOpacity(0.55),
+            AppColors.primaryContainerLight.withValues(alpha: 0.55),
             AppColors.surfaceContainerLow,
           ],
         ),
@@ -694,7 +709,7 @@ class _EstimateCard extends StatelessWidget {
                     vertical: 4,
                   ),
                   decoration: BoxDecoration(
-                    color: Colors.white.withOpacity(0.72),
+                    color: Colors.white.withValues(alpha: 0.72),
                     borderRadius: BorderRadius.circular(9999),
                   ),
                   child: Text(
@@ -719,7 +734,7 @@ class _EstimateCard extends StatelessWidget {
                     vertical: 4,
                   ),
                   decoration: BoxDecoration(
-                    color: Colors.white.withOpacity(0.72),
+                    color: Colors.white.withValues(alpha: 0.72),
                     borderRadius: BorderRadius.circular(9999),
                   ),
                   child: Row(
@@ -1106,12 +1121,7 @@ class _CostsBody extends StatelessWidget {
                 label: 'Adjust Budget',
                 icon: Icons.tune_rounded,
                 fullWidth: true,
-                onPressed: () {
-                  _placeholder(
-                    context,
-                    'Adjusting budget',
-                  );
-                },
+                onPressed: () => _handleAdjustBudget(context),
               ),
             ),
 
@@ -1119,15 +1129,10 @@ class _CostsBody extends StatelessWidget {
 
             Expanded(
               child: PrimaryButton(
-                label: 'Export Breakdown',
+                label: 'Export',
                 icon: Icons.download_rounded,
                 fullWidth: true,
-                onPressed: () {
-                  _placeholder(
-                    context,
-                    'Exporting',
-                  );
-                },
+                onPressed: () => shareCostBreakdown(context, trip),
               ),
             ),
           ],
@@ -1625,7 +1630,7 @@ class _CategoryCard
                 height: 38,
                 decoration: BoxDecoration(
                   color:
-                  color.withOpacity(0.12),
+                  color.withValues(alpha: 0.12),
                   borderRadius:
                   BorderRadius.circular(12),
                 ),
@@ -1929,7 +1934,7 @@ class _StayHighlightCard
                   colors: [
                     Colors.transparent,
                     Colors.black
-                        .withOpacity(0.78),
+                        .withValues(alpha: 0.78),
                   ],
                 ),
               ),
@@ -2007,7 +2012,7 @@ class _StayHighlightCard
                     decoration:
                     BoxDecoration(
                       color: Colors.black
-                          .withOpacity(0.55),
+                          .withValues(alpha: 0.55),
                       borderRadius:
                       BorderRadius.circular(
                         16,

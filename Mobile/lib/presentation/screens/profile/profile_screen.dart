@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:provider/provider.dart';
 
 import '../../../core/network/api_client.dart';
@@ -9,12 +10,14 @@ import '../../../data/repositories/api_user_settings_repository.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/user_settings_provider.dart';
 import '../../widgets/app_bottom_navigation.dart';
+import '../../widgets/notifications_sheet.dart';
+import 'about_screens.dart';
 
 /// MOB-PROF-01 — Profile (UI Pages §2, §9): "Display name, email, logout".
 /// "Edit name" and "Log Out" are the task's acceptance criteria; preferences
 /// and stats are now wired to the real backend too (GET/PUT /api/users/me/
-/// preferences, GET /api/users/me/stats). AI Curation & Privacy toggles and
-/// the About links still have no backend support and stay display-only.
+/// preferences, GET /api/users/me/stats). AI Curation & Privacy toggles have
+/// no backend field yet and are remembered on-device only.
 class ProfileScreen extends StatelessWidget {
   const ProfileScreen({super.key});
 
@@ -93,7 +96,7 @@ class _TopBar extends StatelessWidget {
         const Spacer(),
         IconButton(
           tooltip: 'Notifications',
-          onPressed: () {},
+          onPressed: () => showNotificationsSheet(context),
           icon: const Icon(Icons.notifications_none_outlined, size: 21),
         ),
         Container(
@@ -316,7 +319,10 @@ class _PreferencesCard extends StatelessWidget {
           icon: Icons.attach_money,
           title: 'Preferred Currency',
           subtitle: 'Auto-converts all daily budgets',
-          trailing: _Dropdown(label: currencyLabel),
+          trailing: _Dropdown(
+            label: currencyLabel,
+            onTap: preferences == null ? null : () => _pickCurrency(context),
+          ),
         ),
         _SettingsRow(
           icon: Icons.directions_walk,
@@ -335,11 +341,108 @@ class _PreferencesCard extends StatelessWidget {
           icon: Icons.tune,
           title: 'Default Pacing',
           subtitle: 'Itinerary stops per day',
-          trailing: _Dropdown(label: preferences?.pacingLabel ?? '—'),
+          trailing: _Dropdown(
+            label: preferences?.pacingLabel ?? '—',
+            onTap: preferences == null ? null : () => _pickPacing(context),
+          ),
         ),
       ],
     );
   }
+
+  Future<void> _pickCurrency(BuildContext context) async {
+    List<CurrencyOption> currencies;
+    try {
+      currencies = await settings.getCurrencies();
+    } catch (_) {
+      if (context.mounted) _showMessage(context, 'Unable to load currencies.');
+      return;
+    }
+    if (!context.mounted) return;
+
+    final selected = await _showOptionsSheet<CurrencyOption>(
+      context,
+      title: 'Preferred Currency',
+      options: [
+        for (final currency in currencies)
+          (currency, '${currency.isoCode}  ${currency.symbol}'),
+      ],
+      isSelected: (currency) =>
+          currency.id == settings.preferences?.preferredCurrencyId,
+    );
+    if (selected == null) return;
+
+    await settings.setCurrency(selected);
+    if (context.mounted) _showSaveError(context);
+  }
+
+  Future<void> _pickPacing(BuildContext context) async {
+    final selected = await _showOptionsSheet<String>(
+      context,
+      title: 'Default Pacing',
+      options: const [
+        ('RELAXED', 'Relaxed (2-3 stops)'),
+        ('BALANCED', 'Balanced (4-5 stops)'),
+        ('FAST', 'Fast-Paced (6+ stops)'),
+      ],
+      isSelected: (pacing) => pacing == settings.preferences?.pacing,
+    );
+    if (selected == null) return;
+
+    await settings.setPacing(selected);
+    if (context.mounted) _showSaveError(context);
+  }
+
+  void _showSaveError(BuildContext context) {
+    final error = settings.errorMessage;
+    if (error != null) _showMessage(context, error);
+  }
+}
+
+void _showMessage(BuildContext context, String message) {
+  ScaffoldMessenger.of(context).showSnackBar(
+    SnackBar(content: Text(message), behavior: SnackBarBehavior.floating),
+  );
+}
+
+Future<T?> _showOptionsSheet<T>(
+  BuildContext context, {
+  required String title,
+  required List<(T, String)> options,
+  required bool Function(T) isSelected,
+}) {
+  return showModalBottomSheet<T>(
+    context: context,
+    isScrollControlled: true,
+    shape: const RoundedRectangleBorder(
+      borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+    ),
+    builder: (context) => SafeArea(
+      child: ConstrainedBox(
+        constraints: BoxConstraints(
+          maxHeight: MediaQuery.of(context).size.height * 0.6,
+        ),
+        child: ListView(
+          shrinkWrap: true,
+          padding: const EdgeInsets.fromLTRB(8, 16, 8, 8),
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(12, 0, 12, 8),
+              child: Text(title, style: AppTextStyles.headlineSm),
+            ),
+            for (final (value, label) in options)
+              ListTile(
+                title: Text(label, style: AppTextStyles.labelLg),
+                trailing: isSelected(value)
+                    ? const Icon(Icons.check, color: AppColors.primary)
+                    : null,
+                onTap: () => Navigator.of(context).pop(value),
+              ),
+          ],
+        ),
+      ),
+    ),
+  );
 }
 
 class _PrivacyCard extends StatefulWidget {
@@ -349,9 +452,39 @@ class _PrivacyCard extends StatefulWidget {
   State<_PrivacyCard> createState() => _PrivacyCardState();
 }
 
+/// No backend field for these yet, so they're remembered on-device only.
 class _PrivacyCardState extends State<_PrivacyCard> {
+  static const _smartBudgetKey = 'pref_cost_estimates';
+  static const _offlineSyncKey = 'pref_offline_sync';
+  static const _storage = FlutterSecureStorage();
+
   bool _smartBudget = true;
   bool _offlineSync = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _restore();
+  }
+
+  Future<void> _restore() async {
+    try {
+      final smartBudget = await _storage.read(key: _smartBudgetKey);
+      final offlineSync = await _storage.read(key: _offlineSyncKey);
+      if (!mounted) return;
+      setState(() {
+        _smartBudget = smartBudget != 'false';
+        _offlineSync = offlineSync != 'false';
+      });
+    } catch (_) {
+      // Keep the defaults if storage is unavailable.
+    }
+  }
+
+  void _set(String key, bool value, void Function(bool) apply) {
+    setState(() => apply(value));
+    _storage.write(key: key, value: '$value').ignore();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -359,12 +492,13 @@ class _PrivacyCardState extends State<_PrivacyCard> {
       children: [
         _SettingsRow(
           icon: Icons.savings_outlined,
-          title: 'Smart Budget Buffer',
-          subtitle: 'Calculates realistic ±15% variance',
+          title: 'Trip Cost Estimates',
+          subtitle: 'Costs are calculated from curated place prices.',
           trailing: Switch(
             value: _smartBudget,
             activeThumbColor: AppColors.primary,
-            onChanged: (value) => setState(() => _smartBudget = value),
+            onChanged: (value) =>
+                _set(_smartBudgetKey, value, (v) => _smartBudget = v),
           ),
         ),
         _SettingsRow(
@@ -374,7 +508,8 @@ class _PrivacyCardState extends State<_PrivacyCard> {
           trailing: Switch(
             value: _offlineSync,
             activeThumbColor: AppColors.primary,
-            onChanged: (value) => setState(() => _offlineSync = value),
+            onChanged: (value) =>
+                _set(_offlineSyncKey, value, (v) => _offlineSync = v),
           ),
         ),
       ],
@@ -389,9 +524,21 @@ class _AboutCard extends StatelessWidget {
   Widget build(BuildContext context) {
     return _SettingsCard(
       children: [
-        _LinkRow(icon: Icons.description_outlined, title: 'Terms of Service'),
-        _LinkRow(icon: Icons.privacy_tip_outlined, title: 'Privacy Policy & GDPR'),
-        _LinkRow(icon: Icons.map_outlined, title: 'Supported Destinations Directory'),
+        _LinkRow(
+          icon: Icons.description_outlined,
+          title: 'Terms of Service',
+          builder: (_) => const TermsOfServiceScreen(),
+        ),
+        _LinkRow(
+          icon: Icons.privacy_tip_outlined,
+          title: 'Privacy Policy & GDPR',
+          builder: (_) => const PrivacyPolicyScreen(),
+        ),
+        _LinkRow(
+          icon: Icons.map_outlined,
+          title: 'Supported Destinations Directory',
+          builder: (_) => const SupportedDestinationsScreen(),
+        ),
       ],
     );
   }
@@ -485,17 +632,21 @@ class _SettingsRow extends StatelessWidget {
 }
 
 class _LinkRow extends StatelessWidget {
-  const _LinkRow({required this.icon, required this.title});
+  const _LinkRow({
+    required this.icon,
+    required this.title,
+    required this.builder,
+  });
 
   final IconData icon;
   final String title;
+  final WidgetBuilder builder;
 
   @override
   Widget build(BuildContext context) {
     return InkWell(
-      onTap: () => ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('$title is coming soon.'), behavior: SnackBarBehavior.floating),
-      ),
+      onTap: () =>
+          Navigator.of(context).push(MaterialPageRoute<void>(builder: builder)),
       child: Padding(
         padding: const EdgeInsets.all(14),
         child: Row(
@@ -512,13 +663,17 @@ class _LinkRow extends StatelessWidget {
 }
 
 class _Dropdown extends StatelessWidget {
-  const _Dropdown({required this.label});
+  const _Dropdown({required this.label, this.onTap});
 
   final String label;
+  final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context) {
-    return Container(
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(999),
+      child: Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
       decoration: BoxDecoration(
         color: AppColors.surfaceContainerLow,
@@ -531,6 +686,7 @@ class _Dropdown extends StatelessWidget {
           const SizedBox(width: 4),
           const Icon(Icons.keyboard_arrow_down, size: 16, color: AppColors.textMuted),
         ],
+      ),
       ),
     );
   }

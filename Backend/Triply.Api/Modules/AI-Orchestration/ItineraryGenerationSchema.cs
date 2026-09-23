@@ -22,6 +22,7 @@ namespace Triply.Api.Modules.AIOrchestration;
 public static class ItineraryGenerationSchema
 {
     public const string SchemaFileName = "triply-trip-plan-generation.schema.json";
+    public const string SchemaVersion = "2.0.0";
 
     public const string DestinationFirstMode = "DESTINATION_FIRST";
     public const string BudgetFirstMode = "BUDGET_FIRST";

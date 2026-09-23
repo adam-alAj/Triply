@@ -1,5 +1,7 @@
 # Triply AI — Progress
 
+> **Current status update (2026-09-23):** The Jerusalem/Palestine conflict recorded below was resolved by PR #66 and migration `20260921001200_RemoveBackendStaticSeed`. The retired `Backend/Triply.Api/Data/seed-dataset.sql` is not an executable seed path; development provisioning reads the curated CSV dataset, and generation validation filters destinations by `IsSupported`. The earlier rows are historical coordination notes, not open blockers. `PlaceInterest` seeding is implemented by the backend curated-data loader.
+
 *Owner: Aya Malli · Track: AI/ML · Last updated: 2026-09-19*
 
 This document tracks new work done on the AI track from this point forward — what was added, why, and its current status — so the rest of the team can follow along without digging through commits.
@@ -76,19 +78,19 @@ traceability.
 | Updated schema mapping doc                                   | `DATASET_CURATION_SCHEMA_MAPPING.md` §3.8 rewritten — documents the `place_name` lookup contract, the `AI:ExtraAiContextPath` runtime read (not imported into the DB), and that every active `Place` needs a `budget_tier` or Backend rejects `BUDGET_FIRST` generation                                                                                                                             | ✅ Done                                      |
 | Updated `REVIEW_RECORD.md`                                   | §3 rewritten to match — removed stale claims about `source_url`/`notes` being populated (they're reserved/blank), added the `budget_tier` runtime-read note                                                                                                                                                                                                                                         | ✅ Done                                      |
 | Updated Interest-Aware spec                                  | `Interest_Aware_Destination_Suggestions_Spec.md` §3 updated to point at `PlaceInterest_seed_draft.csv` instead of the now-blank `Extra_AI_Context.csv.interest_tag`                                                                                                                                                                                                                                 | ✅ Done                                      |
-| Flagged pre-existing Jerusalem/Palestine conflict to Backend | Re-surfaced the open item from `REVIEW_RECORD.md` §6 (Backend's `SeedCountriesCurrenciesDestinations` / `seed-dataset.sql` still seeds Jerusalem/Palestine, which isn't in the 3-destination curated dataset) — flagged because any such leftover `Place` has no matching row in `Extra_AI_Context.csv` and would fail the “every active Place needs a `budget_tier`” rule, blocking `BUDGET_FIRST` | ✅ Sent to Backend — ⬜ Waiting on resolution |
+| Flagged pre-existing Jerusalem/Palestine conflict to Backend | Historical: reported before PR #66; the obsolete seed is now removed/retired, curated CSVs are the reference-data source, and the validator filters `IsSupported` | ✅ Resolved by PR #66; see current-status note above |
 | Sent to Backend                                              | Message sent confirming the file is ready, explaining the `place_name` matching + `budget_tier` semantics, and flagging the Jerusalem/Palestine conflict above                                                                                                                                                                                                                                      | ✅ Done                                      |
 
 **Key findings:**
 - `budget_tier` is fully populated and documented as consumed at runtime by `ExtraAiContextReader`, not imported into the DB
 - `Extra_AI_Context.csv` is intentionally not the source for interests anymore; `PlaceInterest_seed_draft.csv` is
-- `BUDGET_FIRST` is still blocked end-to-end by the unresolved reference-data conflict tracked as DB-D4 (§6 of `REVIEW_RECORD.md`) — not an AI-side gap, but worth chasing since it now has a concrete failure mode (`BUDGET_FIRST` generation rejected for any non-curated `Place`)
+- The former Jerusalem/Palestine conflict is resolved for current seed and generation paths. Populated legacy databases are preserved by migration; their rows are not used as supported generation destinations unless marked `IsSupported`.
 
 ---
 
 ## 5. Not Yet Started
 
-- `PlaceInterest` seed file + seeder update (blocked on Backend decision, §2 above)
+- `PlaceInterest` seed file + runtime provisioning are implemented; the backend loads the curated CSV during Development startup.
 
 ---
 

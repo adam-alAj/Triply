@@ -151,6 +151,11 @@ public class GeminiClient : IGeminiClient
             };
             request.Headers.TryAddWithoutValidation("x-goog-api-key", _options.ApiKey);
 
+            _logger.LogInformation(
+                "Sending Gemini API request to {RequestPath} using {ApiKeyHeader} header (key redacted)",
+                request.RequestUri!.GetLeftPart(UriPartial.Path),
+                "x-goog-api-key");
+
             response = await _http.SendAsync(request, cancellationToken);
         }
         catch (TaskCanceledException ex) when (!cancellationToken.IsCancellationRequested)

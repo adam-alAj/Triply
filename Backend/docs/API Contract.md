@@ -34,7 +34,9 @@ All endpoints below are under `/api/auth`.
 ```json
 {
   "token": "<JWT_TOKEN>",
-  "expiresAtUtc": "2026-09-14T17:01:57.1299752Z",
+  "expiresAtUtc": "2026-09-14T16:16:57.1299752Z",
+  "refreshToken": "<REFRESH_TOKEN>",
+  "refreshTokenExpiresAtUtc": "2026-10-14T16:01:57.1299752Z",
   "userId": "<USER_ID>",
   "email": "leen.test2026@example.com",
   "displayName": "Leen Test"
@@ -102,9 +104,12 @@ Flutter should read the relevant field from `errors` when displaying validation 
 ```json
 {
   "token": "<JWT_TOKEN>",
-  "expiresAtUtc": "2026-09-14T17:02:57.7489158Z",
+  "expiresAtUtc": "2026-09-14T16:17:57.7489158Z",
+  "refreshToken": "<REFRESH_TOKEN>",
+  "refreshTokenExpiresAtUtc": "2026-10-14T16:02:57.7489158Z",
   "userId": "<USER_ID>",
-  "email": "leen.test2026@example.com"
+  "email": "leen.test2026@example.com",
+  "displayName": "Leen Test"
 }
 ```
 
@@ -157,18 +162,39 @@ Flutter should handle `429` separately and show a message such as:
 
 ## 3. JWT Usage
 
-Send the returned token with every authenticated request:
+Send the access token (`token`) with every authenticated request:
 
 ```http
 Authorization: Bearer <JWT_TOKEN>
 ```
 
-* **Token lifetime:** 60 minutes
+* **Access token lifetime:** 15 minutes by default (`Jwt:ExpiresMinutes`)
+* **Refresh token lifetime:** 30 days by default (`Jwt:RefreshTokenExpiresDays`)
 * **Issuer:** `Triply`
 * **Audience:** `TriplyClients`
-* `expiresAtUtc` is returned by both Register and Login.
+* `expiresAtUtc`, `refreshToken`, and `refreshTokenExpiresAtUtc` are returned by both Register and Login.
 
-Flutter should use the returned `expiresAtUtc` value rather than hardcoding the expiration time.
+Flutter should use the returned expiration values rather than hardcoding them. Refresh tokens rotate on successful refresh; the server stores only a SHA-256 hash of each refresh token.
+
+### Refresh access token
+
+**Endpoint:** `POST /api/auth/refresh` (no access-token authorization required)
+
+```json
+{
+  "refreshToken": "<REFRESH_TOKEN>"
+}
+```
+
+On success, `200 OK` returns the same `AuthResponse` shape as Register/Login with a new access token and rotated refresh token. An invalid, expired, or revoked refresh token returns `401 Unauthorized`.
+
+### Logout
+
+**Endpoint:** `POST /api/auth/logout`
+
+**Authentication:** JWT Bearer required.
+
+Request body uses the same `refreshToken` shape as the refresh endpoint. The matching token is revoked when it belongs to the authenticated user; the endpoint returns `204 No Content`, including when the token is already revoked or does not belong to that user.
 
 ---
 
@@ -181,6 +207,9 @@ Flutter should use the returned `expiresAtUtc` value rather than hardcoding the 
 | Login    |    200 | Login successful and JWT returned   |
 | Login    |    401 | Invalid email or password           |
 | Login    |    429 | Too many login attempts             |
+| Refresh  |    200 | Access and refresh tokens rotated   |
+| Refresh  |    401 | Invalid or expired refresh token    |
+| Logout   |    204 | Refresh token revoked (idempotent)  |
 
 ### Tested cases
 
@@ -208,7 +237,7 @@ These authenticated read-only endpoints provide the data used by the Flutter pla
 
 **Authentication:** JWT Bearer required.
 
-Only destinations with `isSupported = true` are returned.
+Only destinations with `isSupported = true` are returned. The curated dataset currently supports Paris (France), Amman (Jordan), and New York (United States).
 
 ### Success response — `200 OK`
 
@@ -216,11 +245,11 @@ Only destinations with `isSupported = true` are returned.
 [
   {
     "id": 1,
-    "name": "Jerusalem",
-    "countryName": "Palestine",
-    "description": "Historic and cultural destination",
-    "latitude": 31.7683,
-    "longitude": 35.2137
+    "name": "Paris",
+    "countryName": "France",
+    "description": "Capital of France, known for iconic landmarks, museums, and cuisine.",
+    "latitude": 48.8566,
+    "longitude": 2.3522
   }
 ]
 ```
@@ -255,8 +284,8 @@ Only destinations with `isSupported = true` are returned.
 [
   {
     "id": 1,
-    "isoCode": "USD",
-    "symbol": "$"
+    "isoCode": "EUR",
+    "symbol": "€"
   }
 ]
 ```
@@ -288,19 +317,22 @@ These endpoints are intentionally read-only. Flutter should use their returned I
   "suggestions": [
     {
       "destinationId": 1,
-      "destinationName": "Jerusalem",
-      "countryName": "Palestine",
+      "destinationName": "Paris",
+      "countryName": "France",
       "estimatedCost": 600.00,
-      "currency": "USD",
-      "isEstimated": true
+      "currency": "EUR",
+      "estimatedCostInBudgetCurrency": 600.00,
+      "budgetCurrencyId": 1,
+      "isEstimated": true,
+      "isWithinBudget": true
     }
   ],
   "count": 1,
-  "message": null
+  "message": "Choose one suggested destination, then generate the trip."
 }
 ```
 
-Candidates are calculated from the internal `Place` dataset. Active place reference prices are aggregated per destination in the requested currency. The supplied interests are matched through the `PlaceInterest` dataset: a destination receives one match for each distinct requested interest represented by its places. Destinations with at least one interest match and an aggregate estimated cost within the supplied budget are returned, ordered by matched-interest count descending and estimated cost ascending.
+Candidates are calculated from active internal `Place` rows in supported destinations that match at least one requested interest through `PlaceInterest`. Reference prices are aggregated in each destination's native currency and converted to the requested budget currency using the exchange-rate table. The response retains the native `estimatedCost` and `currency` and also returns `estimatedCostInBudgetCurrency` and `budgetCurrencyId`. Only destinations within budget are returned, up to three, ordered by distinct matched-interest count descending and converted estimated cost ascending.
 
 ### No matching destination — `200 OK`
 
@@ -308,7 +340,7 @@ Candidates are calculated from the internal `Place` dataset. Active place refere
 {
   "suggestions": [],
   "count": 0,
-  "message": "No supported destinations match the requested budget, currency, and interests."
+  "message": "No supported destinations match the selected interests and budget."
 }
 ```
 
@@ -392,7 +424,7 @@ The endpoint persists and returns the current itinerary with days ordered by `da
 
 Validation requires at least one day, unique positive day numbers, valid time slots, non-negative order indexes and estimated costs, and valid place IDs. Places must exist and be active; when the trip has a destination, every itinerary place must belong to that destination.
 
-The write operation replaces the existing itinerary for the trip atomically. The endpoint is scaffolding for manually supplied/validated itinerary payloads ahead of AI integration; it does not call an LLM.
+The write operation replaces the existing itinerary for the trip atomically. This manual write endpoint is separate from AI generation; it validates supplied itinerary payloads and does not call an LLM.
 
 ### Read response — `200 OK`
 
@@ -471,6 +503,8 @@ Example partial regeneration request:
 Successful partial regeneration increments `Trip.version` exactly once. Direct item edits through `PATCH /api/trips/{id}/itinerary/items/{itemId}` set only the edited item's `isAiGenerated` to `false`; untouched AI-generated items remain unchanged.
 
 Successful generation responses include `tripVersion` so the client can use the returned version for the next optimistic-concurrency write.
+
+Successful generation returns one selected `itinerary`, its deterministic `cost` estimate, `aiGenerationId`, `attemptsUsed`, the updated `tripVersion`, and `isOverBudget`. For `BUDGET_FIRST`, the backend checks grounded candidate options in the model's returned order, persists the first option within budget, and fails validation if none fit; it does not return the candidates as a choice list. The internal `AIGeneration` row stores the schema version used (`2.0.0` for current requests); that provenance value is not part of the client response.
 
 ### Save
 

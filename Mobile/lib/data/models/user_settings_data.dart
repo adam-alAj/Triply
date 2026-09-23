@@ -22,10 +22,15 @@ class UserPreferencesData {
   final String distanceUnit; // KM | MILES
   final String pacing; // RELAXED | BALANCED | FAST
 
-  UserPreferencesData copyWith({String? distanceUnit, String? pacing}) {
+  UserPreferencesData copyWith({
+    int? preferredCurrencyId,
+    String? preferredCurrency,
+    String? distanceUnit,
+    String? pacing,
+  }) {
     return UserPreferencesData(
-      preferredCurrencyId: preferredCurrencyId,
-      preferredCurrency: preferredCurrency,
+      preferredCurrencyId: preferredCurrencyId ?? this.preferredCurrencyId,
+      preferredCurrency: preferredCurrency ?? this.preferredCurrency,
       distanceUnit: distanceUnit ?? this.distanceUnit,
       pacing: pacing ?? this.pacing,
     );
@@ -36,6 +41,27 @@ class UserPreferencesData {
         'FAST' => 'Fast-Paced (6+)',
         _ => 'Balanced (4-5)',
       };
+}
+
+/// Mirrors the backend's `CurrencyResponse` (`GET /api/currencies`).
+class CurrencyOption {
+  const CurrencyOption({
+    required this.id,
+    required this.isoCode,
+    required this.symbol,
+  });
+
+  factory CurrencyOption.fromJson(Map<String, dynamic> json) {
+    return CurrencyOption(
+      id: (json['id'] as num).toInt(),
+      isoCode: json['isoCode'] as String? ?? '',
+      symbol: json['symbol'] as String? ?? '',
+    );
+  }
+
+  final int id;
+  final String isoCode;
+  final String symbol;
 }
 
 /// Mirrors the backend's `UserStatsResponse`.

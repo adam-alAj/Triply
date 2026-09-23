@@ -49,15 +49,35 @@ class UserSettingsProvider extends ChangeNotifier {
 
   Future<void> reload() => _load();
 
+  Future<List<CurrencyOption>> getCurrencies() => _repository.getCurrencies();
+
   Future<void> setDistanceUnit(bool useKm) async {
-    final current = _preferences;
-    if (current == null) return;
-
     final unit = useKm ? 'KM' : 'MILES';
-    if (current.distanceUnit == unit) return;
+    if (_preferences == null || _preferences!.distanceUnit == unit) return;
+    await _save(_preferences!.copyWith(distanceUnit: unit));
+  }
 
-    final previous = current;
-    _preferences = current.copyWith(distanceUnit: unit);
+  Future<void> setPacing(String pacing) async {
+    if (_preferences == null || _preferences!.pacing == pacing) return;
+    await _save(_preferences!.copyWith(pacing: pacing));
+  }
+
+  Future<void> setCurrency(CurrencyOption currency) async {
+    if (_preferences == null ||
+        _preferences!.preferredCurrencyId == currency.id) {
+      return;
+    }
+    await _save(_preferences!.copyWith(
+      preferredCurrencyId: currency.id,
+      preferredCurrency: currency.isoCode,
+    ));
+  }
+
+  /// Optimistic update: shows [next] immediately, rolls back on failure.
+  Future<void> _save(UserPreferencesData next) async {
+    final previous = _preferences;
+    _preferences = next;
+    _errorMessage = null;
     notifyListeners();
 
     try {

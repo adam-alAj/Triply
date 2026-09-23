@@ -11,7 +11,8 @@ This script is ADDITIVE and IDEMPOTENT: it only INSERTs a (PlaceId,
 InterestCategoryId) pair if that exact pair does not already exist — same
 pattern as the manual `INSERT ... WHERE NOT EXISTS` blocks already in
 `Backend/Triply.Api/Data/seed-dataset.sql`. It never deletes or updates a
-row, so re-running it is always safe.
+row, so re-running it is always safe. The legacy Backend SQL seed file is
+retired and is not part of this workflow.
 
 Deliberately separate from `seed_places.py` and unrelated to
 `Extra_AI_Context.csv` / `budget_tier`:

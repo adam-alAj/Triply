@@ -16,8 +16,8 @@ Triply's stack is dictated by one hard rule: **every choice must be free and mus
 |---|---|---|---|
 | Web Frontend | Flutter Web (same codebase as mobile) | OPEN-SOURCE | Architecture ADR-02 already decided this; no web-frontend skill exists on the team |
 | Mobile App | Flutter (Dart) | OPEN-SOURCE | Dana's demonstrated, capstone-tested stack |
-| Backend Framework | ASP.NET Core Web API (.NET 8 LTS) | OPEN-SOURCE | Lynn's demonstrated stack; modular monolith matches ADR-00 |
-| ORM | EF Core (code-first migrations) | OPEN-SOURCE | Demonstrated in Backend capstone; matches Document 5 schema |
+| Backend Framework | ASP.NET Core Web API (.NET 9; `net9.0`) | OPEN-SOURCE | Matches `Backend/Triply.Api/Triply.Api.csproj`; modular monolith matches ADR-00 |
+| ORM | EF Core 9.0.10 (code-first migrations) | OPEN-SOURCE | Matches the backend project package references and migrations |
 | Database | SQL Server (Developer Edition for dev / testing) | FREE FOR DEVELOPMENT | Matches Document 5's deliberate decision; production hosting pending D3 |
 | AuthN / AuthZ | ASP.NET Core Identity + JWT bearer | OPEN-SOURCE | Sprint-2 demonstrated pattern (role + ownership auth, NFR-SEC-001/002, NFR-PRIV-001) |
 | AI / LLM | Gemini API via Google AI Studio (Flash-family models) | FREE TIER | Only AI approach in the SRS; Flash models are free with no card required — see free-tier privacy caveat in Section 5 |
@@ -44,7 +44,7 @@ Triply's stack is dictated by one hard rule: **every choice must be free and mus
 ### AI / ML — Aya, Anas, Adam
 | Technology | Purpose | Cost |
 |---|---|---|
-| Python + Pandas + Jupyter / Google Colab | Curate and version the destinations/places/pricing dataset (FR-DATA-001); run the validation harness (0% invented places, cost tolerance) | OPEN-SOURCE / FREE |
+| Python + Pandas + Jupyter / Google Colab | Curate/version the dataset (FR-DATA-001); validate schema and place grounding (0% invented places) | OPEN-SOURCE / FREE |
 | Google AI Studio | Prompt prototyping and JSON-schema testing before Phase 6 handoff to Backend | FREE |
 | Gemini API (Flash models) | Itinerary + budget-first destination suggestion generation (FR-AI-001) | FREE TIER (rate-limited; data may be used for training) |
 
@@ -53,8 +53,8 @@ Triply's stack is dictated by one hard rule: **every choice must be free and mus
 ### Backend — Lynn
 | Technology | Purpose | Cost |
 |---|---|---|
-| .NET 8 / ASP.NET Core Web API | Modular monolith: Auth, Trip, AI-Orchestration, Cost modules | OPEN-SOURCE |
-| EF Core + SQL Server | Schema exactly per Document 5 (17 tables) | OPEN-SOURCE / FREE FOR DEVELOPMENT |
+| .NET 9 / ASP.NET Core Web API | Modular monolith: Auth, Trip, AI-Orchestration, Cost modules | OPEN-SOURCE |
+| EF Core 9.0.10 + SQL Server | Schema documented in Document 5 (18 application-owned tables plus 7 Identity tables) | OPEN-SOURCE / FREE FOR DEVELOPMENT |
 | ASP.NET Core Identity + JWT | FR-AUTH-001/002, NFR-SEC-002, ownership authorization (NFR-PRIV-001) | OPEN-SOURCE |
 | FluentValidation + built-in RateLimiter/CORS/headers | NFR-SEC-001, SRS §10/§12 | OPEN-SOURCE |
 | Swashbuckle (Swagger) | API contract documentation for Dana's integration checkpoints | OPEN-SOURCE |
@@ -144,7 +144,7 @@ No other services. No message queue, no vector store, no second database, no sep
 
 **Database:** SQL Server → *Alternative:* PostgreSQL. *Reason:* technically strong (JSON columns, geo types), but Document 5 already ruled it out on team-capability grounds. Only revisit if hosting costs force it.
 
-**ORM:** EF Core → *Alternative:* Dapper. *Reason:* faster raw SQL, but adds manual mapping work for 17 tables; EF Core is what Lynn demonstrated.
+**ORM:** EF Core → *Alternative:* Dapper. *Reason:* faster raw SQL, but adds manual mapping work for the 18 application-owned tables; EF Core is what Lynn demonstrated.
 
 **LLM:** Gemini API free tier → *Alternative:* Groq or Mistral free tier (Llama-class models). *Reason:* both offer free tiers, but Gemini is already written into the SRS, has the largest free context window, and requires no new decision. Keep as fallback if Gemini's free quota proves too tight.
 
@@ -164,7 +164,7 @@ No other services. No message queue, no vector store, no second database, no sep
 
 - **Frontend (Web):** Flutter Web — same codebase as mobile
 - **Mobile:** Flutter (Dart), Provider, Dio
-- **Backend:** ASP.NET Core 8 Web API, modular monolith
+- **Backend:** ASP.NET Core 9 Web API (`net9.0`), modular monolith
 - **Database:** SQL Server (Developer Edition dev / Azure SQL free tier for hosted env), EF Core
 - **AI/ML:** Python + Pandas (dataset curation + validation harness only)
 - **LLM:** Gemini API, Flash-family models, via Google AI Studio key — free tier
@@ -184,7 +184,7 @@ No other services. No message queue, no vector store, no second database, no sep
 2. **Gemini free-tier privacy trade-off.** Free-tier data may be used by Google to improve its products. Mitigation: `input_snapshot` must exclude PII (enforce in AI-Orchestration). If supervisors reject even that, Gemini paid tier becomes a small real cost — must be approved.
 3. **Gemini model choice within free tier.** Gemini 3 Flash (best quality, 1,500 RPD) vs. Flash-Lite (higher RPM). Confirm after Phase 3 latency testing (NFR-PERF-001 is TBD for exactly this reason).
 4. **Production licensing of SQL Server.** Developer Edition cannot host the "production" demo. Confirm: Azure SQL free tier vs. running SQL Server in a Docker container on the host (free, but ops burden falls on Lynn).
-5. **Cost tolerance band (D1, ±15% proposed)** — affects the AI validation harness, not the stack, but blocks Phase 7 test thresholds.
+5. **D1 AI cost-tolerance band:** **Not applicable / superseded by AI Contract v2.0.0.** Backend computes costs from curated reference prices and checks budget feasibility deterministically; no AI cost-tolerance threshold blocks Phase 7.
 6. **Guest browsing (D2)** — if in scope, it changes only authorization config, but confirm before Phase 2.
 7. **Flutter Web hosting target** — Firebase Hosting free tier is the default; confirm no university hosting is mandated.
 8. **UI/UX track (D4)** — new tool choices beyond the existing design system remain frozen until capability analysis is done. Cybersecurity review is owned by Arab Hammad.

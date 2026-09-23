@@ -12,6 +12,7 @@ import '../../providers/home_provider.dart';
 import '../../widgets/app_bottom_navigation.dart';
 import '../../widgets/empty_state.dart';
 import '../../widgets/loading_skeleton.dart';
+import '../../widgets/notifications_sheet.dart';
 
 class HomeScreen extends StatelessWidget {
   const HomeScreen({super.key});
@@ -325,7 +326,7 @@ class _HomeTopBar extends StatelessWidget {
           const Spacer(),
           IconButton(
             tooltip: 'Notifications',
-            onPressed: () {},
+            onPressed: () => showNotificationsSheet(context),
             icon: const Icon(
               Icons.notifications_none_outlined,
               size: 21,

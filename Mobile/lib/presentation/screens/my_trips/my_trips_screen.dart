@@ -10,6 +10,7 @@ import '../../providers/my_trips_provider.dart';
 import '../../widgets/app_bottom_navigation.dart';
 import '../../widgets/empty_state.dart';
 import '../../widgets/loading_skeleton.dart';
+import '../../widgets/notifications_sheet.dart';
 
 class MyTripsScreen extends StatelessWidget {
   const MyTripsScreen({super.key});
@@ -191,7 +192,7 @@ class _TopBar extends StatelessWidget {
           const Spacer(),
           IconButton(
             tooltip: 'Notifications',
-            onPressed: () {},
+            onPressed: () => showNotificationsSheet(context),
             icon: const Icon(Icons.notifications_none_outlined, size: 21),
           ),
           Container(
@@ -338,7 +339,7 @@ class _FilterTab extends StatelessWidget {
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 1),
               decoration: BoxDecoration(
-                color: selected ? Colors.white.withOpacity(0.25) : AppColors.surfaceContainer,
+                color: selected ? Colors.white.withValues(alpha: 0.25) : AppColors.surfaceContainer,
                 borderRadius: BorderRadius.circular(999),
               ),
               child: Text(
@@ -440,7 +441,7 @@ class _TripCard extends StatelessWidget {
                       top: 10,
                       right: 10,
                       child: _Pill(
-                        bg: Colors.black.withOpacity(0.45),
+                        bg: Colors.black.withValues(alpha: 0.45),
                         fg: Colors.white,
                         label: 'EST. ${trip.formattedBudget}',
                       ),

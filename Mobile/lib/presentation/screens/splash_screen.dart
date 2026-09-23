@@ -61,6 +61,7 @@ class _SplashScreenState extends State<SplashScreen>
       // an expired/revoked token routes to Onboarding instead of a broken
       // Home screen.
       final hasToken = await TokenStorage().readToken() != null;
+      if (!mounted) return;
       final sessionValid =
           hasToken && await context.read<AuthProvider>().restoreSession();
       if (!mounted) return;

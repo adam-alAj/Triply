@@ -39,4 +39,13 @@ class ApiUserSettingsRepository implements UserSettingsRepository {
         await _apiClient.get<Map<String, dynamic>>('/api/users/me/stats');
     return UserStatsData.fromJson(json);
   }
+
+  @override
+  Future<List<CurrencyOption>> getCurrencies() async {
+    final json = await _apiClient.get<List<dynamic>>('/api/currencies');
+    return json
+        .cast<Map<String, dynamic>>()
+        .map(CurrencyOption.fromJson)
+        .toList();
+  }
 }
