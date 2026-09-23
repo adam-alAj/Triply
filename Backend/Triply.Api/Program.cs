@@ -19,7 +19,7 @@ using Triply.Api.Modules.Destination;
 using Triply.Api.Modules.Trip.Validators;
 using Triply.Api.Modules.Currency;
 
-
+using System.Net;
 var builder = WebApplication.CreateBuilder(args);
 
 // ---------- Monitoring / structured request logging ----------
@@ -231,7 +231,11 @@ builder.Services.AddScoped<ICurrencyConversionService, CurrencyConversionService
 builder.Services.Configure<GeminiOptions>(
     builder.Configuration.GetSection(GeminiOptions.SectionName));
 
-builder.Services.AddHttpClient<IGeminiClient, GeminiClient>();
+builder.Services.AddHttpClient<IGeminiClient, GeminiClient>(client =>
+{
+    client.DefaultRequestVersion = HttpVersion.Version11;
+    client.DefaultVersionPolicy = HttpVersionPolicy.RequestVersionExact;
+});
 builder.Services.AddScoped<IItineraryPromptBuilder, ItineraryPromptBuilder>();
 builder.Services.AddScoped<IItineraryValidator, ItineraryValidationService>();
 builder.Services.AddScoped<IExtraAiContextReader, ExtraAiContextReader>();
