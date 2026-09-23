@@ -10,6 +10,27 @@ teams
 
 ------------------------------------------------------------------------
 
+## 0. Authority & Relationship to `09_DESIGN.md`
+
+This document owns Triply's **UX philosophy, principles, layout,
+accessibility and component architecture** — the *why* and *how the product
+should behave*.
+
+`09_DESIGN.md` ("Sunset Wanderer") owns the **concrete visual tokens** —
+colors, typography, spacing and radii — and is the **authoritative visual
+system**; the Flutter theme (`lib/core/theme/app_colors.dart`,
+`lib/core/theme/app_text_styles.dart`) implements its tokens directly.
+
+Where the two documents disagree on visual values, `09_DESIGN.md` wins. In
+particular, the "Suggested conceptual palette" in §5.1 and the "premium
+travel-tech" wording in §4.1 predate the token system and are **superseded**
+as literal visual direction by `09_DESIGN.md`; they remain valid as *intent*
+(clean, spacious, image-led, restrained, structured). This closes the
+08-vs-09 design conflict: **09 is authoritative for visuals, 08 for
+principles and interaction.**
+
+------------------------------------------------------------------------
+
 ## 1. Purpose
 
 This document defines the visual and UX direction for Triply before
@@ -294,6 +315,10 @@ its purpose.
 # 5. Color System
 
 ## 5.1 Recommended Brand Direction
+
+> Superseded by `09_DESIGN.md` for literal values — the palette below records
+> the original exploration. The shipped palette anchors on a terracotta
+> primary with a deep slate-blue secondary.
 
 Use a **deep travel blue as the primary brand anchor**, supported by a
 clean off-white background and a warm exploration accent.
@@ -1159,6 +1184,10 @@ Never expose:
 # 37. Accessibility
 
 Design with accessibility from the beginning.
+
+**Ownership:** the UI/UX track owns the design intent; the Flutter/Mobile
+track owns implementing these requirements in the client (`Mobile/lib/`).
+See `04_TRIPLY_Team_and_Responsibilities.md` §3.
 
 Minimum requirements:
 

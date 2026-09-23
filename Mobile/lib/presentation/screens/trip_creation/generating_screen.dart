@@ -6,6 +6,7 @@ import 'package:provider/provider.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_text_styles.dart';
 import '../../providers/trip_creation_provider.dart';
+import '../../widgets/generation_wait_notice.dart';
 import '../../widgets/primary_button.dart';
 import '../../widgets/secondary_button.dart';
 
@@ -17,7 +18,11 @@ import '../../widgets/secondary_button.dart';
 /// Every request already carries a bounded timeout (see ApiClient — 15s by
 /// default, 120s for the generate call itself since it runs bounded-retry
 /// AI attempts server-side), so "never spins forever" is satisfied by the
-/// network layer itself — no separate manual timeout timer needed here.
+/// network layer itself.
+///
+/// The local elapsed timer below is not a timeout — it drives the 30s+
+/// "taking longer than usual" reassurance in [GenerationWaitNotice] so a slow
+/// but healthy generation never reads as a frozen app.
 class GeneratingScreen extends StatefulWidget {
   const GeneratingScreen({super.key});
 
@@ -29,7 +34,9 @@ class _GeneratingScreenState extends State<GeneratingScreen>
     with SingleTickerProviderStateMixin {
   late final AnimationController _spinController;
   Timer? _messageTimer;
+  Timer? _elapsedTimer;
   int _messageIndex = 0;
+  Duration _elapsed = Duration.zero;
 
   static const _messages = [
     'Balancing your dates, budget, and travelers…',
@@ -52,6 +59,11 @@ class _GeneratingScreenState extends State<GeneratingScreen>
       setState(() => _messageIndex = (_messageIndex + 1) % _messages.length);
     });
 
+    _elapsedTimer = Timer.periodic(const Duration(seconds: 1), (_) {
+      if (!mounted) return;
+      setState(() => _elapsed += const Duration(seconds: 1));
+    });
+
     // Kick off the real work once, after the first frame — never in build(),
     // so rebuilds from the provider's own notifyListeners() don't re-fire it.
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -63,13 +75,38 @@ class _GeneratingScreenState extends State<GeneratingScreen>
   void dispose() {
     _spinController.dispose();
     _messageTimer?.cancel();
+    _elapsedTimer?.cancel();
     super.dispose();
   }
 
-  void _retry() => context.read<TripCreationProvider>().submitTrip();
+  void _retry() {
+    // Restart the wait clock so the reassurance reflects the new attempt,
+    // not the time already spent on the failed one.
+    setState(() => _elapsed = Duration.zero);
+    context.read<TripCreationProvider>().submitTrip();
+  }
 
   void _backToReview() =>
       context.read<TripCreationProvider>().jumpToStep(5);
+
+  Widget _buildSpinner() {
+    return RotationTransition(
+      turns: _spinController,
+      child: Container(
+        width: 72,
+        height: 72,
+        decoration: const BoxDecoration(
+          color: AppColors.primaryContainerLight,
+          shape: BoxShape.circle,
+        ),
+        child: const Icon(
+          Icons.auto_awesome_rounded,
+          color: AppColors.primary,
+          size: 32,
+        ),
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -90,70 +127,16 @@ class _GeneratingScreenState extends State<GeneratingScreen>
                 ),
               TripCreationStatus.success =>
                 _SuccessView(tripId: provider.createdTripId),
-              _ => _LoadingView(
-                  spinController: _spinController,
+              _ => GenerationWaitNotice(
+                  spinner: _buildSpinner(),
                   message: _messages[_messageIndex],
+                  elapsed: _elapsed,
                   onCancel: _backToReview,
                 ),
             },
           ),
         ),
       ),
-    );
-  }
-}
-
-class _LoadingView extends StatelessWidget {
-  const _LoadingView({
-    required this.spinController,
-    required this.message,
-    required this.onCancel,
-  });
-
-  final AnimationController spinController;
-  final String message;
-  final VoidCallback onCancel;
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        RotationTransition(
-          turns: spinController,
-          child: Container(
-            width: 72,
-            height: 72,
-            decoration: const BoxDecoration(
-              color: AppColors.primaryContainerLight,
-              shape: BoxShape.circle,
-            ),
-            child: const Icon(
-              Icons.auto_awesome_rounded,
-              color: AppColors.primary,
-              size: 32,
-            ),
-          ),
-        ),
-        const SizedBox(height: 28),
-        Text(
-          'Creating your trip',
-          style: AppTextStyles.headlineMd,
-          textAlign: TextAlign.center,
-        ),
-        const SizedBox(height: 10),
-        AnimatedSwitcher(
-          duration: const Duration(milliseconds: 250),
-          child: Text(
-            message,
-            key: ValueKey(message),
-            style: AppTextStyles.bodyMd.copyWith(color: AppColors.secondary),
-            textAlign: TextAlign.center,
-          ),
-        ),
-        const SizedBox(height: 36),
-        SecondaryButton(label: 'Cancel', onPressed: onCancel),
-      ],
     );
   }
 }

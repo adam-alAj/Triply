@@ -143,6 +143,16 @@ spacing:
   space-xl: 2rem
 ---
 
+> **Authoritative visual system.** This document is the source of truth for
+> Triply's **visual language** — the color, typography, spacing and radius
+> tokens above are canonical, and the Flutter client mirrors them in
+> `lib/core/theme/app_colors.dart` and `lib/core/theme/app_text_styles.dart`.
+> `08_SYSTEM_DESIGN.md` remains the source of truth for **UX principles,
+> layout, accessibility and component architecture**. Where the two documents
+> disagree on visual values (for example 08 §4.1's "premium travel-tech"
+> wording, or §5.1's exploratory palette), **this document wins** for visuals.
+> Do not introduce a second palette.
+
 ## Brand & Style
 
 This design system channels an **Experimental Editorial Lifestyle** aesthetic tailored for modern exploration. Blending the tactile elegance of a boutique travel magazine with the deliberate responsiveness of a high-performance mobile application, it treats travel planning not as administrative logistics, but as an evocative narrative.
@@ -156,15 +166,15 @@ Visual language combines the warmth of coastal horizons with crisp informational
 
 ## Colors
 
-The color palette centers on a sun-warmed narrative anchored by architectural neutrals:
+The color palette centers on a sun-warmed narrative anchored by architectural neutrals. The hex values below are the **authoritative tokens** (the front-matter `colors:`) and match the Flutter theme:
 
-- **Primary (`#E05A47`)**: Sunset Coral acts as the dynamic catalyst. It powers high-priority interactive touchpoints, hero badges, active navigation indicators, and visual highlights that denote wanderlust and emotional investment.
-- **Secondary (`#0F2942`)**: Deep Ocean Blue provides structure, grounding interactive chrome, deep section headers, and high-contrast structural framing.
-- **Tertiary (`#E8F1F8`)**: Primary Soft light blue provides subtle contrast for active item backings, quiet callout fills, and soft categorical grouping.
-- **Neutral (`#0F172A`)**: Deep Navy handles text hierarchy with unmatched clarity, offering softened high-contrast readability against light backgrounds.
+- **Primary (`#A83223`)**: Sunset Terracotta acts as the dynamic catalyst. It powers high-priority interactive touchpoints, hero badges, active navigation indicators, and visual highlights that denote wanderlust and emotional investment. (`on-primary` `#FFFFFF`; container `#C94A38` on `#FFFBFF`.)
+- **Secondary (`#49607C`)**: Deep Slate Blue provides structure, grounding interactive chrome, deep section headers, and high-contrast structural framing.
+- **Tertiary (`#DBE4EB`)**: Soft Blue Tint provides subtle contrast for active item backings, quiet callout fills, the AI-generated badge, and soft categorical grouping.
+- **Neutral (`#131B2E`)**: Deep Navy handles text hierarchy with unmatched clarity, offering softened high-contrast readability against light backgrounds. (`text-muted` `#64748B`, `on-surface-variant` `#58413D`.)
 
 ### Functional Roles & Tone
-- Backgrounds leverage `surface-canvas` (`#F8F9FA`) to reduce eye strain, while content layers sit atop pure `surface-card` (`#FFFFFF`).
+- Backgrounds leverage the app `surface` (`#FAF8FF`) to reduce eye strain, while content layers sit atop pure `surface-card` / `surface-container-lowest` (`#FFFFFF`). `surface-canvas` (`#F8F9FA`) remains an optional utility canvas.
 - Informational states employ semantic tokens: `status-success` (`#10B981`) for confirmed itineraries and saved bookings, `status-warning` (`#F59E0B`) for weather alerts and tight transfers, and `status-error` (`#EF4444`) for booking conflicts and destructive flows.
 - Borders rely on `border-subtle` (`#E2E8F0`) to provide quiet spatial boundaries without cluttering views.
 
@@ -199,7 +209,7 @@ Visual depth is achieved through layered tonal contrast rather than opaque skeuo
 - **Level 1 (Interactive Cards & Tiles)**: Resting cards utilize pure `surface-card` (`#FFFFFF`) with a subtle 1px hairline border (`#E2E8F0`) and an ambient tinted shadow:
   `box-shadow: 0 4px 20px -2px rgba(15, 41, 66, 0.05)`.
 - **Level 2 (Floating Controls & Popovers)**: Pill navigation bars and floating trip filters use deeper dispersion with warm undertones:
-  `box-shadow: 0 8px 24px -4px rgba(224, 90, 71, 0.08), 0 4px 12px -2px rgba(15, 25, 42, 0.04)`.
+  `box-shadow: 0 8px 24px -4px rgba(168, 50, 35, 0.08), 0 4px 12px -2px rgba(15, 25, 42, 0.04)`.
 - **Level 3 (Modal Sheets & Drawer Overlays)**: Bottom sheets use top-only rounded edges and an anchoring shadow:
   `box-shadow: 0 -8px 32px 0 rgba(15, 23, 42, 0.12)`.
 - **Image Scrims**: Photographic hero tiles apply a directional linear gradient from transparent to `rgba(15, 25, 42, 0.72)` at the bottom, maintaining high contrast for superimposed labels.
@@ -215,25 +225,26 @@ The design system adopts a **pill-shaped (level 3)** curvature language, echoing
 ## Components
 
 ### Buttons
-- **Primary Action**: Full pill radius, filled with `primary` (`#E05A47`), label in white `Work Sans` (`label-lg`). Includes a subtle coral glow shadow on press.
+- **Primary Action**: Full pill radius, filled with `primary` (`#A83223`), label in white `Work Sans` (`label-lg`). Includes a subtle glow shadow on press.
 - **Secondary Action**: Pill radius, background `tertiary` (`#E8F1F8`), label in `secondary` (`#0F2942`). Zero border.
 - **Ghost / Tertiary Action**: Borderless with `secondary` or `text-muted` typography, used for low-priority navigation and header dismissals.
 
 ### Input Fields
 - Enclosed pill contours with `surface-card` (`#FFFFFF`) background, bordered by `border-subtle` (`#E2E8F0`).
-- Label rests outside in `label-sm` (`#64748B`). Active focus transitions the border to `primary` (`#E05A47`) with a 2px soft ring. Error states swap the border to `status-error` (`#EF4444`).
+- Label rests outside in `label-sm` (`#64748B`). Active focus transitions the border to `primary` (`#A83223`) with a 2px soft ring. Error states swap the border to `status-error` (`#EF4444`).
 
 ### Chips & Badges
-- **Selection Chips**: Pill silhouette. Inactive chips use a 1px border (`#E2E8F0`) with `text-muted` typography. Selected state transitions to full `secondary` (`#0F2942`) or `primary` (`#E05A47`) with high-contrast white text.
-- **AI Recommendation Badges**: Subtle pill tags with an icon, styled in `tertiary` (`#E8F1F8`) background with `secondary` (`#0F2942`) text, avoiding artificial neon styling.
+- **Selection Chips**: Pill silhouette. Inactive chips use a 1px border (`#E2E8F0`) with `text-muted` typography. Selected state transitions to full `secondary` (`#49607C`) or `primary` (`#A83223`) with high-contrast white text.
+- **AI Recommendation Badges**: Subtle pill tags with an icon, styled in `tertiary` (`#DBE4EB`) background with `secondary` (`#49607C`) text, avoiding artificial neon styling.
+- **Data Provenance Badges**: one badge per provenance type, each visually and verbally distinct so AI content and estimated numbers can never be confused (Principle 05 / SRS §8). `AIGeneratedBadge` ("AI-generated", cool `#DBE4EB` + sparkle icon) marks AI-authored **content**; `EstimatedBadge` ("Estimated", warm `#FFDAD4`) marks cost **estimates**; `VerifiedBadge` ("Verified", semantic `#10B981` + check icon) marks values checked against real data.
 
 ### Content Cards
 - **Trip / Destination Card**: Constructed with `rounded-lg` curvature, featuring an edge-to-edge photography window over a clean lower metadata panel (`#FFFFFF`). Displays a title (`headline-md`), location pin, and a floating price/duration pill badge.
-- **Itinerary Timeline Card**: Bordered by `border-subtle`, displaying time offsets in tabular typography, an accent dot in `primary` (`#E05A47`), and expandable activity descriptions.
+- **Itinerary Timeline Card**: Bordered by `border-subtle`, displaying time offsets in tabular typography, an accent dot in `primary` (`#A83223`), and expandable activity descriptions.
 
 ### Lists & Selection Rows
 - Item groups are separated by generous spacing or ultra-thin hairline dividers (`#E2E8F0`).
-- Checkboxes and radio switches use circular pill geometries, filling with `primary` (`#E05A47`) upon activation.
+- Checkboxes and radio switches use circular pill geometries, filling with `primary` (`#A83223`) upon activation.
 
 ### Bottom Sheets & Overlays
 - Fixed to viewport bottom with `rounded-xl` top curvature. Includes a centered drag indicator handle (36px × 4px, `#E2E8F0`) with `space-sm` clearance from the top.

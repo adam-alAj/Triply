@@ -73,7 +73,7 @@ Triply's stack is dictated by one hard rule: **every choice must be free and mus
 ### UI / UX / Web — Rania
 | Technology | Purpose | Cost |
 |---|---|---|
-| **TBD — Pending Capability Analysis** (Team Doc §2) | No design-tool commitment until Rania's capability is confirmed. If confirmed: Figma free tier for design specs → Flutter design tokens | FREE TIER (if confirmed) |
+| **Figma (free tier) → Flutter design tokens** | The design system is now on record (`09_DESIGN.md`, "Sunset Wanderer", exported from Figma) and implemented in the Flutter theme. New UI/UX work is unstaffed until capability is confirmed (Team Doc §2). | FREE TIER |
 
 ### Cybersecurity — Arb
 | Technology | Purpose | Cost |

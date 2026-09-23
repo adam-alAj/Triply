@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:triply_project/presentation/widgets/cost_category_row.dart';
+import 'package:triply_project/presentation/widgets/estimated_badge.dart';
 
 import 'test_helpers.dart';
 
@@ -31,6 +32,16 @@ void main() {
       );
 
       expect(find.text('Estimated'), findsOneWidget);
+    });
+
+    testWidgets('renders the estimate marker via the shared EstimatedBadge',
+        (tester) async {
+      await pumpApp(
+        tester,
+        const CostCategoryRow(categoryLabel: 'Food', amountLabel: r'$120'),
+      );
+
+      expect(find.byType(EstimatedBadge), findsOneWidget);
     });
 
     testWidgets('renders the provided icon', (tester) async {

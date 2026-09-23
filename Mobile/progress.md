@@ -44,9 +44,11 @@ This document tracks what exists in the Flutter app today: architecture, every s
 
 ## 3. Shared Component Library (`lib/presentation/widgets/`)
 
-One implementation each, reused everywhere: `AppScaffold`, `PrimaryButton`, `SecondaryButton`, `AppTextField`, `SelectionCard`, `InterestChip`, `DestinationCard`, `TripCard`, `DaySelector`, `ItineraryItemCard`, `CostCategoryRow`, `StatusBadge`, `AIGeneratedBadge`, `EmptyState`, `ErrorState`, `LoadingSkeleton`, `AppBottomSheet`, `ConfirmationDialog`, `AppBottomNavigation`.
+One implementation each, reused everywhere: `AppScaffold`, `PrimaryButton`, `SecondaryButton`, `AppTextField`, `SelectionCard`, `InterestChip`, `DestinationCard`, `TripCard`, `DaySelector`, `ItineraryItemCard`, `CostCategoryRow`, `StatusBadge`, `AIGeneratedBadge`, `EstimatedBadge`, `VerifiedBadge`, `EmptyState`, `ErrorState`, `LoadingSkeleton`, `GenerationWaitNotice`, `AppBottomSheet`, `ConfirmationDialog`, `AppBottomNavigation`.
 
-**Gap**: none of these have a dedicated widget test yet (only the architecture smoke test exists).
+The three provenance markers are deliberately distinct: `AIGeneratedBadge` (AI-authored content, cool blue-grey), `EstimatedBadge` (cost estimates, warm coral) and `VerifiedBadge` (dataset-checked, semantic green) — AI content can never be mistaken for a verified or estimated value (08 §Principle 05, SRS §8).
+
+**Gap**: not every component has a dedicated widget test yet (the architecture smoke test plus `test/` widget tests for the shared library exist; coverage is still partial).
 
 ---
 
@@ -109,6 +111,8 @@ One implementation each, reused everywhere: `AppScaffold`, `PrimaryButton`, `Sec
 - **Local reference database was missing all of: curated places (only 2 old placeholder Amman rows existed), place↔interest tags (0 rows for the real dataset — see gap #1 above), and exchange rates** — reproduced and fixed by running the three seed scripts. Also found and deactivated 2 leftover duplicate Amman places from an earlier ad-hoc manual seed attempt that were skewing `DestinationSuggestionService`'s interest-match filter.
 - **Backend base URL was hardcoded to the Android emulator's `10.0.2.2` alias**, which doesn't exist on real hardware — a physical device over USB could never reach the backend no matter what. `ApiClient.create()` now probes both `10.0.2.2` and `localhost` and uses whichever answers (see §1).
 - **Six raw emoji/unicode-glyph characters embedded directly in `Text` widgets** (Login, Register, Profile, Home) replaced with proper Material Icons for consistent rendering across devices.
+
+- **UI/UX gap states implemented** (from the UI/UX Gap Report): the Generating screen now escalates at 30s+ via a reusable `GenerationWaitNotice` (honest elapsed time, reassurance, Cancel still available — no fake progress, no fake percent); the budget-first Destination Suggestions screen now has a real "No destinations match your budget" empty state with *Adjust budget* / *Change interests* next steps plus a loading skeleton; and the AI-generated vs Estimated vs Verified labeling is now a consistent three-way system (`AIGeneratedBadge` / `EstimatedBadge` / `VerifiedBadge`). The duplicated local `_AccuracyBadge` in Trip Overview no longer reuses the AI badge's color for "Verified".
 
 **Obstacle**: the `GENERATING`-stuck bug was hard to pin down from the report alone ("$0 everywhere, stuck on GENERATING") — needed to trace the exact exception type `GeminiClient` throws against exactly which `catch` blocks the retry loop actually has, since the type mismatch (`InvalidOperationException` vs the expected `GeminiApiException`) is easy to miss on a quick read.
 

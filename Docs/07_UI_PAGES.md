@@ -296,11 +296,13 @@ Offline: SRS assumes connectivity (Assumption §16) — a single "no connection"
 
 **States needing real design attention (not afterthoughts):** Generating (waiting UX — latency is TBD per NFR-PERF-001, so the screen must tolerate 30s+), Generating-failure (retry language, never blame the user), "destination not supported" (journey 7 — must feel helpful, not dead-end), "no destinations match your budget" (budget-first empty state), and the AI-generated/Estimated labeling (SRS §8 — AI content must always be distinguishable from verified data).
 
+> **Status (2026-09-23):** the wait, empty and labeling states above are now implemented in Flutter, not just specified — the 30s+ escalation in `GenerationWaitNotice` (used by the Generating screen, keeping Cancel available); the "No destinations match your budget" empty state with *Adjust budget* / *Change interests* next steps in `destination_suggestions_screen.dart`; and a three-way provenance system — `AIGeneratedBadge` (AI-authored content), `EstimatedBadge` (cost estimates) and `VerifiedBadge` (data checked against the dataset) — so AI content never reads as verified or estimated data.
+
 **Must NOT become pages:** day view, cost breakdown, place details, item edit, regenerate options, archive/delete confirmation (sheet/modal/dialog respectively, per Section 6).
 
 **Needs special care:** the Regenerate sheet is the *only* AI customization surface in MVP — its clarity determines whether FR-TRIP-003 feels real; keep the Itinerary tab scannable (time slot → ordered items) since it's the screen users will stare at the longest.
 
-**Not in this handoff:** colors, typography, branding, iconography — pending Rania's capability analysis (D4). Also awaiting decisions: D1 (cost tolerance affects displayed cost messaging only), D2 (guest browsing → Welcome screen), password recovery.
+**Not in this handoff:** colors, typography, branding, iconography — these now live in `09_DESIGN.md` (the authoritative visual system, implemented in the Flutter theme), not in this IA handoff. Still awaiting product decisions: D1 (cost tolerance affects displayed cost messaging only), D2 (guest browsing → Welcome screen), password recovery.
 
 ---
 
