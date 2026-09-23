@@ -150,45 +150,48 @@ builder.Services.AddRateLimiter(options =>
 {
     options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
 
-    options.AddFixedWindowLimiter("fixed", opt =>
-    {
-        // 200 (was 100): the Testing budget must cover the full integration suite
-        // including the gap-regression tests added for generation concurrency,
-        // duplicate-place validation, and dataset provisioning. Production stays 10.
-        opt.PermitLimit =
-            builder.Environment.IsEnvironment("Testing") ? 200 : 10;
+    // General API limit: 10 requests/minute in production,
+    // 200 requests/minute in Testing so the integration suite is not throttled.
+    var generalPermitLimit =
+        builder.Environment.IsEnvironment("Testing") ? 200 : 10;
 
     options.AddPolicy("fixed", context =>
-        RateLimitPartition.GetFixedWindowLimiter(PartitionKey(context), _ => new FixedWindowRateLimiterOptions
-        {
-            PermitLimit = generalPermitLimit,
-            Window = TimeSpan.FromMinutes(1),
-            QueueProcessingOrder = QueueProcessingOrder.OldestFirst,
-            QueueLimit = 0
-        }));
+        RateLimitPartition.GetFixedWindowLimiter(
+            PartitionKey(context),
+            _ => new FixedWindowRateLimiterOptions
+            {
+                PermitLimit = generalPermitLimit,
+                Window = TimeSpan.FromMinutes(1),
+                QueueProcessingOrder = QueueProcessingOrder.OldestFirst,
+                QueueLimit = 0
+            }));
 
     options.AddPolicy("login", context =>
-        RateLimitPartition.GetFixedWindowLimiter(PartitionKey(context), _ => new FixedWindowRateLimiterOptions
-        {
-            PermitLimit = 5,
-            Window = TimeSpan.FromMinutes(1),
-            QueueProcessingOrder = QueueProcessingOrder.OldestFirst,
-            QueueLimit = 0
-        }));
+        RateLimitPartition.GetFixedWindowLimiter(
+            PartitionKey(context),
+            _ => new FixedWindowRateLimiterOptions
+            {
+                PermitLimit = 5,
+                Window = TimeSpan.FromMinutes(1),
+                QueueProcessingOrder = QueueProcessingOrder.OldestFirst,
+                QueueLimit = 0
+            }));
 
     // AI generation is the most expensive action in the app (costs money + time),
-    // so it gets its own, much tighter, per-user budget instead of sharing "fixed"
-    // (Security Task 3): 10 generations per hour per user.
+    // so it gets its own, much tighter, per-user budget instead of sharing "fixed".
+    // Security Task 3: 10 generations per hour per user.
     options.AddPolicy("ai-generation", context =>
-        RateLimitPartition.GetFixedWindowLimiter(PartitionKey(context), _ => new FixedWindowRateLimiterOptions
-        {
-            PermitLimit = builder.Environment.IsEnvironment("Testing") ? 100 : 10,
-            Window = TimeSpan.FromHours(1),
-            QueueProcessingOrder = QueueProcessingOrder.OldestFirst,
-            QueueLimit = 0
-        }));
+        RateLimitPartition.GetFixedWindowLimiter(
+            PartitionKey(context),
+            _ => new FixedWindowRateLimiterOptions
+            {
+                PermitLimit =
+                    builder.Environment.IsEnvironment("Testing") ? 100 : 10,
+                Window = TimeSpan.FromHours(1),
+                QueueProcessingOrder = QueueProcessingOrder.OldestFirst,
+                QueueLimit = 0
+            }));
 });
-
 // ---------- CORS ----------
 
 var flutterOrigins =
