@@ -44,7 +44,7 @@ Triply's stack is dictated by one hard rule: **every choice must be free and mus
 ### AI / ML — Aya, Anas, Adam
 | Technology | Purpose | Cost |
 |---|---|---|
-| Python + Pandas + Jupyter / Google Colab | Curate and version the destinations/places/pricing dataset (FR-DATA-001); run the validation harness (0% invented places, cost tolerance) | OPEN-SOURCE / FREE |
+| Python + Pandas + Jupyter / Google Colab | Curate/version the dataset (FR-DATA-001); validate schema and place grounding (0% invented places) | OPEN-SOURCE / FREE |
 | Google AI Studio | Prompt prototyping and JSON-schema testing before Phase 6 handoff to Backend | FREE |
 | Gemini API (Flash models) | Itinerary + budget-first destination suggestion generation (FR-AI-001) | FREE TIER (rate-limited; data may be used for training) |
 
@@ -184,7 +184,7 @@ No other services. No message queue, no vector store, no second database, no sep
 2. **Gemini free-tier privacy trade-off.** Free-tier data may be used by Google to improve its products. Mitigation: `input_snapshot` must exclude PII (enforce in AI-Orchestration). If supervisors reject even that, Gemini paid tier becomes a small real cost — must be approved.
 3. **Gemini model choice within free tier.** Gemini 3 Flash (best quality, 1,500 RPD) vs. Flash-Lite (higher RPM). Confirm after Phase 3 latency testing (NFR-PERF-001 is TBD for exactly this reason).
 4. **Production licensing of SQL Server.** Developer Edition cannot host the "production" demo. Confirm: Azure SQL free tier vs. running SQL Server in a Docker container on the host (free, but ops burden falls on Lynn).
-5. **Cost tolerance band (D1, ±15% proposed)** — affects the AI validation harness, not the stack, but blocks Phase 7 test thresholds.
+5. **D1 AI cost-tolerance band:** **Not applicable / superseded by AI Contract v2.0.0.** Backend computes costs from curated reference prices and checks budget feasibility deterministically; no AI cost-tolerance threshold blocks Phase 7.
 6. **Guest browsing (D2)** — if in scope, it changes only authorization config, but confirm before Phase 2.
 7. **Flutter Web hosting target** — Firebase Hosting free tier is the default; confirm no university hosting is mandated.
 8. **UI/UX track (D4)** — new tool choices beyond the existing design system remain frozen until capability analysis is done. Cybersecurity review is owned by Arab Hammad.

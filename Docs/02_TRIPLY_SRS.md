@@ -115,7 +115,7 @@ See Master Plan §4 SHOULD/COULD HAVE.
 ## 17. Open Questions / Decisions Required
 | # | Question | Why it matters |
 |---|---|---|
-| D1 | Exact cost-tolerance band (proposed ±15%) | Defines FR-AI-002 acceptance threshold |
+| D1 | AI cost-tolerance band (proposed ±15%) | **Not applicable / superseded by AI JSON Contract v2.0.0:** model output contains no cost fields; the Backend computes costs from curated reference prices. D1 is closed and does not define FR-AI-002 acceptance. |
 | D2 | Is guest (unauthenticated) browsing in scope? | Affects FR-AUTH and navigation architecture |
 | D3 | Hosting/infrastructure choice | No team member has cloud deployment experience — needs an explicit decision before Phase 11 |
 | D4 | Who owns UI/UX and Cybersecurity responsibilities long-term | Cybersecurity ownership is confirmed as Arab Hammad; UI/UX is owned at track level for the existing design system |

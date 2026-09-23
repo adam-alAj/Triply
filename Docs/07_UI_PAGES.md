@@ -302,7 +302,7 @@ Offline: SRS assumes connectivity (Assumption §16) — a single "no connection"
 
 **Needs special care:** the Regenerate sheet is the *only* AI customization surface in MVP — its clarity determines whether FR-TRIP-003 feels real; keep the Itinerary tab scannable (time slot → ordered items) since it's the screen users will stare at the longest.
 
-**Not in this handoff:** colors, typography, branding, iconography — these now live in `09_DESIGN.md` (the authoritative visual system, implemented in the Flutter theme), not in this IA handoff. Still awaiting product decisions: D1 (cost tolerance affects displayed cost messaging only), D2 (guest browsing → Welcome screen), password recovery.
+**Not in this handoff:** colors, typography, branding, iconography — these now live in `09_DESIGN.md` (the authoritative visual system, implemented in the Flutter theme), not in this IA handoff. D1 is not applicable to AI output and is superseded by backend-computed costs; D2 (guest browsing → Welcome screen) and password recovery still need product decisions.
 
 ---
 

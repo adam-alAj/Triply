@@ -38,7 +38,7 @@
 
 ### Aya Maali, Anas Musleh, Adam Alafandi — AI / ML
 **Capability summary:** Weeks 1–8 of a 10-week AI/ML track: Python/Pandas/EDA foundations, classical supervised/unsupervised ML, model evaluation discipline, deep-learning architectures (CNN/RNN/Transformer) via a 3-sprint capstone. **Explicitly not covered:** Gemini/LLM API integration, prompt engineering, REST API consumption — confirmed directly by the track's own summary as the single most important planning gap for this project.
-**Primary responsibilities:** Curate and maintain the internal destinations/places/pricing dataset; design and own the AI-output validation logic (0% invented-place check, cost tolerance check) — a direct reuse of their evaluation/error-analysis training.
+**Primary responsibilities:** Curate and maintain the internal destinations/places/pricing dataset; define AI-output schema and place-grounding validation (0% unsupported/invented places). Cost calculations and budget-feasibility checks use backend-computed values; the former AI cost-tolerance check was superseded by Contract v2.0.0.
 **Secondary responsibilities:** Once upskilled, design prompt templates and the JSON output schema for Gemini (handed to Backend for live integration per ADR-01).
 **Owned components:** Internal dataset; AI-output validation rules.
 **Supporting components:** Prompt/schema design (co-owned with Backend for integration).

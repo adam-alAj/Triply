@@ -7,6 +7,8 @@
 **Requirement:** FR-DATA-001 (SRS §9) — internal dataset maintenance
 **References:** Database Design §6.3–§6.7 (entity fields), §26 (seed data strategy), §28 (price freshness risk), SRS D5 / DB-D4 (destination scope)
 
+> **Current status (2026-09-23):** The test observations and coordination items below are historical (2026-09-15). PR #66 and migration `20260921001200_RemoveBackendStaticSeed` removed the backend's static reference-data seed for fresh/empty databases; current development provisioning reads the curated CSVs, and the obsolete manual `seed-dataset.sql` is retired. Populated legacy databases are intentionally preserved. Backend validation now requires `Destination.IsSupported`; use current code/configuration as authority, not unresolved wording in the historical notes below.
+
 ---
 
 ## 1. Scope

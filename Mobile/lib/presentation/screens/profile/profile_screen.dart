@@ -359,8 +359,8 @@ class _PrivacyCardState extends State<_PrivacyCard> {
       children: [
         _SettingsRow(
           icon: Icons.savings_outlined,
-          title: 'Smart Budget Buffer',
-          subtitle: 'Calculates realistic ±15% variance',
+          title: 'Trip Cost Estimates',
+          subtitle: 'Costs are calculated from curated place prices.',
           trailing: Switch(
             value: _smartBudget,
             activeThumbColor: AppColors.primary,
