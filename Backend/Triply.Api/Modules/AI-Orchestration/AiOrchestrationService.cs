@@ -689,10 +689,14 @@ public class AiOrchestrationService : IAiOrchestrationService
             .OrderByDescending(g => g.AttemptNumber)
             .FirstAsync(cancellationToken);
 
+        var finalStatus = lastFailedGeneration.Status == "FAILED_ERROR"
+            ? "FAILED_ERROR"
+            : "FAILED_VALIDATION";
+
         return new AiGenerationResult
         {
             Success = false,
-            Status = "FAILED_VALIDATION",
+            Status = finalStatus,
             AiGenerationId = lastFailedGeneration.Id,
             AttemptsUsed = maxAttempts,
             Errors = allErrors

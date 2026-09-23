@@ -55,7 +55,9 @@ public sealed class AiGroundingTestFactory : CustomWebApplicationFactory
         builder.ConfigureAppConfiguration((_, config) =>
             config.AddInMemoryCollection(new Dictionary<string, string?>
             {
-                ["AI:ExtraAiContextPath"] = contextPath
+                ["AI:ExtraAiContextPath"] = contextPath,
+                // Keep retry tests fast and explicit: total attempts = MaxRetries + 1.
+                ["Gemini:MaxRetries"] = "1"
             }));
     }
 }
@@ -83,16 +85,38 @@ public sealed class ScriptedGeminiClient : IGeminiClient
     private static readonly object SyncRoot = new();
 
     private static string? _response;
+    private static Queue<object>? _outcomes;
     private static int? _lastDestinationOptionsMaxItems;
+    private static int _callCount;
 
     public static void SetResponse(string response)
     {
-        lock (SyncRoot) _response = response;
+        lock (SyncRoot)
+        {
+            _response = response;
+            _outcomes = null;
+            _callCount = 0;
+        }
+    }
+
+    public static void SetOutcomes(params object[] outcomes)
+    {
+        lock (SyncRoot)
+        {
+            _response = null;
+            _outcomes = new Queue<object>(outcomes);
+            _callCount = 0;
+        }
     }
 
     public static int? LastDestinationOptionsMaxItems
     {
         get { lock (SyncRoot) return _lastDestinationOptionsMaxItems; }
+    }
+
+    public static int CallCount
+    {
+        get { lock (SyncRoot) return _callCount; }
     }
 
     public Task<string> GenerateJsonAsync(
@@ -126,6 +150,16 @@ public sealed class ScriptedGeminiClient : IGeminiClient
     {
         lock (SyncRoot)
         {
+            _callCount++;
+
+            if (_outcomes is { Count: > 0 })
+            {
+                var outcome = _outcomes.Dequeue();
+                if (outcome is Exception exception)
+                    throw exception;
+                return (string)outcome;
+            }
+
             return _response ?? throw new InvalidOperationException(
                 "ScriptedGeminiClient response was not initialized for this test.");
         }
@@ -531,6 +565,146 @@ public sealed class AiGroundingIntegrationTests : IClassFixture<AiGroundingTestF
     }
 
     // --- V-002 §5.3 budget policy: rules-as-written ---
+
+    [Fact]
+    public async Task Generate_InvalidJsonThenValidRetry_SucceedsOnSecondAttempt()
+    {
+        var token = await RegisterAndGetTokenAsync();
+        var (destinationId, destinationName) = await SeedDestinationAsync(isSupported: true);
+        var places = await SeedPlacesAsync(destinationId);
+
+        ScriptedGeminiClient.SetOutcomes(
+            "this is not json",
+            BuildValidResponse(
+                "DESTINATION_FIRST", destinationName, places.Hotel, places.Restaurant, places.Transport));
+
+        var tripId = await CreateDestinationFirstTripAsync(token, destinationId);
+        var response = await GenerateAsync(token, tripId);
+        var body = await response.Content.ReadAsStringAsync();
+
+        Assert.True(response.IsSuccessStatusCode, $"HTTP {(int)response.StatusCode}\n{body}");
+        Assert.Equal(2, ScriptedGeminiClient.CallCount);
+
+        var payload = JsonSerializer.Deserialize<JsonElement>(body);
+        Assert.Equal(2, payload.GetProperty("attemptsUsed").GetInt32());
+
+        using var scope = _factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+
+        var generations = await db.AIGenerations.AsNoTracking()
+            .Where(g => g.TripId == tripId)
+            .OrderBy(g => g.AttemptNumber)
+            .ToListAsync();
+
+        Assert.Equal(2, generations.Count);
+        Assert.Equal("FAILED_VALIDATION", generations[0].Status);
+        Assert.Equal("SUCCEEDED", generations[1].Status);
+        Assert.True(await db.Itineraries.AsNoTracking().AnyAsync(i => i.TripId == tripId));
+
+        var trip = await db.Trips.AsNoTracking().SingleAsync(t => t.Id == tripId);
+        Assert.Equal(TripLifecycle.Generated, trip.Status);
+    }
+
+    [Fact]
+    public async Task Generate_InvalidJsonExhaustsRetries_Returns422AndPersistsNoItinerary()
+    {
+        var token = await RegisterAndGetTokenAsync();
+        var (destinationId, _) = await SeedDestinationAsync(isSupported: true);
+        await SeedPlacesAsync(destinationId);
+
+        ScriptedGeminiClient.SetResponse("this is not json");
+
+        var tripId = await CreateDestinationFirstTripAsync(token, destinationId);
+        var response = await GenerateAsync(token, tripId);
+        var body = await response.Content.ReadAsStringAsync();
+
+        Assert.Equal(HttpStatusCode.UnprocessableEntity, response.StatusCode);
+        Assert.Contains("not valid JSON", body, StringComparison.OrdinalIgnoreCase);
+        Assert.Equal(2, ScriptedGeminiClient.CallCount);
+
+        using var scope = _factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+
+        var generations = await db.AIGenerations.AsNoTracking()
+            .Where(g => g.TripId == tripId)
+            .OrderBy(g => g.AttemptNumber)
+            .ToListAsync();
+
+        Assert.Equal(2, generations.Count);
+        Assert.All(generations, g => Assert.Equal("FAILED_VALIDATION", g.Status));
+        Assert.False(await db.Itineraries.AsNoTracking().AnyAsync(i => i.TripId == tripId));
+
+        var trip = await db.Trips.AsNoTracking().SingleAsync(t => t.Id == tripId);
+        Assert.Equal(TripLifecycle.Draft, trip.Status);
+    }
+
+    [Fact]
+    public async Task Generate_Gemini5xxThenValidRetry_SucceedsWithoutPersistingFailedAttempt()
+    {
+        var token = await RegisterAndGetTokenAsync();
+        var (destinationId, destinationName) = await SeedDestinationAsync(isSupported: true);
+        var places = await SeedPlacesAsync(destinationId);
+
+        ScriptedGeminiClient.SetOutcomes(
+            new GeminiApiException("Gemini API returned 503 ServiceUnavailable.", "{\"error\":\"overloaded\"}"),
+            BuildValidResponse(
+                "DESTINATION_FIRST", destinationName, places.Hotel, places.Restaurant, places.Transport));
+
+        var tripId = await CreateDestinationFirstTripAsync(token, destinationId);
+        var response = await GenerateAsync(token, tripId);
+        var body = await response.Content.ReadAsStringAsync();
+
+        Assert.True(response.IsSuccessStatusCode, $"HTTP {(int)response.StatusCode}\n{body}");
+        Assert.Equal(2, ScriptedGeminiClient.CallCount);
+
+        using var scope = _factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+
+        var generations = await db.AIGenerations.AsNoTracking()
+            .Where(g => g.TripId == tripId)
+            .OrderBy(g => g.AttemptNumber)
+            .ToListAsync();
+
+        Assert.Equal(2, generations.Count);
+        Assert.Equal("FAILED_ERROR", generations[0].Status);
+        Assert.Equal("SUCCEEDED", generations[1].Status);
+        Assert.True(await db.Itineraries.AsNoTracking().AnyAsync(i => i.TripId == tripId));
+    }
+
+    [Fact]
+    public async Task Generate_GeminiTimeoutExhaustsRetries_ReturnsBadGatewayAndLeavesTripRetryable()
+    {
+        var token = await RegisterAndGetTokenAsync();
+        var (destinationId, _) = await SeedDestinationAsync(isSupported: true);
+        await SeedPlacesAsync(destinationId);
+
+        ScriptedGeminiClient.SetOutcomes(
+            new GeminiApiException("Gemini API call timed out.", string.Empty),
+            new GeminiApiException("Gemini API call timed out.", string.Empty));
+
+        var tripId = await CreateDestinationFirstTripAsync(token, destinationId);
+        var response = await GenerateAsync(token, tripId);
+        var body = await response.Content.ReadAsStringAsync();
+
+        Assert.Equal(HttpStatusCode.BadGateway, response.StatusCode);
+        Assert.Contains("upstream", body, StringComparison.OrdinalIgnoreCase);
+        Assert.Equal(2, ScriptedGeminiClient.CallCount);
+
+        using var scope = _factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+
+        var generations = await db.AIGenerations.AsNoTracking()
+            .Where(g => g.TripId == tripId)
+            .OrderBy(g => g.AttemptNumber)
+            .ToListAsync();
+
+        Assert.Equal(2, generations.Count);
+        Assert.All(generations, g => Assert.Equal("FAILED_ERROR", g.Status));
+        Assert.False(await db.Itineraries.AsNoTracking().AnyAsync(i => i.TripId == tripId));
+
+        var trip = await db.Trips.AsNoTracking().SingleAsync(t => t.Id == tripId);
+        Assert.Equal(TripLifecycle.Draft, trip.Status);
+    }
 
     [Fact]
     public async Task Generate_DestinationFirstOverBudget_FlagsInsteadOfFailing()

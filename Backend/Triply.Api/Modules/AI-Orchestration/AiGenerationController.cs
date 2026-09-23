@@ -96,6 +96,17 @@ catch (DbUpdateConcurrencyException ex)
 }
         if (!result.Success)
         {
+            if (result.Status == "FAILED_ERROR")
+            {
+                return StatusCode(StatusCodes.Status502BadGateway, new
+                {
+                    message = "AI generation failed because the upstream Gemini service did not complete successfully.",
+                    aiGenerationId = result.AiGenerationId,
+                    attemptsUsed = result.AttemptsUsed,
+                    errors = result.Errors
+                });
+            }
+
             // Never a fabricated result (FR-AI-002) — a clear, distinguishable failure instead.
             return UnprocessableEntity(new
             {
