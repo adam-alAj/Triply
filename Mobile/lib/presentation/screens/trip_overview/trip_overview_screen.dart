@@ -675,7 +675,7 @@ class _EstimateCard extends StatelessWidget {
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
           colors: [
-            AppColors.primaryContainerLight.withOpacity(0.55),
+            AppColors.primaryContainerLight.withValues(alpha: 0.55),
             AppColors.surfaceContainerLow,
           ],
         ),
@@ -694,7 +694,7 @@ class _EstimateCard extends StatelessWidget {
                     vertical: 4,
                   ),
                   decoration: BoxDecoration(
-                    color: Colors.white.withOpacity(0.72),
+                    color: Colors.white.withValues(alpha: 0.72),
                     borderRadius: BorderRadius.circular(9999),
                   ),
                   child: Text(
@@ -719,7 +719,7 @@ class _EstimateCard extends StatelessWidget {
                     vertical: 4,
                   ),
                   decoration: BoxDecoration(
-                    color: Colors.white.withOpacity(0.72),
+                    color: Colors.white.withValues(alpha: 0.72),
                     borderRadius: BorderRadius.circular(9999),
                   ),
                   child: Row(
@@ -1625,7 +1625,7 @@ class _CategoryCard
                 height: 38,
                 decoration: BoxDecoration(
                   color:
-                  color.withOpacity(0.12),
+                  color.withValues(alpha: 0.12),
                   borderRadius:
                   BorderRadius.circular(12),
                 ),
@@ -1929,7 +1929,7 @@ class _StayHighlightCard
                   colors: [
                     Colors.transparent,
                     Colors.black
-                        .withOpacity(0.78),
+                        .withValues(alpha: 0.78),
                   ],
                 ),
               ),
@@ -2007,7 +2007,7 @@ class _StayHighlightCard
                     decoration:
                     BoxDecoration(
                       color: Colors.black
-                          .withOpacity(0.55),
+                          .withValues(alpha: 0.55),
                       borderRadius:
                       BorderRadius.circular(
                         16,

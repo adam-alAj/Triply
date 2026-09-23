@@ -43,7 +43,7 @@ class _LoadingSkeletonState extends State<LoadingSkeleton> with SingleTickerProv
           width: widget.width,
           height: widget.height,
           decoration: BoxDecoration(
-            color: AppColors.surfaceContainer.withOpacity(opacity),
+            color: AppColors.surfaceContainer.withValues(alpha: opacity),
             borderRadius: BorderRadius.circular(widget.borderRadius),
           ),
         );

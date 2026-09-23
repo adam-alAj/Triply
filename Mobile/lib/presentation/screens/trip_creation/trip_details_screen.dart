@@ -106,6 +106,7 @@ class _TripDetailsScreenState extends State<TripDetailsScreen> {
       builder: (context) => _BudgetDialog(initialValue: _budget),
     );
 
+    if (!mounted) return;
     if (result == null) return;
 
     setState(() {
@@ -142,25 +143,6 @@ class _TripDetailsScreenState extends State<TripDetailsScreen> {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(content: Text(message), behavior: SnackBarBehavior.floating),
     );
-  }
-
-  String _formatDate(DateTime date) {
-    const months = [
-      'January',
-      'February',
-      'March',
-      'April',
-      'May',
-      'June',
-      'July',
-      'August',
-      'September',
-      'October',
-      'November',
-      'December',
-    ];
-
-    return '${months[date.month - 1]} ${date.day}, ${date.year}';
   }
 
   String _shortDate(DateTime date) {
@@ -374,7 +356,7 @@ class _TripDetailsScreenState extends State<TripDetailsScreen> {
         vertical: 7,
       ),
       decoration: BoxDecoration(
-        color: AppColors.primaryContainerLight.withOpacity(0.45),
+        color: AppColors.primaryContainerLight.withValues(alpha: 0.45),
         borderRadius: BorderRadius.circular(10),
       ),
       child: Row(
@@ -647,7 +629,7 @@ class _TripDetailsScreenState extends State<TripDetailsScreen> {
       width: double.infinity,
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: AppColors.primaryContainerLight.withOpacity(0.65),
+        color: AppColors.primaryContainerLight.withValues(alpha: 0.65),
         borderRadius: BorderRadius.circular(18),
       ),
       child: Row(

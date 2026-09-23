@@ -267,7 +267,7 @@ class InterestsScreen extends StatelessWidget {
         vertical: 8,
       ),
       decoration: BoxDecoration(
-        color: AppColors.primaryContainerLight.withOpacity(0.45),
+        color: AppColors.primaryContainerLight.withValues(alpha: 0.45),
         borderRadius: BorderRadius.circular(10),
       ),
       child: Row(

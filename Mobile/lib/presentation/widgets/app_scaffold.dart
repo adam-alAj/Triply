@@ -30,7 +30,7 @@ class AppScaffold extends StatelessWidget {
       appBar: title == null
           ? null
           : AppBar(
-        backgroundColor: AppColors.surface.withOpacity(0.8),
+        backgroundColor: AppColors.surface.withValues(alpha: 0.8),
         elevation: 0,
         automaticallyImplyLeading: showBackButton,
         title: Text(title!, style: AppTextStyles.headlineSm),

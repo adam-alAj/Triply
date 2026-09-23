@@ -27,10 +27,10 @@ class PrimaryButton extends StatelessWidget {
       onPressed: isLoading ? null : onPressed,
       style: ElevatedButton.styleFrom(
         backgroundColor: AppColors.primary,
-        disabledBackgroundColor: AppColors.primary.withOpacity(0.5),
+        disabledBackgroundColor: AppColors.primary.withValues(alpha: 0.5),
         foregroundColor: AppColors.onPrimary,
         elevation: 4,
-        shadowColor: AppColors.primary.withOpacity(0.2),
+        shadowColor: AppColors.primary.withValues(alpha: 0.2),
         padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
         shape: const StadiumBorder(),
       ),
