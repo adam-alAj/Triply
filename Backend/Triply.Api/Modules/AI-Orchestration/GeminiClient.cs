@@ -180,32 +180,33 @@ public class GeminiClient : IGeminiClient
                 requestBody,
                 JsonOptions);
 
-          var jsonBytes = Encoding.UTF8.GetBytes(json);
+            var jsonBytes = Encoding.UTF8.GetBytes(json);
 
-using var request = new HttpRequestMessage(
-    HttpMethod.Post,
-    url);
+            using var request = new HttpRequestMessage(
+                HttpMethod.Post,
+                url);
 
-var content = new ByteArrayContent(jsonBytes);
+            var content = new ByteArrayContent(jsonBytes);
 
-content.Headers.ContentType =
-    new MediaTypeHeaderValue("application/json");
+            content.Headers.ContentType =
+                new MediaTypeHeaderValue("application/json");
 
-content.Headers.ContentLength =
-    jsonBytes.Length;
+            content.Headers.ContentLength =
+                jsonBytes.Length;
 
-request.Content = content;
+            request.Content = content;
 
-request.Headers.TransferEncodingChunked = false;
+            request.Headers.TransferEncodingChunked = false;
 
-request.Version = HttpVersion.Version11;
-request.VersionPolicy = HttpVersionPolicy.RequestVersionExact;
+            request.Version = HttpVersion.Version11;
+            request.VersionPolicy =
+                HttpVersionPolicy.RequestVersionExact;
 
-_logger.LogInformation(
-    "Gemini HTTP request: ContentLength={ContentLength}, Chunked={Chunked}, Version={Version}",
-    request.Content.Headers.ContentLength,
-    request.Headers.TransferEncodingChunked,
-    request.Version);
+            _logger.LogInformation(
+                "Gemini HTTP request: ContentLength={ContentLength}, Chunked={Chunked}, Version={Version}",
+                request.Content.Headers.ContentLength,
+                request.Headers.TransferEncodingChunked,
+                request.Version);
 
             request.Headers.TryAddWithoutValidation(
                 "x-goog-api-key",
