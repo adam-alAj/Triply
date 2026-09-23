@@ -146,6 +146,11 @@ static string PartitionKey(HttpContext context)
     return $"ip:{context.Connection.RemoteIpAddress}";
 }
 
+// 200 (was 100): the Testing budget must cover the full integration suite
+// including the gap-regression tests added for generation concurrency,
+// duplicate-place validation, and dataset provisioning. Production stays 10.
+var generalPermitLimit = builder.Environment.IsEnvironment("Testing") ? 200 : 10;
+
 builder.Services.AddRateLimiter(options =>
 {
     options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
