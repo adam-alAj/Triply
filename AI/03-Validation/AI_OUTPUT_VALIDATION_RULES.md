@@ -127,8 +127,11 @@ For each destination_option in itinerary.destination_options:
          AND Place.is_active = true
          AND Place.destination_id = resolved_destination_id
        
-       IF no match: FAIL with PLACE_NOT_FOUND
-       IF multiple matches: use the first (name should be unique per destination)
+      IF no match: FAIL with PLACE_NOT_FOUND
+      IF multiple active matches inside the resolved destination:
+         FAIL with DUPLICATE_PLACE_NAME (fail closed; do not pick an arbitrary row)
+      IF the same active name exists in other destinations:
+         resolve the single row scoped to the option's destination
 
     4. CATEGORY CHECKS (post-resolution):
        a. accommodation.place_name must resolve to a Place where

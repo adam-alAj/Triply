@@ -131,7 +131,7 @@ Every technology choice below is justified by **demonstrated team capability**, 
 | Testing | xUnit/Moq/WebApplicationFactory (backend), Flutter widget tests | Matches each track's demonstrated testing tools |
 
 ## 18. Architectural Risks
-See Document 1 §12 and Document 4 §Risk Ownership for the full register. Top architectural risks: (1) no deployment/CI-CD capability yet on any track, (2) AI track needs upskilling before Phase 6 can start, (3) Gemini API cost/rate-limit dependency, (4) no dedicated web-frontend or cybersecurity specialist.
+See Document 1 §12 and Document 4 §Risk Ownership for the full register. Top architectural risks: (1) no deployment/CI-CD capability yet on any track, (2) AI track needs upskilling before Phase 6 can start, (3) Gemini API cost/rate-limit dependency, (4) no dedicated web-frontend specialist.
 
 ## 19. Architecture Assumptions
 - Gemini API remains the chosen LLM provider through MVP.

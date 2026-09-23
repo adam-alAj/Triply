@@ -8,7 +8,7 @@
 
 Triply is an AI-assisted trip-planning platform (mobile + web) that turns a user's destination or budget input into a personalized, day-by-day itinerary with a category-level cost breakdown. This plan sets the realistic implementation path for the **current six-person team**, based strictly on what each track's training record demonstrates — not on assumed skill.
 
-The single most important planning fact, confirmed across all three capability summaries: **the AI track has not yet been trained on Gemini API integration or prompt engineering** (its strength is classical ML/data science), **the Backend track has never integrated with AI, mobile, or web** (its strength is a single ASP.NET Core service), and **the Flutter track has never shipped a production backend or CI/CD pipeline** (its strength is client-side feature delivery against a contract). None of the three tracks has evidenced UI/UX or cybersecurity specialization — Rania (UI/UX) has no capability document provided, and no one has demonstrated cybersecurity training. Cybersecurity remains **TBD — Pending Capability Analysis** throughout; UI/UX responsibility is now documented at **track level** from the shipped design system (`09_DESIGN.md`) and its Flutter implementation (Doc 4 §2), with the individual member's capability still unverified.
+The single most important planning fact, confirmed across all three capability summaries: **the AI track has not yet been trained on Gemini API integration or prompt engineering** (its strength is classical ML/data science), **the Backend track has never integrated with AI, mobile, or web** (its strength is a single ASP.NET Core service), and **the Flutter track has never shipped a production backend or CI/CD pipeline** (its strength is client-side feature delivery against a contract). UI/UX responsibility is documented at **track level** from the shipped design system (`09_DESIGN.md`) and its Flutter implementation (Doc 4 §2), with the individual member's capability still unverified. Cybersecurity ownership is confirmed as **Arab Hammad**, who owns cybersecurity review and follow-up while Backend continues to implement the application-layer controls it has demonstrated.
 
 Given this, the plan deliberately favors **the simplest architecture and the fewest moving parts the team can actually own end to end**: a modular monolith backend, a single Flutter codebase targeting both mobile and web, and an AI responsibility split where the AI track owns *data and prompt/validation logic* while the Backend track owns the *actual Gemini API call* (a REST integration, which is backend's demonstrated strength — not the AI track's).
 
@@ -64,7 +64,7 @@ Flight booking, hotel booking, in-app payments, social/reviews features, loyalty
 | Dana Yaseen | Flutter/Mobile | Flutter UI, Dart, state (Provider), REST integration (Dio), Firebase Auth/Firestore, media upload, design-system reuse | No production backend/CI/CD, limited automated testing, no large-scale offline sync |
 | Aya Maali, Anas Musleh, Adam Alafandi | AI/ML | Python/Pandas/EDA (dataset building), evaluation & error-analysis discipline (baselines, validation) | **No Gemini/LLM API or prompt-engineering training yet** — needs a focused upskilling module before owning Section-8.4-style tasks |
 | Rania Muhamid | UI/UX | Design system on record (`09_DESIGN.md`, authoritative) and implemented in the Flutter theme | **Individual capability unverified** (no training summary provided); responsibility documented at track level — see Doc 4 §2 |
-| — | Cybersecurity | — | **TBD — Pending Capability Analysis** (no one currently on this track; not assumed from absence) |
+| Arab Hammad | Cybersecurity | Security review, secrets-hygiene sign-off, coordination of security work beyond the backend app-layer baseline | Works with Backend for implementation of demonstrated ASP.NET Core controls |
 
 Full profiles are in Document 4 — Team & Responsibilities.
 
@@ -100,10 +100,10 @@ Flutter work on AI-driven screens depends on the AI JSON contract (Phase 3/6). C
 Backend: xUnit + Moq unit tests, WebApplicationFactory integration tests (demonstrated skill). Flutter: widget tests (basic level demonstrated) plus manual QA per feature checkpoint. AI: systematic validation harness (0% invented-place rate, cost within tolerance) — reuses the AI track's evaluation-discipline training directly.
 
 ## 11. Security Strategy
-Apply only what is demonstrated: ASP.NET Core Identity + JWT, role/ownership-based authorization, FluentValidation, rate limiting, CORS, security headers. Anything beyond application-layer controls (penetration testing, secrets-management infrastructure, compliance review) is **out of current team capability** and should be sourced externally or added as an explicit learning track before being assumed.
+Apply only what is demonstrated in code: ASP.NET Core Identity + JWT, role/ownership-based authorization, FluentValidation, rate limiting, CORS, security headers. Anything beyond application-layer controls (penetration testing, secrets-management infrastructure, compliance review) must be reviewed and coordinated by Arab Hammad before being treated as covered.
 
 ## 12. Risk Management
-See Document 3 (Architecture) §Risks and Document 4 for owners. Top risks: AI hallucination/invented places (mitigated by validation layer), no deployment/CI-CD experience on any track, no dedicated web or cybersecurity capability.
+See Document 3 (Architecture) §Risks and Document 4 for owners. Top risks: AI hallucination/invented places (mitigated by validation layer), no deployment/CI-CD experience on any track, and no dedicated web capability.
 
 ## 13. Definition of Done
 A feature is done when: it matches its SRS requirement and acceptance criteria, it is covered by the track's demonstrated testing method, it passes the agreed API/JSON contract, and it has been reviewed via pull request.

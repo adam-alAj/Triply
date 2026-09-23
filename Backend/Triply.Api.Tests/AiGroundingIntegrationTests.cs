@@ -454,25 +454,32 @@ public sealed class AiGroundingIntegrationTests : IClassFixture<AiGroundingTestF
     }
 
     [Fact]
-    public async Task Generate_RealButUnsupportedDestination_Returns422()
+    public async Task CreateTrip_RealButUnsupportedDestination_Returns400_BeforeGeneration()
     {
         var token = await RegisterAndGetTokenAsync();
-        var (destinationId, destinationName) = await SeedDestinationAsync(isSupported: false);
-        var places = await SeedPlacesAsync(destinationId);
+        var (destinationId, _) = await SeedDestinationAsync(isSupported: false);
 
-        ScriptedGeminiClient.SetResponse(BuildValidResponse(
-            "DESTINATION_FIRST", destinationName, places.Hotel, places.Restaurant, places.Transport));
+        UseToken(token);
 
-        var tripId = await CreateDestinationFirstTripAsync(token, destinationId);
-        var response = await GenerateAsync(token, tripId);
+        var response = await _client.PostAsJsonAsync("/api/trips", new
+        {
+            planningMode = "DESTINATION_FIRST",
+            destinationId,
+            startDate = "2026-10-01",
+            endDate = "2026-10-02",
+            travelerCount = 2
+        });
         var body = await response.Content.ReadAsStringAsync();
 
         // Rejected specifically because the destination is not IsSupported — not
         // merely because it is unknown.
-        Assert.Equal(HttpStatusCode.UnprocessableEntity, response.StatusCode);
-        Assert.Contains("supported destination dataset", body, StringComparison.OrdinalIgnoreCase);
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        Assert.Contains("not supported", body, StringComparison.OrdinalIgnoreCase);
 
-        await AssertFailedValidationAsync(tripId, "supported destination dataset");
+        using var scope = _factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+
+        Assert.False(await db.Trips.AsNoTracking().AnyAsync(t => t.DestinationId == destinationId));
     }
 
     [Fact]

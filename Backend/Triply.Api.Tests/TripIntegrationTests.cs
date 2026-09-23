@@ -107,6 +107,31 @@ public class TripIntegrationTests : IClassFixture<CustomWebApplicationFactory>
         return place.Id;
     }
 
+    private async Task<long> CreateUnsupportedDestinationAsync()
+    {
+        using var scope = _factory.Services.CreateScope();
+
+        var db = scope.ServiceProvider
+            .GetRequiredService<ApplicationDbContext>();
+
+        var countryId = await db.Countries
+            .Select(c => c.Id)
+            .FirstAsync();
+
+        var destination = new Destination
+        {
+            CountryId = countryId,
+            Name = $"Unsupported Test Destination {Guid.NewGuid():N}",
+            Description = "Integration-test unsupported destination",
+            IsSupported = false
+        };
+
+        db.Destinations.Add(destination);
+        await db.SaveChangesAsync();
+
+        return destination.Id;
+    }
+
     [Fact]
     public async Task BudgetFirst_UserCanSelectSuggestedDestinationBeforeGeneration()
     {
@@ -147,6 +172,80 @@ public class TripIntegrationTests : IClassFixture<CustomWebApplicationFactory>
         Assert.Equal(2, selected!.DestinationId);
         Assert.Equal("Amman", selected.DestinationName);
         Assert.Equal(created.Version + 1, selected.Version);
+    }
+
+    [Fact]
+    public async Task CreateTrip_WithUnsupportedDestination_ReturnsBadRequest()
+    {
+        var token = await RegisterAndGetTokenAsync();
+        var unsupportedDestinationId = await CreateUnsupportedDestinationAsync();
+
+        _client.DefaultRequestHeaders.Authorization =
+            new AuthenticationHeaderValue("Bearer", token);
+
+        var response = await _client.PostAsJsonAsync(
+            "/api/trips",
+            new
+            {
+                planningMode = "DESTINATION_FIRST",
+                destinationId = unsupportedDestinationId,
+                startDate = "2026-10-01",
+                endDate = "2026-10-03",
+                travelerCount = 2
+            });
+
+        var body = await response.Content.ReadAsStringAsync();
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        Assert.Contains("not supported", body, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public async Task UpdateTrip_WithUnsupportedDestination_ReturnsBadRequest()
+    {
+        var token = await RegisterAndGetTokenAsync();
+        var unsupportedDestinationId = await CreateUnsupportedDestinationAsync();
+
+        _client.DefaultRequestHeaders.Authorization =
+            new AuthenticationHeaderValue("Bearer", token);
+
+        var createResponse = await _client.PostAsJsonAsync(
+            "/api/trips",
+            new
+            {
+                planningMode = "DESTINATION_FIRST",
+                destinationId = 1,
+                startDate = "2026-10-01",
+                endDate = "2026-10-05",
+                travelerCount = 2,
+                budgetAmount = 1000,
+                budgetCurrencyId = 1,
+                interestCategoryIds = new[] { 1, 2 }
+            });
+
+        createResponse.EnsureSuccessStatusCode();
+
+        var created = await createResponse.Content
+            .ReadFromJsonAsync<TripResponse>();
+
+        var updateResponse = await _client.PutAsJsonAsync(
+            $"/api/trips/{created!.Id}",
+            new
+            {
+                destinationId = unsupportedDestinationId,
+                startDate = "2026-11-01",
+                endDate = "2026-11-07",
+                travelerCount = 3,
+                budgetAmount = 1500,
+                budgetCurrencyId = 1,
+                interestCategoryIds = new[] { 1, 2 },
+                expectedVersion = created.Version
+            });
+
+        var body = await updateResponse.Content.ReadAsStringAsync();
+
+        Assert.Equal(HttpStatusCode.BadRequest, updateResponse.StatusCode);
+        Assert.Contains("not supported", body, StringComparison.OrdinalIgnoreCase);
     }
 
     [Fact]

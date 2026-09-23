@@ -118,7 +118,7 @@ See Master Plan §4 SHOULD/COULD HAVE.
 | D1 | Exact cost-tolerance band (proposed ±15%) | Defines FR-AI-002 acceptance threshold |
 | D2 | Is guest (unauthenticated) browsing in scope? | Affects FR-AUTH and navigation architecture |
 | D3 | Hosting/infrastructure choice | No team member has cloud deployment experience — needs an explicit decision before Phase 11 |
-| D4 | Who owns UI/UX and Cybersecurity responsibilities long-term | No capability evidence currently exists for either |
+| D4 | Who owns UI/UX and Cybersecurity responsibilities long-term | Cybersecurity ownership is confirmed as Arab Hammad; UI/UX is owned at track level for the existing design system |
 | D5 | Supported destination list size/scope for MVP | Drives dataset-curation workload (Phase 3) |
 
 ## 18. Traceability

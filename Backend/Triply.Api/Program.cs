@@ -155,10 +155,11 @@ builder.Services.AddRateLimiter(options =>
 {
     options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
 
-    // General API limit: 10 requests/minute in production,
-    // 200 requests/minute in Testing so the integration suite is not throttled.
-    var generalPermitLimit =
-        builder.Environment.IsEnvironment("Testing") ? 200 : 10;
+    options.AddFixedWindowLimiter("fixed", opt =>
+    {
+        opt.PermitLimit = generalPermitLimit;
+        opt.QueueProcessingOrder = QueueProcessingOrder.OldestFirst;
+        opt.QueueLimit = 0;
 
         // Required: FixedWindowRateLimiterOptions.Window defaults to
         // TimeSpan.Zero, which throws at runtime ("Window must be set to a value
