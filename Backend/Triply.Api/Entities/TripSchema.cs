@@ -102,6 +102,7 @@ public class AIGeneration
     public Trip Trip { get; set; } = default!;
     public int AttemptNumber { get; set; } = 1;
     public string ModelProvider { get; set; } = default!;
+    public string SchemaVersion { get; set; } = "unknown";
     public string InputSnapshot { get; set; } = default!; // JSON column
     public string? RawOutput { get; set; }                 // JSON, retention-limited §16
     public string Status { get; set; } = "PENDING";        // PENDING|SUCCEEDED|FAILED_VALIDATION|FAILED_ERROR

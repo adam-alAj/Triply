@@ -424,7 +424,7 @@ The endpoint persists and returns the current itinerary with days ordered by `da
 
 Validation requires at least one day, unique positive day numbers, valid time slots, non-negative order indexes and estimated costs, and valid place IDs. Places must exist and be active; when the trip has a destination, every itinerary place must belong to that destination.
 
-The write operation replaces the existing itinerary for the trip atomically. The endpoint is scaffolding for manually supplied/validated itinerary payloads ahead of AI integration; it does not call an LLM.
+The write operation replaces the existing itinerary for the trip atomically. This manual write endpoint is separate from AI generation; it validates supplied itinerary payloads and does not call an LLM.
 
 ### Read response — `200 OK`
 
@@ -503,6 +503,8 @@ Example partial regeneration request:
 Successful partial regeneration increments `Trip.version` exactly once. Direct item edits through `PATCH /api/trips/{id}/itinerary/items/{itemId}` set only the edited item's `isAiGenerated` to `false`; untouched AI-generated items remain unchanged.
 
 Successful generation responses include `tripVersion` so the client can use the returned version for the next optimistic-concurrency write.
+
+Successful generation returns one selected `itinerary`, its deterministic `cost` estimate, `aiGenerationId`, `attemptsUsed`, the updated `tripVersion`, and `isOverBudget`. For `BUDGET_FIRST`, the backend checks grounded candidate options in the model's returned order, persists the first option within budget, and fails validation if none fit; it does not return the candidates as a choice list. The internal `AIGeneration` row stores the schema version used (`2.0.0` for current requests); that provenance value is not part of the client response.
 
 ### Save
 

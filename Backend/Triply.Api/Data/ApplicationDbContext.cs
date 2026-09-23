@@ -143,6 +143,10 @@ public class ApplicationDbContext : IdentityDbContext<ApplicationUser, IdentityR
             .HasForeignKey(x => x.TripId).OnDelete(DeleteBehavior.Cascade);
 
         // ---- AIGeneration ----
+        b.Entity<AIGeneration>().Property(x => x.SchemaVersion)
+            .HasMaxLength(32)
+            .IsRequired()
+            .HasDefaultValue("unknown");
         b.Entity<AIGeneration>().HasIndex(x => x.TripId); // IX_AIGeneration_TripId
         b.Entity<AIGeneration>()
             .HasOne(x => x.Trip).WithMany(x => x.AIGenerations)
