@@ -6,4 +6,6 @@ abstract class UserSettingsRepository {
   Future<UserPreferencesData> updatePreferences(UserPreferencesData preferences);
 
   Future<UserStatsData> getStats();
+
+  Future<List<CurrencyOption>> getCurrencies();
 }
