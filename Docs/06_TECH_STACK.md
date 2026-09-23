@@ -16,8 +16,8 @@ Triply's stack is dictated by one hard rule: **every choice must be free and mus
 |---|---|---|---|
 | Web Frontend | Flutter Web (same codebase as mobile) | OPEN-SOURCE | Architecture ADR-02 already decided this; no web-frontend skill exists on the team |
 | Mobile App | Flutter (Dart) | OPEN-SOURCE | Dana's demonstrated, capstone-tested stack |
-| Backend Framework | ASP.NET Core Web API (.NET 8 LTS) | OPEN-SOURCE | Lynn's demonstrated stack; modular monolith matches ADR-00 |
-| ORM | EF Core (code-first migrations) | OPEN-SOURCE | Demonstrated in Backend capstone; matches Document 5 schema |
+| Backend Framework | ASP.NET Core Web API (.NET 9; `net9.0`) | OPEN-SOURCE | Matches `Backend/Triply.Api/Triply.Api.csproj`; modular monolith matches ADR-00 |
+| ORM | EF Core 9.0.10 (code-first migrations) | OPEN-SOURCE | Matches the backend project package references and migrations |
 | Database | SQL Server (Developer Edition for dev / testing) | FREE FOR DEVELOPMENT | Matches Document 5's deliberate decision; production hosting pending D3 |
 | AuthN / AuthZ | ASP.NET Core Identity + JWT bearer | OPEN-SOURCE | Sprint-2 demonstrated pattern (role + ownership auth, NFR-SEC-001/002, NFR-PRIV-001) |
 | AI / LLM | Gemini API via Google AI Studio (Flash-family models) | FREE TIER | Only AI approach in the SRS; Flash models are free with no card required — see free-tier privacy caveat in Section 5 |
@@ -53,8 +53,8 @@ Triply's stack is dictated by one hard rule: **every choice must be free and mus
 ### Backend — Lynn
 | Technology | Purpose | Cost |
 |---|---|---|
-| .NET 8 / ASP.NET Core Web API | Modular monolith: Auth, Trip, AI-Orchestration, Cost modules | OPEN-SOURCE |
-| EF Core + SQL Server | Schema exactly per Document 5 (17 tables) | OPEN-SOURCE / FREE FOR DEVELOPMENT |
+| .NET 9 / ASP.NET Core Web API | Modular monolith: Auth, Trip, AI-Orchestration, Cost modules | OPEN-SOURCE |
+| EF Core 9.0.10 + SQL Server | Schema documented in Document 5 (18 application-owned tables plus 7 Identity tables) | OPEN-SOURCE / FREE FOR DEVELOPMENT |
 | ASP.NET Core Identity + JWT | FR-AUTH-001/002, NFR-SEC-002, ownership authorization (NFR-PRIV-001) | OPEN-SOURCE |
 | FluentValidation + built-in RateLimiter/CORS/headers | NFR-SEC-001, SRS §10/§12 | OPEN-SOURCE |
 | Swashbuckle (Swagger) | API contract documentation for Dana's integration checkpoints | OPEN-SOURCE |
@@ -144,7 +144,7 @@ No other services. No message queue, no vector store, no second database, no sep
 
 **Database:** SQL Server → *Alternative:* PostgreSQL. *Reason:* technically strong (JSON columns, geo types), but Document 5 already ruled it out on team-capability grounds. Only revisit if hosting costs force it.
 
-**ORM:** EF Core → *Alternative:* Dapper. *Reason:* faster raw SQL, but adds manual mapping work for 17 tables; EF Core is what Lynn demonstrated.
+**ORM:** EF Core → *Alternative:* Dapper. *Reason:* faster raw SQL, but adds manual mapping work for the 18 application-owned tables; EF Core is what Lynn demonstrated.
 
 **LLM:** Gemini API free tier → *Alternative:* Groq or Mistral free tier (Llama-class models). *Reason:* both offer free tiers, but Gemini is already written into the SRS, has the largest free context window, and requires no new decision. Keep as fallback if Gemini's free quota proves too tight.
 
@@ -164,7 +164,7 @@ No other services. No message queue, no vector store, no second database, no sep
 
 - **Frontend (Web):** Flutter Web — same codebase as mobile
 - **Mobile:** Flutter (Dart), Provider, Dio
-- **Backend:** ASP.NET Core 8 Web API, modular monolith
+- **Backend:** ASP.NET Core 9 Web API (`net9.0`), modular monolith
 - **Database:** SQL Server (Developer Edition dev / Azure SQL free tier for hosted env), EF Core
 - **AI/ML:** Python + Pandas (dataset curation + validation harness only)
 - **LLM:** Gemini API, Flash-family models, via Google AI Studio key — free tier

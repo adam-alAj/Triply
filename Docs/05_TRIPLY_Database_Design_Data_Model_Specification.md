@@ -13,7 +13,7 @@
 
 ## 1. Executive Summary
 
-Triply's data model is a **relational schema on SQL Server**, accessed via EF Core — matching the Backend track's demonstrated, capstone-tested stack (per Team & Responsibilities). The model is deliberately lean: **17 physical application tables** (plus ASP.NET Core Identity's framework-owned `AspNet*` tables), no premature versioning, no speculative audit infrastructure, and no entities invented from "typical travel app" patterns. Every original table traces to a specific FR/NFR in the SRS; three tables added by later implementation (`PlaceInterests`, `UserPreferences`, `ExchangeRates`) are documented below with their provenance, and two designed Post-MVP tables (`Conversation`, `ConversationMessage`) are **not yet created**.
+Triply's data model is a **relational schema on SQL Server**, accessed via EF Core — matching the Backend track's demonstrated, capstone-tested stack (per Team & Responsibilities). The current EF model has **18 application-owned tables/sets**, plus the seven ASP.NET Core Identity tables (including `AspNetUsers` for the logical `User` entity). The model has no speculative audit infrastructure or entities invented from "typical travel app" patterns. Four application tables added by later implementation (`PlaceInterests`, `UserPreferences`, `ExchangeRates`, and `RefreshTokens`) are documented below with their provenance; two designed Post-MVP tables (`Conversation`, `ConversationMessage`) are **not yet created**.
 
 Three design decisions shape everything below:
 1. **AI-generated content is structurally forced to reference only real internal data** — every `ItineraryItem` has a mandatory, non-nullable foreign key to `Place`. This makes the project's non-negotiable 0%-invented-places rule (FR-AI-002) a database-level guarantee, not just an application-level check.
@@ -81,8 +81,9 @@ graph TD
 | 18 | PlaceInterest | Junction | MVP |
 | 19 | UserPreferences | Persistent — supporting | MVP |
 | 20 | ExchangeRate | Reference | MVP |
+| 21 | RefreshToken | Persistent — authentication support | MVP |
 
-**Implemented-schema reconciliation:** items 1–15 and 18–20 exist in the database today — 17 physical application tables, matching the "17 tables" claim in §1. Items 16–17 exist only as designs until FR-TRIP-005 is built. The `User` entity is implemented through ASP.NET Core Identity as `AspNetUsers` plus the framework-owned `AspNet*` support tables (§6.1). Items 18–20 were added by later migrations (`AddPlaceInterest`, `AddUserPreferencesAndTripMetadata`, `AddExchangeRates`) and are specified in §6.18–§6.20.
+**Implemented-schema reconciliation:** items 1–15 and 18–21 exist in the current EF model. `User` is the logical entity implemented by Identity's `AspNetUsers`; `ApplicationDbContext` exposes 18 application-owned `DbSet`s/tables, including `RefreshTokens`. Identity creates seven framework tables in total, including `AspNetUsers`. Items 16–17 exist only as designs until FR-TRIP-005 is built. Items 18–20 were added by `AddPlaceInterest`, `AddUserPreferencesAndTripMetadata`, and `AddExchangeRates`; item 21 was added by `AddRefreshTokens`.
 
 Entities explicitly **not created**, with reasons:
 - **UserProfile** — no requirement for saved default preferences separate from a trip's own preferences; would be speculative.
@@ -277,13 +278,15 @@ Entities explicitly **not created**, with reasons:
 | id | GUID | NOT NULL | PK |
 | trip_id | GUID | NOT NULL | FK → Trip, indexed |
 | attempt_number | INT | NOT NULL | 1, 2, 3… for regeneration/retry tracking |
-| model_provider | VARCHAR(50) | NOT NULL | e.g. "gemini-1.5" |
+| model_provider | NVARCHAR(MAX) | NOT NULL | Stores the configured model identifier (default `gemini-3.6-flash`), despite the legacy column name |
 | input_snapshot | JSON | NOT NULL | preferences/budget/destination sent to the model — **not** the raw prompt text |
 | raw_output | JSON | NULL | model's structured response; **retention-limited, see §16** |
 | status | VARCHAR(20) | NOT NULL | CHECK IN (`PENDING`,`SUCCEEDED`,`FAILED_VALIDATION`,`FAILED_ERROR`) |
 | validation_errors | TEXT | NULL | populated only when status is a failure |
 | requested_at | TIMESTAMP | NOT NULL | now() |
 | completed_at | TIMESTAMP | NULL | |
+
+**Provenance gap:** this implemented table does not currently persist the AI schema version used for an attempt. The AI contract requires that value; add and populate a schema-version column before describing schema provenance as implemented (see AI JSON Schema Contract §8).
 
 ### 6.16 Conversation *(Post-MVP)*
 | Attribute | Type | Null | Notes |
@@ -329,11 +332,26 @@ One row per user, created on demand. An empty table is valid for a fresh environ
 
 Placeholder rows (USD 1.00, JOD 1.41, EUR 1.08) are insert-if-missing provisioned with the rest of the reference data (§26). Rates are **manually maintained** — there is deliberately no scheduled refresh job (three fixed currencies; see the header comment in `Entities/ExchangeRate.cs`).
 
+### 6.21 RefreshToken *(implemented)*
+
+Refresh tokens support renewing short-lived access tokens and revocation. Only the token's SHA-256 hash is persisted; the raw token is returned once at issuance and is not stored. The table is created by migration `AddRefreshTokens`.
+
+| Attribute | Type | Null | Notes |
+|---|---|---|---|
+| id | UNIQUEIDENTIFIER | NOT NULL | PK; generated by the application |
+| user_id | UNIQUEIDENTIFIER | NOT NULL | FK → `AspNetUsers`; indexed |
+| token_hash | NVARCHAR(128) | NOT NULL | UNIQUE SHA-256 hash; raw token is not stored |
+| created_at_utc | DATETIME2 | NOT NULL | Set to current UTC time by the application |
+| expires_at_utc | DATETIME2 | NOT NULL | Expiry of this refresh token |
+| revoked_at_utc | DATETIME2 | NULL | Set when revoked |
+| replaced_by_token_hash | NVARCHAR(128) | NULL | Hash of replacement token when rotated |
+| created_by_ip | NVARCHAR(64) | NULL | Issuance IP when available |
+
 ## 7. Primary Key Strategy
 
 | Rule | Applies to | Rationale |
 |---|---|---|
-| GUID | User, Trip, Itinerary, ItineraryDay, ItineraryItem, AIGeneration, Conversation, ConversationMessage, UserPreferences | These are exposed through the API and referenced directly by mobile/web clients; sequential IDs would let one user enumerate other users' trip IDs (ID-enumeration risk) — a real concern given the ownership-based authorization model in the Architecture doc. (`UserPreferences` shares its GUID PK with its User row — the 1:1 cardinality is structural.) |
+| GUID | User, Trip, Itinerary, ItineraryDay, ItineraryItem, AIGeneration, Conversation, ConversationMessage, UserPreferences, RefreshToken | These are exposed through the API or tied to user-owned records; sequential IDs would let one user enumerate other users' trip IDs (ID-enumeration risk) — a real concern given the ownership-based authorization model in the Architecture doc. (`UserPreferences` shares its GUID PK with its User row — the 1:1 cardinality is structural.) |
 | BIGINT IDENTITY | Country, Destination, PlaceCategory, Place, CostCategory, Currency, InterestCategory, CostEstimate | Internal/reference data, never guessed by a client to access another user's resource; sequential integers keep joins and indexing cheaper, matching a team with no evidenced need for distributed-ID generation |
 | Composite PK | TripInterest, PlaceInterest | Pure junction tables; the pair itself is the natural, sufficient identity |
 | FK-as-PK | ExchangeRate (`currency_id`), UserPreferences (`user_id`) | 1:1 extensions of an existing row — sharing the parent's key makes the 1:1 cardinality structural instead of application-enforced |
@@ -372,7 +390,7 @@ No natural/business keys (email, place name, destination name) are used as prima
 
 *Behavior names are EF Core semantics as configured in `ApplicationDbContext`; SQL Server implements RESTRICT as NO ACTION.*
 
-**Delete-behavior rationale (as implemented in `ApplicationDbContext`):** two guarantees are unchanged. First, a `Place` referenced by any `ItineraryItem` can never be deleted (`ItineraryItem.place_id` RESTRICT) — live itineraries and the 0%-invented-places rule (FR-AI-002) cannot be silently corrupted. Second, everything that is purely "child content of a Trip" (Itinerary, CostEstimate, AIGeneration, and the designed Conversation tables) cascades with the Trip, since none of it has meaning without its parent. Reference rows are curated, not deleted; trips and users are soft-deleted at the application level (`deleted_at`, §6.1/§6.9, with an EF Core global query filter on `Trip`). Where a hard delete does happen, required (non-nullable) reference FKs — Country→Destination, PlaceCategory/CostCategory/Currency→Place, CostCategory/Currency→CostEstimate, User→Trip, Currency→ExchangeRate, User→UserPreferences — follow EF Core's cascade default as configured, and the cascade chain still terminates at the protected `ItineraryItem.place_id` RESTRICT, so a referenced place (and therefore its itinerary entries) can never disappear indirectly.
+**Delete-behavior rationale (as implemented in `ApplicationDbContext`):** a `Place` referenced by any `ItineraryItem` can never be deleted (`ItineraryItem.place_id` RESTRICT) — live itineraries and the 0%-invented-places rule (FR-AI-002) cannot be silently corrupted. Trip-owned content (Itinerary, CostEstimate and AIGeneration) cascades with the Trip; the Conversation tables are planned to do the same. Reference rows are curated, not deleted; trips and users are soft-deleted at the application level (`deleted_at`, §6.1/§6.9, with an EF Core global query filter on `Trip`). Where a hard delete does happen, required (non-nullable) reference FKs — Country→Destination, PlaceCategory/CostCategory/Currency→Place, CostCategory/Currency→CostEstimate, User→Trip, User→RefreshToken, Currency→ExchangeRate, User→UserPreferences — follow EF Core's cascade default as configured, and the cascade chain still terminates at the protected `ItineraryItem.place_id` RESTRICT, so a referenced place (and therefore its itinerary entries) can never disappear indirectly.
 
 ## 9. Many-to-Many Relationships
 
@@ -692,7 +710,7 @@ erDiagram
 | PlaceInterest | Yes — automatically (Development) | `PlaceInterest_seed_draft.csv` |
 | ExchangeRate | Yes — automatically (Development) | Placeholder rows (USD/JOD/EUR), insert-if-missing; **manually maintained** afterwards |
 | Trip statuses | Not a table — CHECK constraint values, nothing to seed | |
-| User data (User, Trip, UserPreferences, itinerary/cost/AI rows) | **Never seeded** | Created only by user/application actions |
+| User data (User, Trip, UserPreferences, RefreshToken, itinerary/cost/AI rows) | **Never seeded** | Created only by user/application actions |
 
 **How seeding runs (implemented):** `Program.cs` executes `Database.Migrate()` and then `Data/SeedData.EnsureCuratedDatasetAsync` — **Development environment only** — importing the curated CSVs additively and idempotently (natural-key insert-if-missing; never updates or deletes existing rows). Provisioning fails fast (clear startup error) when the dataset directory/files are missing or a required reference table would stay empty, so a fresh environment can never start silently unprovisioned. `Testing` uses its own fixtures; Staging/Production are never seeded by the application. The Python scripts in `AI/01-Dataset/seed/` remain as manual/offline tooling and are not part of the standard setup.
 
