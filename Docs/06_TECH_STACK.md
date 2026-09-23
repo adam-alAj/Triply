@@ -75,10 +75,10 @@ Triply's stack is dictated by one hard rule: **every choice must be free and mus
 |---|---|---|
 | **Figma (free tier) → Flutter design tokens** | The design system is now on record (`09_DESIGN.md`, "Sunset Wanderer", exported from Figma) and implemented in the Flutter theme. New UI/UX work is unstaffed until capability is confirmed (Team Doc §2). | FREE TIER |
 
-### Cybersecurity — Arb
+### Cybersecurity — Arab Hammad
 | Technology | Purpose | Cost |
 |---|---|---|
-| **No one assigned — TBD** (Team Doc §2) | MVP security = Backend's app-layer baseline (NFR-SEC-001). Optional one-time OWASP ZAP scan before Phase 9 exit | FREE |
+| Cybersecurity review | MVP security = Backend's app-layer baseline (NFR-SEC-001), reviewed by Arab Hammad. Optional one-time OWASP ZAP scan before Phase 9 exit | FREE |
 
 ### DevOps / Deployment — shared learning need (flagged in Team Doc §8)
 | Technology | Purpose | Cost |
@@ -187,7 +187,7 @@ No other services. No message queue, no vector store, no second database, no sep
 5. **Cost tolerance band (D1, ±15% proposed)** — affects the AI validation harness, not the stack, but blocks Phase 7 test thresholds.
 6. **Guest browsing (D2)** — if in scope, it changes only authorization config, but confirm before Phase 2.
 7. **Flutter Web hosting target** — Firebase Hosting free tier is the default; confirm no university hosting is mandated.
-8. **UI/UX and Cybersecurity tracks (D4)** — tool choices (Figma, ZAP) remain frozen until capability analysis is done.
+8. **UI/UX track (D4)** — new tool choices beyond the existing design system remain frozen until capability analysis is done. Cybersecurity review is owned by Arab Hammad.
 
 ---
 

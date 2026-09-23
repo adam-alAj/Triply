@@ -112,12 +112,12 @@ public class TripsController : ControllerBase
 
         if (request.DestinationId.HasValue &&
             !await _db.Destinations.AnyAsync(
-                d => d.Id == request.DestinationId.Value,
+                d => d.Id == request.DestinationId.Value && d.IsSupported,
                 cancellationToken))
         {
             return BadRequest(new
             {
-                message = "Destination does not exist."
+                message = "Destination does not exist or is not supported."
             });
         }
 
@@ -520,7 +520,7 @@ public class TripsController : ControllerBase
 
         if (request.DestinationId.HasValue &&
             !await _db.Destinations.AnyAsync(
-                d => d.Id == request.DestinationId.Value,
+                d => d.Id == request.DestinationId.Value && d.IsSupported,
                 cancellationToken))
         {
             return BadRequest(new
@@ -529,7 +529,7 @@ public class TripsController : ControllerBase
                 {
                     DestinationId = new[]
                     {
-                        "Destination does not exist."
+                        "Destination does not exist or is not supported."
                     }
                 }
             });

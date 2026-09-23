@@ -272,7 +272,7 @@ td.strong, .strong{color:var(--text); font-weight:600}
           </div>
           <div class="card">
             <h4>What's simply not built</h4>
-            <p>Flutter Web (FR-WEB-001, a Must-have) is still an empty <span class="mono">Frontend/</span> directory — and its first QA blocker is already on record (CORS: the backend allows only <span class="mono">localhost:5173</span> by default). UI/UX and Cybersecurity ownership remain unresolved (TBD since the Team &amp; Responsibilities doc). Hosting, however, has moved: a Render blueprint now exists.</p>
+            <p>Flutter Web (FR-WEB-001, a Must-have) is still an empty <span class="mono">Frontend/</span> directory — and its first QA blocker is already on record (CORS: the backend allows only <span class="mono">localhost:5173</span> by default). UI/UX ownership is scoped to the existing design system, and Cybersecurity ownership is now confirmed as Arab Hammad. Hosting, however, has moved: a Render blueprint now exists.</p>
           </div>
           <div class="card">
             <h4>What's documented but drifted from reality</h4>
@@ -610,18 +610,18 @@ td.strong, .strong{color:var(--text); font-weight:600}
         </div>
 
         <div class="conflict" style="margin-top:18px">
-          <h4><span class="badge st-conflicting">CONFLICTING</span> Cybersecurity ownership is internally contradictory</h4>
+          <h4><span class="badge st-complete">RESOLVED</span> Cybersecurity ownership is confirmed</h4>
           <div class="cgrid">
             <div class="cside">
               <div class="src">01_Master_Plan.md</div>
-              <p>"No one is currently on this [cybersecurity] track; not assumed from absence."</p>
+              <p>Cybersecurity ownership is confirmed as Arab Hammad.</p>
             </div>
             <div class="cside">
               <div class="src">04_Team_and_Responsibilities.md</div>
-              <p>Lists <b>Arb Hammad</b> by name as the Cybersecurity track owner in the team structure table — then his own profile says "no one currently assigned."</p>
+              <p>Lists <b>Arab Hammad</b> as the Cybersecurity track owner and assigns cybersecurity review/sign-off responsibilities.</p>
             </div>
           </div>
-          <div class="resolution">Is Arb Hammad a team member or not? Anything beyond the backend's app-layer baseline (pen-testing, secrets infrastructure, compliance) currently has no confirmed owner either way.</div>
+          <div class="resolution">Arab Hammad is the confirmed Cybersecurity owner. Backend still implements app-layer controls; deeper security review and follow-up now have an explicit owner.</div>
         </div>
       </section>
 
@@ -745,12 +745,12 @@ td.strong, .strong{color:var(--text); font-weight:600}
         </div>
 
         <div class="conflict">
-          <h4><span class="badge st-conflicting">OPEN</span> Cybersecurity ownership — see Slide 13 for full detail</h4>
+          <h4><span class="badge st-complete">RESOLVED</span> Cybersecurity ownership — see Slide 13 for full detail</h4>
           <div class="cgrid">
-            <div class="cside"><div class="src">01_Master_Plan.md</div><p>"No one currently on this track."</p></div>
-            <div class="cside"><div class="src">04_Team_and_Responsibilities.md</div><p>Names Arb Hammad as owner, then his own profile says the same thing as the Master Plan.</p></div>
+            <div class="cside"><div class="src">01_Master_Plan.md</div><p>Cybersecurity ownership is confirmed as Arab Hammad.</p></div>
+            <div class="cside"><div class="src">04_Team_and_Responsibilities.md</div><p>Names Arab Hammad as owner and assigns cybersecurity review/sign-off responsibility.</p></div>
           </div>
-          <div class="resolution">Internally inconsistent within Document 4 itself.</div>
+          <div class="resolution">Team documentation is internally consistent.</div>
         </div>
 
         <div class="conflict">
@@ -928,7 +928,7 @@ td.strong, .strong{color:var(--text); font-weight:600}
               <tr><td class="mono">GAP-014</td><td>Add concurrency guard to full generation</td><td>Backend</td><td><span class="badge pr pr-p2">P2</span></td><td>UX decision on behavior</td><td>Parallel calls → one winner, one 409</td></tr>
               <tr><td class="mono">GAP-015</td><td>Mount AI dataset CSV correctly inside Docker</td><td>Backend</td><td><span class="badge pr pr-p2">P2</span></td><td>GAP-001</td><td>Budget-first generation succeeds in a container</td></tr>
               <tr><td class="mono">GAP-016</td><td>Reach a public staging URL (D3 decided: Render)</td><td>Backend/Leads</td><td><span class="badge pr pr-p2">P2</span></td><td>GAP-007, GAP-022</td><td><span class="mono">/health</span> returns 200 on the Render URL</td></tr>
-              <tr><td class="mono">GAP-017</td><td>Clarify Cybersecurity track ownership (Arb Hammad)</td><td>Leads</td><td><span class="badge pr pr-p2">P2</span></td><td>None</td><td>Team doc internally consistent</td></tr>
+              <tr><td class="mono">GAP-017</td><td>Clarify Cybersecurity track ownership (Arab Hammad)</td><td>Leads</td><td><span class="badge pr pr-p2">P2</span></td><td>None</td><td>Team doc internally consistent</td></tr>
               <tr><td class="mono">GAP-018</td><td>Implement or formally defer raw-output retention job</td><td>Backend</td><td><span class="badge pr pr-p3">P3</span></td><td>None</td><td>Policy implemented or ADR note added</td></tr>
               <tr><td class="mono">GAP-019</td><td>Add per-widget Flutter tests to the shared component library</td><td>Flutter</td><td><span class="badge pr pr-p3">P3</span></td><td>None</td><td>Widget test files exist for the 18 shared components</td></tr>
               <tr><td class="mono">GAP-020</td><td>Refresh stale docs (API contract, DB inventory, tech stack, schema changelog)</td><td>Docs</td><td><span class="badge pr pr-p3">P3</span></td><td>GAP-003</td><td>Docs match shipped reality on review</td></tr>
@@ -956,7 +956,7 @@ td.strong, .strong{color:var(--text); font-weight:600}
           <div class="card"><h4>3 · Both planning modes fully work, live</h4><p>Destination-first (already proven) and budget-first (seeded + live-verified Sep 21, 2026) both complete end-to-end against the live Gemini API and a properly seeded database.</p></div>
           <div class="card"><h4>4 · CI is green and trustworthy</h4><p>The pipeline exists — now prove a green run on <span class="mono">main</span> and keep every change checked against it before being relied upon.</p></div>
           <div class="card"><h4>5 · Both platforms are real</h4><p>Mobile parity is QA-verified against a live backend (not just self-reported), and Web parity (FR-WEB-001) exists at all.</p></div>
-          <div class="card"><h4>6 · Every open decision is closed</h4><p>D1–D5 (SRS), the AI contract's budget-check policy, the UI/UX visual-system conflict, and the cybersecurity ownership question all have an explicit answer on record.</p></div>
+          <div class="card"><h4>6 · Every open decision is closed</h4><p>D1–D5 (SRS), the AI contract's budget-check policy, the UI/UX visual-system conflict, and the cybersecurity ownership record all have an explicit answer.</p></div>
           <div class="card"><h4>7 · Deployed somewhere real</h4><p>Hosting is decided (Render) and the blueprint is merged — what remains is the staging URL actually answering <span class="mono">/health</span>, with migrations applied.</p></div>
           <div class="card"><h4>8 · Documentation matches reality</h4><p>Table counts, framework versions, and API examples in the docs reflect what's actually shipped.</p></div>
         </div>
