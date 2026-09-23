@@ -26,6 +26,9 @@
 	</ItemGroup>
 
 	<ItemGroup>
+		<None Update="appsettings.Staging.json">
+			<CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+		</None>
 		<None Update="AI-Schemas\triply-trip-plan-generation.schema.json">
 			<CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
 		</None>

@@ -22,6 +22,22 @@ using Triply.Api.Modules.Currency;
 
 var builder = WebApplication.CreateBuilder(args);
 
+// ---------- Monitoring / structured request logging ----------
+// Staging uses JSON console logging so ILogger events are machine-readable and
+// can be collected by the hosting platform. Request logging is enabled only in
+// Staging so local development/test output stays focused.
+if (builder.Environment.IsStaging())
+{
+    builder.Services.AddHttpLogging(options =>
+    {
+        options.LoggingFields =
+            Microsoft.AspNetCore.HttpLogging.HttpLoggingFields.RequestMethod |
+            Microsoft.AspNetCore.HttpLogging.HttpLoggingFields.RequestPath |
+            Microsoft.AspNetCore.HttpLogging.HttpLoggingFields.ResponseStatusCode |
+            Microsoft.AspNetCore.HttpLogging.HttpLoggingFields.Duration;
+    });
+}
+
 // ---------- Configuration ----------
 // Connection string + JWT key + Gemini key all come from configuration/env vars,
 // never hardcoded. See .env.example / appsettings.Example.json.
@@ -130,17 +146,19 @@ static string PartitionKey(HttpContext context)
     return $"ip:{context.Connection.RemoteIpAddress}";
 }
 
+// 200 (was 100): the Testing budget must cover the full integration suite
+// including the gap-regression tests added for generation concurrency,
+// duplicate-place validation, and dataset provisioning. Production stays 10.
+var generalPermitLimit = builder.Environment.IsEnvironment("Testing") ? 200 : 10;
+
 builder.Services.AddRateLimiter(options =>
 {
     options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
 
-    options.AddFixedWindowLimiter("fixed", opt =>
-    {
-        // 200 (was 100): the Testing budget must cover the full integration suite
-        // including the gap-regression tests added for generation concurrency,
-        // duplicate-place validation, and dataset provisioning. Production stays 10.
-        opt.PermitLimit =
-            builder.Environment.IsEnvironment("Testing") ? 200 : 10;
+    // General API limit: 10 requests/minute in production,
+    // 200 requests/minute in Testing so the integration suite is not throttled.
+    var generalPermitLimit =
+        builder.Environment.IsEnvironment("Testing") ? 200 : 10;
 
         // Required: FixedWindowRateLimiterOptions.Window defaults to
         // TimeSpan.Zero, which throws at runtime ("Window must be set to a value
@@ -158,27 +176,31 @@ builder.Services.AddRateLimiter(options =>
     // at runtime even once it compiled.
 
     options.AddPolicy("login", context =>
-        RateLimitPartition.GetFixedWindowLimiter(PartitionKey(context), _ => new FixedWindowRateLimiterOptions
-        {
-            PermitLimit = 5,
-            Window = TimeSpan.FromMinutes(1),
-            QueueProcessingOrder = QueueProcessingOrder.OldestFirst,
-            QueueLimit = 0
-        }));
+        RateLimitPartition.GetFixedWindowLimiter(
+            PartitionKey(context),
+            _ => new FixedWindowRateLimiterOptions
+            {
+                PermitLimit = 5,
+                Window = TimeSpan.FromMinutes(1),
+                QueueProcessingOrder = QueueProcessingOrder.OldestFirst,
+                QueueLimit = 0
+            }));
 
     // AI generation is the most expensive action in the app (costs money + time),
-    // so it gets its own, much tighter, per-user budget instead of sharing "fixed"
-    // (Security Task 3): 10 generations per hour per user.
+    // so it gets its own, much tighter, per-user budget instead of sharing "fixed".
+    // Security Task 3: 10 generations per hour per user.
     options.AddPolicy("ai-generation", context =>
-        RateLimitPartition.GetFixedWindowLimiter(PartitionKey(context), _ => new FixedWindowRateLimiterOptions
-        {
-            PermitLimit = builder.Environment.IsEnvironment("Testing") ? 100 : 10,
-            Window = TimeSpan.FromHours(1),
-            QueueProcessingOrder = QueueProcessingOrder.OldestFirst,
-            QueueLimit = 0
-        }));
+        RateLimitPartition.GetFixedWindowLimiter(
+            PartitionKey(context),
+            _ => new FixedWindowRateLimiterOptions
+            {
+                PermitLimit =
+                    builder.Environment.IsEnvironment("Testing") ? 100 : 10,
+                Window = TimeSpan.FromHours(1),
+                QueueProcessingOrder = QueueProcessingOrder.OldestFirst,
+                QueueLimit = 0
+            }));
 });
-
 // ---------- CORS ----------
 
 var flutterOrigins =
@@ -261,6 +283,12 @@ var app = builder.Build();
 
 app.UseMiddleware<ExceptionHandlingMiddleware>();
 
+// Structured request/response telemetry for staging smoke tests.
+if (app.Environment.IsStaging())
+{
+    app.UseHttpLogging();
+}
+
 // ---------- Security Headers ----------
 
 app.Use(async (context, next) =>
@@ -305,9 +333,9 @@ app.UseRateLimiter();
 app.MapControllers();
 
 // ---------- Health ----------
-
-app.MapGet("/health", () =>
+app.MapMethods("/health", new[] { "GET", "HEAD" }, () =>
     Results.Ok(new { status = "ok" }));
+// ---------- Database Migration ----------
 
 // ---------- Database Migration + Development reference-data provisioning ----------
 if (app.Environment.IsDevelopment() || app.Environment.IsEnvironment("Testing"))
