@@ -1,0 +1,452 @@
+{
+  "version": "1.0.0",
+  "description": "Shared V-001 (0%-invented-place) and V-002 (budget feasibility) fixtures consumed by BOTH the Python validation harness (AI/03-Validation/validate_shared_fixtures.py) and the C# validator parity test (Backend/Triply.Api.Tests/ValidationParityFixtureTests.cs). Every destination/place name is globally unique so the whole file can be seeded into one database. All trips are 2 days (2026-10-01..2026-10-02) so day-count/date rules match in both implementations.",
+  "categories": ["ATTRACTION", "RESTAURANT", "ACTIVITY", "ACCOMMODATION", "TRANSPORT"],
+  "tripStartDate": "2026-10-01",
+  "tripEndDate": "2026-10-02",
+  "expectedFieldNotes": "expected.v001Passed means 'the option is valid' — it covers Step 1 structural consistency AND the V-001 grounding rules. The C# runner asserts ItineraryValidationResult.IsValid; the Python runner asserts the equivalent OptionValidationResult.passed. expected.v002Passed covers the budget outcome (skipped, and therefore true, when V-001 already failed).",
+  "expectedFailureNotes": "Per-case failure REASON checks, so a case expecting failure must fail for the right reason rather than for any reason. Matching is containment, not equality: every listed entry must be present, extra observed entries are allowed. `codes` are the Python harness failure codes (a subset of the observed codes must match); `fragments` are case-insensitive substrings of the C# validator's error text. PARITY-08 carries no C# fragment because V-002 lives in the orchestration service, not in ItineraryValidationService.",
+  "expectedFailureChecks": {
+    "PARITY-02": { "codes": ["PLACE_NOT_FOUND"], "fragments": ["does not exist or is inactive"] },
+    "PARITY-03": { "codes": ["DESTINATION_NOT_FOUND"], "fragments": ["does not exist in the supported destination dataset"] },
+    "PARITY-04": { "codes": ["PLACE_WRONG_DESTINATION"], "fragments": ["belongs to destination_id"] },
+    "PARITY-05": { "codes": ["ACCOMMODATION_IN_DAYS"], "fragments": ["must be in accommodation only"] },
+    "PARITY-06": { "codes": ["MISSING_RESTAURANT"], "fragments": ["no RESTAURANT-category place found"] },
+    "PARITY-07": { "codes": ["PLACE_NOT_FOUND"], "fragments": ["does not exist or is inactive"] },
+    "PARITY-08": { "codes": ["ALL_OPTIONS_OVER_BUDGET"], "fragments": [] },
+    "PARITY-10": { "codes": ["STRUCTURE_INVALID"], "fragments": ["must be contiguous starting at 1"] },
+    "PARITY-11": { "codes": ["STRUCTURE_INVALID"], "fragments": ["trip duration"] },
+    "PARITY-12": { "codes": ["STRUCTURE_INVALID"], "fragments": ["duplicate (time_slot="] }
+  },
+  "cases": [
+    {
+      "id": "PARITY-01",
+      "name": "Valid grounded destination-first plan passes V-001",
+      "planningMode": "DESTINATION_FIRST",
+      "destination": "PARITY01 Paris",
+      "budget": null,
+      "dataset": {
+        "destinations": [{ "name": "PARITY01 Paris", "isSupported": true }],
+        "places": [
+          { "name": "PARITY01 Hotel", "destination": "PARITY01 Paris", "category": "ACCOMMODATION", "isActive": true, "referencePrice": 100.0, "currency": "USD" },
+          { "name": "PARITY01 Restaurant", "destination": "PARITY01 Paris", "category": "RESTAURANT", "isActive": true, "referencePrice": 20.0, "currency": "USD" },
+          { "name": "PARITY01 Transport", "destination": "PARITY01 Paris", "category": "TRANSPORT", "isActive": true, "referencePrice": 10.0, "currency": "USD" }
+        ]
+      },
+      "itinerary": {
+        "planning_mode": "DESTINATION_FIRST",
+        "destination_options": [
+          {
+            "destination_name": "PARITY01 Paris",
+            "accommodation": { "place_name": "PARITY01 Hotel", "nights": 2 },
+            "days": [
+              { "day_number": 1, "date": "2026-10-01", "items": [
+                { "time_slot": "MORNING", "order_index": 1, "place_name": "PARITY01 Restaurant" },
+                { "time_slot": "AFTERNOON", "order_index": 1, "place_name": "PARITY01 Transport" }
+              ] },
+              { "day_number": 2, "date": "2026-10-02", "items": [
+                { "time_slot": "EVENING", "order_index": 1, "place_name": "PARITY01 Restaurant" }
+              ] }
+            ]
+          }
+        ]
+      },
+      "expected": { "v001Passed": true, "v002Passed": true }
+    },
+    {
+      "id": "PARITY-02",
+      "name": "Invented place name is rejected (0% tolerance)",
+      "planningMode": "DESTINATION_FIRST",
+      "destination": "PARITY02 Paris",
+      "budget": null,
+      "dataset": {
+        "destinations": [{ "name": "PARITY02 Paris", "isSupported": true }],
+        "places": [
+          { "name": "PARITY02 Hotel", "destination": "PARITY02 Paris", "category": "ACCOMMODATION", "isActive": true, "referencePrice": 100.0, "currency": "USD" },
+          { "name": "PARITY02 Restaurant", "destination": "PARITY02 Paris", "category": "RESTAURANT", "isActive": true, "referencePrice": 20.0, "currency": "USD" },
+          { "name": "PARITY02 Transport", "destination": "PARITY02 Paris", "category": "TRANSPORT", "isActive": true, "referencePrice": 10.0, "currency": "USD" }
+        ]
+      },
+      "itinerary": {
+        "planning_mode": "DESTINATION_FIRST",
+        "destination_options": [
+          {
+            "destination_name": "PARITY02 Paris",
+            "accommodation": { "place_name": "PARITY02 Hotel", "nights": 2 },
+            "days": [
+              { "day_number": 1, "date": "2026-10-01", "items": [
+                { "time_slot": "MORNING", "order_index": 1, "place_name": "PARITY02 Invented Cafe" },
+                { "time_slot": "AFTERNOON", "order_index": 1, "place_name": "PARITY02 Transport" }
+              ] },
+              { "day_number": 2, "date": "2026-10-02", "items": [
+                { "time_slot": "EVENING", "order_index": 1, "place_name": "PARITY02 Restaurant" }
+              ] }
+            ]
+          }
+        ]
+      },
+      "expected": { "v001Passed": false, "v002Passed": true }
+    },
+    {
+      "id": "PARITY-03",
+      "name": "Real but unsupported destination is rejected (IsSupported filter)",
+      "planningMode": "DESTINATION_FIRST",
+      "destination": "PARITY03 Unsupported City",
+      "budget": null,
+      "dataset": {
+        "destinations": [{ "name": "PARITY03 Unsupported City", "isSupported": false }],
+        "places": [
+          { "name": "PARITY03 Hotel", "destination": "PARITY03 Unsupported City", "category": "ACCOMMODATION", "isActive": true, "referencePrice": 100.0, "currency": "USD" },
+          { "name": "PARITY03 Restaurant", "destination": "PARITY03 Unsupported City", "category": "RESTAURANT", "isActive": true, "referencePrice": 20.0, "currency": "USD" },
+          { "name": "PARITY03 Transport", "destination": "PARITY03 Unsupported City", "category": "TRANSPORT", "isActive": true, "referencePrice": 10.0, "currency": "USD" }
+        ]
+      },
+      "itinerary": {
+        "planning_mode": "DESTINATION_FIRST",
+        "destination_options": [
+          {
+            "destination_name": "PARITY03 Unsupported City",
+            "accommodation": { "place_name": "PARITY03 Hotel", "nights": 2 },
+            "days": [
+              { "day_number": 1, "date": "2026-10-01", "items": [
+                { "time_slot": "MORNING", "order_index": 1, "place_name": "PARITY03 Restaurant" },
+                { "time_slot": "AFTERNOON", "order_index": 1, "place_name": "PARITY03 Transport" }
+              ] },
+              { "day_number": 2, "date": "2026-10-02", "items": [
+                { "time_slot": "EVENING", "order_index": 1, "place_name": "PARITY03 Restaurant" }
+              ] }
+            ]
+          }
+        ]
+      },
+      "expected": { "v001Passed": false, "v002Passed": true }
+    },
+    {
+      "id": "PARITY-04",
+      "name": "Place from a different destination is rejected",
+      "planningMode": "DESTINATION_FIRST",
+      "destination": "PARITY04 Paris",
+      "budget": null,
+      "dataset": {
+        "destinations": [
+          { "name": "PARITY04 Paris", "isSupported": true },
+          { "name": "PARITY04 Rome", "isSupported": true }
+        ],
+        "places": [
+          { "name": "PARITY04 Hotel", "destination": "PARITY04 Paris", "category": "ACCOMMODATION", "isActive": true, "referencePrice": 100.0, "currency": "USD" },
+          { "name": "PARITY04 Restaurant", "destination": "PARITY04 Paris", "category": "RESTAURANT", "isActive": true, "referencePrice": 20.0, "currency": "USD" },
+          { "name": "PARITY04 Transport", "destination": "PARITY04 Paris", "category": "TRANSPORT", "isActive": true, "referencePrice": 10.0, "currency": "USD" },
+          { "name": "PARITY04 Rome Restaurant", "destination": "PARITY04 Rome", "category": "RESTAURANT", "isActive": true, "referencePrice": 20.0, "currency": "USD" }
+        ]
+      },
+      "itinerary": {
+        "planning_mode": "DESTINATION_FIRST",
+        "destination_options": [
+          {
+            "destination_name": "PARITY04 Paris",
+            "accommodation": { "place_name": "PARITY04 Hotel", "nights": 2 },
+            "days": [
+              { "day_number": 1, "date": "2026-10-01", "items": [
+                { "time_slot": "MORNING", "order_index": 1, "place_name": "PARITY04 Rome Restaurant" },
+                { "time_slot": "AFTERNOON", "order_index": 1, "place_name": "PARITY04 Transport" }
+              ] },
+              { "day_number": 2, "date": "2026-10-02", "items": [
+                { "time_slot": "EVENING", "order_index": 1, "place_name": "PARITY04 Restaurant" }
+              ] }
+            ]
+          }
+        ]
+      },
+      "expected": { "v001Passed": false, "v002Passed": true }
+    },
+    {
+      "id": "PARITY-05",
+      "name": "Accommodation placed in a daily item is rejected",
+      "planningMode": "DESTINATION_FIRST",
+      "destination": "PARITY05 Paris",
+      "budget": null,
+      "dataset": {
+        "destinations": [{ "name": "PARITY05 Paris", "isSupported": true }],
+        "places": [
+          { "name": "PARITY05 Hotel", "destination": "PARITY05 Paris", "category": "ACCOMMODATION", "isActive": true, "referencePrice": 100.0, "currency": "USD" },
+          { "name": "PARITY05 Restaurant", "destination": "PARITY05 Paris", "category": "RESTAURANT", "isActive": true, "referencePrice": 20.0, "currency": "USD" },
+          { "name": "PARITY05 Transport", "destination": "PARITY05 Paris", "category": "TRANSPORT", "isActive": true, "referencePrice": 10.0, "currency": "USD" }
+        ]
+      },
+      "itinerary": {
+        "planning_mode": "DESTINATION_FIRST",
+        "destination_options": [
+          {
+            "destination_name": "PARITY05 Paris",
+            "accommodation": { "place_name": "PARITY05 Hotel", "nights": 2 },
+            "days": [
+              { "day_number": 1, "date": "2026-10-01", "items": [
+                { "time_slot": "MORNING", "order_index": 1, "place_name": "PARITY05 Restaurant" },
+                { "time_slot": "MORNING", "order_index": 2, "place_name": "PARITY05 Transport" },
+                { "time_slot": "AFTERNOON", "order_index": 1, "place_name": "PARITY05 Hotel" }
+              ] },
+              { "day_number": 2, "date": "2026-10-02", "items": [
+                { "time_slot": "EVENING", "order_index": 1, "place_name": "PARITY05 Restaurant" }
+              ] }
+            ]
+          }
+        ]
+      },
+      "expected": { "v001Passed": false, "v002Passed": true }
+    },
+    {
+      "id": "PARITY-06",
+      "name": "Missing restaurant for a day is rejected",
+      "planningMode": "DESTINATION_FIRST",
+      "destination": "PARITY06 Paris",
+      "budget": null,
+      "dataset": {
+        "destinations": [{ "name": "PARITY06 Paris", "isSupported": true }],
+        "places": [
+          { "name": "PARITY06 Hotel", "destination": "PARITY06 Paris", "category": "ACCOMMODATION", "isActive": true, "referencePrice": 100.0, "currency": "USD" },
+          { "name": "PARITY06 Transport", "destination": "PARITY06 Paris", "category": "TRANSPORT", "isActive": true, "referencePrice": 10.0, "currency": "USD" },
+          { "name": "PARITY06 Attraction", "destination": "PARITY06 Paris", "category": "ATTRACTION", "isActive": true, "referencePrice": 15.0, "currency": "USD" }
+        ]
+      },
+      "itinerary": {
+        "planning_mode": "DESTINATION_FIRST",
+        "destination_options": [
+          {
+            "destination_name": "PARITY06 Paris",
+            "accommodation": { "place_name": "PARITY06 Hotel", "nights": 2 },
+            "days": [
+              { "day_number": 1, "date": "2026-10-01", "items": [
+                { "time_slot": "MORNING", "order_index": 1, "place_name": "PARITY06 Transport" }
+              ] },
+              { "day_number": 2, "date": "2026-10-02", "items": [
+                { "time_slot": "EVENING", "order_index": 1, "place_name": "PARITY06 Attraction" }
+              ] }
+            ]
+          }
+        ]
+      },
+      "expected": { "v001Passed": false, "v002Passed": true }
+    },
+    {
+      "id": "PARITY-07",
+      "name": "Inactive place is not resolvable",
+      "planningMode": "DESTINATION_FIRST",
+      "destination": "PARITY07 Paris",
+      "budget": null,
+      "dataset": {
+        "destinations": [{ "name": "PARITY07 Paris", "isSupported": true }],
+        "places": [
+          { "name": "PARITY07 Hotel", "destination": "PARITY07 Paris", "category": "ACCOMMODATION", "isActive": true, "referencePrice": 100.0, "currency": "USD" },
+          { "name": "PARITY07 Restaurant", "destination": "PARITY07 Paris", "category": "RESTAURANT", "isActive": true, "referencePrice": 20.0, "currency": "USD" },
+          { "name": "PARITY07 Closed Restaurant", "destination": "PARITY07 Paris", "category": "RESTAURANT", "isActive": false, "referencePrice": 20.0, "currency": "USD" },
+          { "name": "PARITY07 Transport", "destination": "PARITY07 Paris", "category": "TRANSPORT", "isActive": true, "referencePrice": 10.0, "currency": "USD" }
+        ]
+      },
+      "itinerary": {
+        "planning_mode": "DESTINATION_FIRST",
+        "destination_options": [
+          {
+            "destination_name": "PARITY07 Paris",
+            "accommodation": { "place_name": "PARITY07 Hotel", "nights": 2 },
+            "days": [
+              { "day_number": 1, "date": "2026-10-01", "items": [
+                { "time_slot": "MORNING", "order_index": 1, "place_name": "PARITY07 Closed Restaurant" },
+                { "time_slot": "AFTERNOON", "order_index": 1, "place_name": "PARITY07 Transport" }
+              ] },
+              { "day_number": 2, "date": "2026-10-02", "items": [
+                { "time_slot": "EVENING", "order_index": 1, "place_name": "PARITY07 Restaurant" }
+              ] }
+            ]
+          }
+        ]
+      },
+      "expected": { "v001Passed": false, "v002Passed": true }
+    },
+    {
+      "id": "PARITY-08",
+      "name": "Budget-first: all options over budget fails V-002",
+      "planningMode": "BUDGET_FIRST",
+      "destination": "PARITY08 Paris",
+      "budget": 50.0,
+      "dataset": {
+        "destinations": [
+          { "name": "PARITY08 Paris", "isSupported": true },
+          { "name": "PARITY08 Amman", "isSupported": true }
+        ],
+        "places": [
+          { "name": "PARITY08 Paris Hotel", "destination": "PARITY08 Paris", "category": "ACCOMMODATION", "isActive": true, "referencePrice": 1000.0, "currency": "USD" },
+          { "name": "PARITY08 Paris Restaurant", "destination": "PARITY08 Paris", "category": "RESTAURANT", "isActive": true, "referencePrice": 500.0, "currency": "USD" },
+          { "name": "PARITY08 Paris Transport", "destination": "PARITY08 Paris", "category": "TRANSPORT", "isActive": true, "referencePrice": 300.0, "currency": "USD" },
+          { "name": "PARITY08 Amman Hotel", "destination": "PARITY08 Amman", "category": "ACCOMMODATION", "isActive": true, "referencePrice": 900.0, "currency": "USD" },
+          { "name": "PARITY08 Amman Restaurant", "destination": "PARITY08 Amman", "category": "RESTAURANT", "isActive": true, "referencePrice": 400.0, "currency": "USD" },
+          { "name": "PARITY08 Amman Transport", "destination": "PARITY08 Amman", "category": "TRANSPORT", "isActive": true, "referencePrice": 250.0, "currency": "USD" }
+        ]
+      },
+      "itinerary": {
+        "planning_mode": "BUDGET_FIRST",
+        "destination_options": [
+          {
+            "destination_name": "PARITY08 Paris",
+            "accommodation": { "place_name": "PARITY08 Paris Hotel", "nights": 2 },
+            "days": [
+              { "day_number": 1, "date": "2026-10-01", "items": [
+                { "time_slot": "MORNING", "order_index": 1, "place_name": "PARITY08 Paris Restaurant" },
+                { "time_slot": "AFTERNOON", "order_index": 1, "place_name": "PARITY08 Paris Transport" }
+              ] },
+              { "day_number": 2, "date": "2026-10-02", "items": [
+                { "time_slot": "EVENING", "order_index": 1, "place_name": "PARITY08 Paris Restaurant" }
+              ] }
+            ]
+          },
+          {
+            "destination_name": "PARITY08 Amman",
+            "accommodation": { "place_name": "PARITY08 Amman Hotel", "nights": 2 },
+            "days": [
+              { "day_number": 1, "date": "2026-10-01", "items": [
+                { "time_slot": "MORNING", "order_index": 1, "place_name": "PARITY08 Amman Restaurant" },
+                { "time_slot": "AFTERNOON", "order_index": 1, "place_name": "PARITY08 Amman Transport" }
+              ] },
+              { "day_number": 2, "date": "2026-10-02", "items": [
+                { "time_slot": "EVENING", "order_index": 1, "place_name": "PARITY08 Amman Restaurant" }
+              ] }
+            ]
+          }
+        ]
+      },
+      "expected": { "v001Passed": true, "v002Passed": false }
+    },
+    {
+      "id": "PARITY-09",
+      "name": "Destination-first over budget is flagged but still passes V-002",
+      "planningMode": "DESTINATION_FIRST",
+      "destination": "PARITY09 Paris",
+      "budget": 50.0,
+      "dataset": {
+        "destinations": [{ "name": "PARITY09 Paris", "isSupported": true }],
+        "places": [
+          { "name": "PARITY09 Hotel", "destination": "PARITY09 Paris", "category": "ACCOMMODATION", "isActive": true, "referencePrice": 1000.0, "currency": "USD" },
+          { "name": "PARITY09 Restaurant", "destination": "PARITY09 Paris", "category": "RESTAURANT", "isActive": true, "referencePrice": 100.0, "currency": "USD" },
+          { "name": "PARITY09 Transport", "destination": "PARITY09 Paris", "category": "TRANSPORT", "isActive": true, "referencePrice": 50.0, "currency": "USD" }
+        ]
+      },
+      "itinerary": {
+        "planning_mode": "DESTINATION_FIRST",
+        "destination_options": [
+          {
+            "destination_name": "PARITY09 Paris",
+            "accommodation": { "place_name": "PARITY09 Hotel", "nights": 2 },
+            "days": [
+              { "day_number": 1, "date": "2026-10-01", "items": [
+                { "time_slot": "MORNING", "order_index": 1, "place_name": "PARITY09 Restaurant" },
+                { "time_slot": "AFTERNOON", "order_index": 1, "place_name": "PARITY09 Transport" }
+              ] },
+              { "day_number": 2, "date": "2026-10-02", "items": [
+                { "time_slot": "EVENING", "order_index": 1, "place_name": "PARITY09 Restaurant" }
+              ] }
+            ]
+          }
+        ]
+      },
+      "expected": { "v001Passed": true, "v002Passed": true }
+    },
+    {
+      "id": "PARITY-10",
+      "name": "Non-contiguous day_number is rejected (Step 1 structure)",
+      "planningMode": "DESTINATION_FIRST",
+      "destination": "PARITY10 Paris",
+      "budget": null,
+      "dataset": {
+        "destinations": [{ "name": "PARITY10 Paris", "isSupported": true }],
+        "places": [
+          { "name": "PARITY10 Hotel", "destination": "PARITY10 Paris", "category": "ACCOMMODATION", "isActive": true, "referencePrice": 100.0, "currency": "USD" },
+          { "name": "PARITY10 Restaurant", "destination": "PARITY10 Paris", "category": "RESTAURANT", "isActive": true, "referencePrice": 20.0, "currency": "USD" },
+          { "name": "PARITY10 Transport", "destination": "PARITY10 Paris", "category": "TRANSPORT", "isActive": true, "referencePrice": 10.0, "currency": "USD" }
+        ]
+      },
+      "itinerary": {
+        "planning_mode": "DESTINATION_FIRST",
+        "destination_options": [
+          {
+            "destination_name": "PARITY10 Paris",
+            "accommodation": { "place_name": "PARITY10 Hotel", "nights": 2 },
+            "days": [
+              { "day_number": 1, "date": "2026-10-01", "items": [
+                { "time_slot": "MORNING", "order_index": 1, "place_name": "PARITY10 Restaurant" },
+                { "time_slot": "AFTERNOON", "order_index": 1, "place_name": "PARITY10 Transport" }
+              ] },
+              { "day_number": 3, "date": "2026-10-03", "items": [
+                { "time_slot": "EVENING", "order_index": 1, "place_name": "PARITY10 Restaurant" }
+              ] }
+            ]
+          }
+        ]
+      },
+      "expected": { "v001Passed": false, "v002Passed": true }
+    },
+    {
+      "id": "PARITY-11",
+      "name": "Day count shorter than the trip window is rejected (Step 1 structure)",
+      "planningMode": "DESTINATION_FIRST",
+      "destination": "PARITY11 Paris",
+      "budget": null,
+      "dataset": {
+        "destinations": [{ "name": "PARITY11 Paris", "isSupported": true }],
+        "places": [
+          { "name": "PARITY11 Hotel", "destination": "PARITY11 Paris", "category": "ACCOMMODATION", "isActive": true, "referencePrice": 100.0, "currency": "USD" },
+          { "name": "PARITY11 Restaurant", "destination": "PARITY11 Paris", "category": "RESTAURANT", "isActive": true, "referencePrice": 20.0, "currency": "USD" },
+          { "name": "PARITY11 Transport", "destination": "PARITY11 Paris", "category": "TRANSPORT", "isActive": true, "referencePrice": 10.0, "currency": "USD" }
+        ]
+      },
+      "itinerary": {
+        "planning_mode": "DESTINATION_FIRST",
+        "destination_options": [
+          {
+            "destination_name": "PARITY11 Paris",
+            "accommodation": { "place_name": "PARITY11 Hotel", "nights": 1 },
+            "days": [
+              { "day_number": 1, "date": "2026-10-01", "items": [
+                { "time_slot": "MORNING", "order_index": 1, "place_name": "PARITY11 Restaurant" },
+                { "time_slot": "AFTERNOON", "order_index": 1, "place_name": "PARITY11 Transport" }
+              ] }
+            ]
+          }
+        ]
+      },
+      "expected": { "v001Passed": false, "v002Passed": true }
+    },
+    {
+      "id": "PARITY-12",
+      "name": "Duplicate (time_slot, order_index) within a day is rejected (Step 1 structure)",
+      "planningMode": "DESTINATION_FIRST",
+      "destination": "PARITY12 Paris",
+      "budget": null,
+      "dataset": {
+        "destinations": [{ "name": "PARITY12 Paris", "isSupported": true }],
+        "places": [
+          { "name": "PARITY12 Hotel", "destination": "PARITY12 Paris", "category": "ACCOMMODATION", "isActive": true, "referencePrice": 100.0, "currency": "USD" },
+          { "name": "PARITY12 Restaurant", "destination": "PARITY12 Paris", "category": "RESTAURANT", "isActive": true, "referencePrice": 20.0, "currency": "USD" },
+          { "name": "PARITY12 Transport", "destination": "PARITY12 Paris", "category": "TRANSPORT", "isActive": true, "referencePrice": 10.0, "currency": "USD" }
+        ]
+      },
+      "itinerary": {
+        "planning_mode": "DESTINATION_FIRST",
+        "destination_options": [
+          {
+            "destination_name": "PARITY12 Paris",
+            "accommodation": { "place_name": "PARITY12 Hotel", "nights": 2 },
+            "days": [
+              { "day_number": 1, "date": "2026-10-01", "items": [
+                { "time_slot": "MORNING", "order_index": 1, "place_name": "PARITY12 Restaurant" },
+                { "time_slot": "MORNING", "order_index": 1, "place_name": "PARITY12 Transport" }
+              ] },
+              { "day_number": 2, "date": "2026-10-02", "items": [
+                { "time_slot": "EVENING", "order_index": 1, "place_name": "PARITY12 Restaurant" }
+              ] }
+            ]
+          }
+        ]
+      },
+      "expected": { "v001Passed": false, "v002Passed": true }
+    }
+  ]
+}

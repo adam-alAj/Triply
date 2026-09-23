@@ -1,3 +1,4 @@
+import '../models/generation_outcome.dart';
 import '../models/trip_creation_data.dart';
 import 'trip_creation_repository.dart';
 
@@ -121,7 +122,8 @@ class MockTripCreationRepository implements TripCreationRepository {
   }
 
   @override
-  Future<void> startGeneration(String tripId) async {
+  Future<GenerationOutcome> startGeneration(String tripId) async {
     await Future.delayed(const Duration(milliseconds: 300));
+    return GenerationOutcome.unknown;
   }
 }

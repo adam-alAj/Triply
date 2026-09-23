@@ -85,9 +85,16 @@ public class ItineraryValidationService : IItineraryValidator
             .Where(n => !string.IsNullOrWhiteSpace(n))
             .ToList();
 
+        // FR-AI-002 grounding: a destination is only acceptable when its name
+        // resolves to a real Destination that is ALSO flagged IsSupported. The
+        // IsSupported filter is the contract-required constraint (AI JSON Schema
+        // Contract §5 step 3: "destination_name resolves to exactly one supported
+        // Destination") — without it a real-but-unsupported destination would pass
+        // grounding. A destination that exists but is not supported therefore falls
+        // through to the same "not in the supported destination dataset" failure.
         var supportedDestinations = await _db.Destinations
             .AsNoTracking()
-            .Where(d => optionDestinationNames.Contains(d.Name))
+            .Where(d => optionDestinationNames.Contains(d.Name) && d.IsSupported)
             .Select(d => new DestinationValidationContext(d.Id, d.Name))
             .ToListAsync(cancellationToken);
 

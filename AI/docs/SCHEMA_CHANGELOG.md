@@ -49,13 +49,15 @@ Both prompt templates (`destination_first.md`, `budget_first.md`) already refere
 
 ### Backend Integration Notes
 
-1. **`maxItems` must be set per-request** — Before calling Gemini, Backend must set `destination_options.maxItems` to `1` (DESTINATION_FIRST) or `3` (BUDGET_FIRST) on the schema object. This is per contract §5, step 0.
+1. **`maxItems` must be set per-request** — Before calling Gemini, Backend sets `destination_options.maxItems` to `1` (DESTINATION_FIRST) or `3` (BUDGET_FIRST) on the schema object. This is per contract §5, step 0. **Implemented 2026-09-23** — see `Modules/AI-Orchestration/ItineraryGenerationSchema.cs`; the on-disk schema keeps a neutral `maxItems: 3` and the per-mode override is applied to the in-memory copy sent to Gemini, so the raw `AI-Schemas/*.json` file is never mutated.
 
 2. **Accommodation persistence** — The accommodation `ItineraryItem` is written once per option on `day_number = 1` with `time_slot = MORNING` and `order_index = 0`. This is a Backend convention, not part of the contract.
 
 3. **Budget check is separate** — The budget check (§5 step 4) is deterministic Backend computation from `Place.reference_price`. It's not part of schema validation.
 
-4. **`PlaceContextDto.BudgetTier`** — The prompt builder includes a `BudgetTier` field for budget-first mode. This comes from `Extra_AI_Context.csv` (not yet joined in the query — marked as TODO).
+4. **`PlaceContextDto.BudgetTier`** — The prompt builder includes a `BudgetTier` field for budget-first mode. **Resolved** — `DatasetContextService.ReadBudgetTiersAsync` reads `Extra_AI_Context.csv` and `AiOrchestrationService` assigns the tier onto each `PlaceContextDto`; generation fails loudly if any BUDGET_FIRST place is missing a tier, rather than prompting with a null tier. Rows are indexed under both the recognised id column (`place_id`/`id`/`source_place_id`) and `place_name`, so the lookup resolves whichever key the file carries.
+
+5. **This schema file is committed twice** — also at `AI/02-Prompt-Engineering/json-schemas/triply-trip-plan-generation.schema.json`. The two copies must stay byte-identical; drift is caught by `Backend/Triply.Api.Tests/SchemaFileParityTests.cs` and by the "Schema file parity" check in `AI/03-Validation/validate_shared_fixtures.py`.
 
 ### Validation Results
 

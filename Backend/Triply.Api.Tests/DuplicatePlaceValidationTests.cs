@@ -231,10 +231,22 @@ public sealed class DuplicatePlaceValidationTests : IClassFixture<DuplicatePlace
 
             // Existing project convention for AI validation failures: 422, never an
             // unhandled 400/500.
-            Assert.Equal(HttpStatusCode.UnprocessableEntity, response.StatusCode);
-            Assert.Contains("duplicate active place_name", body, StringComparison.OrdinalIgnoreCase);
+            Assert.True(
+                response.StatusCode == HttpStatusCode.UnprocessableEntity,
+                $"HTTP {(int)response.StatusCode} ({response.StatusCode})\nResponse body:\n{body}");
 
-            await AssertFailedValidationAsync(tripId, "duplicate active place_name");
+            // Two independent layers report a duplicated curated place name: the
+            // validator (per destination_option, field-style "duplicate active
+            // place_name") and the orchestrator's destination-scoped guard
+            // ("Duplicate active place name(s)"). Which one is reached depends on
+            // whether the fake output's lookups land on the duplicated name, so assert
+            // on the wording they share — pinning the reason without depending on the
+            // layer that happens to report it.
+            Assert.True(
+                body.Contains("duplicate active place", StringComparison.OrdinalIgnoreCase),
+                $"Expected the duplicate-name failure reason in the body.\nResponse body:\n{body}");
+
+            await AssertFailedValidationAsync(tripId, "duplicate active place");
         }
         finally
         {

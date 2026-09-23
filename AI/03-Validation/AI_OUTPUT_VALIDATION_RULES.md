@@ -343,11 +343,24 @@ Step 5: Persist (only for user-selected option)
 
 ### Step 0 — JSON Schema Validation
 
-Handled by `responseJsonSchema` enforcement at the Gemini API level, plus jsonschema validation on the Backend.
+Handled at the Gemini API level by `responseJsonSchema` enforcement, plus
+independent in-process checks on the Backend. The Backend does **not** run a
+JSON-Schema engine: the `System.Text.Json` response DTOs are bound with
+`UnmappedMemberHandling.Disallow` (so an unexpected field is rejected rather than
+silently dropped, matching the schema's `additionalProperties: false`), and
+`ItineraryValidationService` then applies the semantic checks (required fields,
+enums, `days.length`, numeric ranges). The Python harness (`harness.py`) is the
+only implementation that validates against the raw JSON Schema with `jsonschema`.
 
 Catches: missing fields, wrong types, invalid enums, unexpected fields, structural issues.
 
 **Does NOT catch:** invented place names, wrong categories, budget violations.
+
+> **Per-mode `destination_options.maxItems` (contract §5 step 0):** applied by
+> `ItineraryGenerationSchema.LoadForMode` immediately before the Gemini call —
+> `1` for `DESTINATION_FIRST`, `3` for `BUDGET_FIRST`. The committed artifact
+> stays mode-agnostic; the override happens on the in-memory copy, so the
+> schema file on disk is never mutated. There is no longer any universal value.
 
 ### Step 1 — Structural Consistency
 
@@ -487,18 +500,49 @@ IItineraryValidator.ValidateAsync(trip, output, cancellationToken)
 
 ### 8.5 What the Existing Backend Already Implements
 
-The Backend `ItineraryValidationService.cs` already implements:
-- ✅ Schema-shape validation (via deserialization)
-- ✅ Structural consistency (day count, date alignment, duplicates)
-- ✅ Dataset grounding (name-based lookup, 0% tolerance)
+The Backend `ItineraryValidationService.cs` + `AiOrchestrationService.cs` implement:
+- ✅ Schema-shape validation (DTO binding + `UnmappedMemberHandling.Disallow`; no JSON-Schema engine — see Step 0)
+- ✅ Structural consistency (day count, date alignment, contiguous day numbers, duplicate slot+order)
+- ✅ Dataset grounding (name-based, destination-scoped lookup, 0% tolerance)
+- ✅ Destination support — a destination must resolve to a real `Destination` **and** satisfy `IsSupported`
 - ✅ Category rules (ACCOMMODATION in accommodation only, RESTAURANT per day, TRANSPORT per option)
-- ⬜ Budget feasibility check (not yet implemented — marked as TODO in orchestration service)
+- ✅ Duplicate `Place.name` inside a destination — fails closed with a clear error (open issue #4)
+- ✅ Per-mode `destination_options.maxItems` applied before the Gemini call
+- ✅ Budget feasibility comparison (V-002 Step 4) — deterministic guards, in budget currency, both before and after persistence
+- ✅ Cost copy from resolved `Place.reference_price` into `CostEstimate` rows (Cost module)
 
-### 8.6 What the Backend Does NOT Yet Implement
+### 8.6 Budget Policy — Resolved (rules-as-written)
 
-- Budget feasibility comparison (V-002 Step 4) — needs `Place.reference_price` lookup + total computation
-- `BUDGET_FIRST` option-dropping logic
-- `CostEstimate` row generation from resolved itinerary items
+Open issue #1 was decided on 2026-09-23 in favour of **these rules**, and the
+Backend now implements §5.3 literally:
+
+- `BUDGET_FIRST` — the model's up-to-three options are each costed
+  deterministically; the ones within budget are kept and the attempt fails only
+  when **none** survive (`ALL_OPTIONS_OVER_BUDGET`). The first surviving option is
+  persisted, and the trip's destination is released on failure so the user can
+  pick another suggestion.
+- `DESTINATION_FIRST` — a single option is generated and persisted even when it
+  exceeds the budget. The over-budget condition is returned as an additive
+  `isOverBudget` flag on the generate response rather than as a failure, because
+  the user explicitly chose the destination.
+
+Two constraints surfaced while implementing this and are **not** resolved here:
+
+1. ~~**`BUDGET_FIRST` could not return more than one usable option.**~~
+   **Resolved (2026-09-23) by a product decision.** `BUDGET_FIRST` may now generate
+   with **no destination selected yet**, which is what makes the 1–3 option rule
+   real: the prompt offers every supported destination, the model may return up to
+   three distinct candidate options, the ones within budget are kept, and the
+   winning option's destination is persisted onto the trip so the user can keep or
+   change it through the `SelectDestination` endpoint. When a destination *is*
+   already set, the prompt stays scoped to it and the previous behaviour is
+   unchanged.
+2. ~~**`BUDGET_FIRST` cannot be exercised with synthetic test places.**~~
+   **Resolved:** generation still requires a `budget_tier` for every active place,
+   but `ExtraAiContextReader` honours the `AI:ExtraAiContextPath` setting, so a test
+   host can point it at a temporary CSV covering its synthetic places instead of the
+   curated file. `AiGroundingTestFactory` does this, and the HTTP tests now cover
+   both `ALL_OPTIONS_OVER_BUDGET` (422) and a within-budget `BUDGET_FIRST` success.
 
 ---
 
@@ -509,7 +553,7 @@ The Backend `ItineraryValidationService.cs` already implements:
 | 0% invented-place rate | V-001 | Authoritative `Place.name` exact-match lookup against active, destination-scoped dataset | ✅ Implemented in `ItineraryValidationService.cs` |
 | No silent fabrication | V-001 + V-002 | Fail-closed: any validation failure → `AIGeneration.status = FAILED_VALIDATION`, bounded retry, never partial write | ✅ Implemented in `AiOrchestrationService.cs` |
 | Failed validation triggers regeneration | V-001 + V-002 | `MaxRetries` bounded retry loop; if all retries fail → user-facing error (SRS journey 6) | ✅ Implemented in `AiOrchestrationService.cs` |
-| Cost correctness | V-002 (§5) | Deterministic computation from `Place.reference_price`, never from model output | ⬜ Partial — price copy is implemented, budget comparison is not |
+| Cost correctness | V-002 (§5) | Deterministic computation from `Place.reference_price`, never from model output | ✅ Implemented — price copy + budget comparison in budget currency; policy threshold open (#1) |
 | Cost tolerance (D1, ±15%) | **N/A in v2.0.0** | No AI-reported cost exists to check tolerance against. Contract §9: "No longer applicable to this schema." | ✅ Design decision: removed from schema |
 | Database-level guarantee | `ItineraryItem.place_id` NOT NULL FK | EF Core + SQL Server constraint: item cannot be saved without a real Place | ✅ Implemented in migration + DbContext |
 
@@ -629,8 +673,82 @@ From the prototype experiments (10/10 pass rate):
 
 | # | Issue | Status | Impact |
 |---|-------|--------|--------|
-| 1 | Budget-first minimum surviving options (how many of 3 must fit?) | Open (contract §9) | Affects V-002 failure threshold |
+| 1 | Budget-first minimum surviving options (how many of 3 must fit?) | **Resolved (2026-09-23): ≥ 1.** `BUDGET_FIRST` keeps every option that fits and fails only when none survive; `DESTINATION_FIRST` flags an over-budget plan instead of failing. `BUDGET_FIRST` may now generate without a pre-selected destination, so multiple candidate options are reachable (§8.6) | No longer blocks V-002 |
 | 2 | Cross-currency budget comparison (Trip budget in USD, destination in JOD) | Open | Affects V-002 when currencies don't match |
 | 3 | Cost tolerance D1 (±15%) | **Resolved: N/A in v2.0.0** — no AI-reported cost exists | No impact on validation |
-| 4 | `Place.name` uniqueness within destination (pending DB constraint) | Open (Dataset §5, item 4) | Could cause ambiguous resolution if violated |
+| 4 | `Place.name` uniqueness within destination (pending DB constraint) | **Mitigated** — both the C# validator and the Python harness now group by name and fail closed instead of throwing/ambiguously resolving (see §13) | Could cause ambiguous resolution if violated |
 | 5 | Accommodation slot placement in `days[]` for persistence | Open (contract §9, minor) | Backend implementation detail |
+
+---
+
+## 13. Python ↔ C# Parity
+
+`harness.py` (Python, validation-time) and `ItineraryValidationService.cs` (C#,
+runtime) are two independent implementations of V-001/V-002. They are now checked
+against **identical inputs** via shared fixtures:
+
+- `AI/03-Validation/fixtures/v001-v002-parity-fixtures.json` — 12 cases (9 rules + 3 Step 1 structural)
+- `AI/03-Validation/validate_shared_fixtures.py` — Python runner (also enforces the schema-file guard below)
+- `Backend/Triply.Api.Tests/ValidationParityFixtureTests.cs` — C# runner (reads the same file)
+
+`expected.v001Passed` means *"the option is valid"*: it covers Step 1 structural
+consistency **and** the V-001 grounding rules, matching C#'s
+`ItineraryValidationResult.IsValid` and the Python `OptionValidationResult.passed`.
+`expected.v002Passed` covers the budget outcome, and is `true` whenever V-001
+already failed (V-002 is not executed — spec §6).
+
+The Python runner passes 12/12 fixtures. The C# runner drives the **real**
+`ItineraryValidationService` over the same file, using the fixture file's
+`tripStartDate`/`tripEndDate` so both sides apply Step 1 to the same trip window.
+It must be executed on a machine with the .NET SDK (`dotnet test`); it has **not**
+been run as part of this revision, because no .NET SDK was available in that
+environment.
+
+Documented rule differences:
+
+| Area | Python harness | C# validator |
+|------|----------------|--------------|
+| Destination support | Rejects names missing from the `is_supported == "True"` set (`DESTINATION_NOT_FOUND`) | Rejects names that don't resolve to an `IsSupported` `Destination` |
+| Place lookup | Groups by name; a duplicate active name **inside one destination** fails closed (`DUPLICATE_PLACE_NAME`). The same name in several destinations is legitimate and resolved by the option's destination. | Same rules, with the duplicate reported as a validation error |
+| Structural rules | ✅ Day count, contiguous 1-indexed `day_number`, date alignment, non-empty days/items, valid `time_slot`, `order_index` ≥ 1, duplicate `(time_slot, order_index)` | Same rules |
+| Structural inputs | Day count and date alignment use `trip_start_date`/`trip_end_date` from the fixture file; when omitted only itinerary-internal checks run | Derives them from the trip's `StartDate`/`EndDate` |
+| Duplicate destination options | `destination_options` must have distinct `destination_name` values | Same |
+| Budget scope | Every option; `BUDGET_FIRST` fails only if **zero** options survive; `DESTINATION_FIRST` flags only | ✅ Same policy (rules-as-written, §8.6): `BUDGET_FIRST` costs every option and fails only when none survive; `DESTINATION_FIRST` returns `isOverBudget` instead of failing |
+| Failure reason | Fixtures may declare expected `codes`; the runner asserts containment | Fixtures may declare expected `fragments`; the runner asserts containment against the validator's error text |
+| Currency | Uses each resolved place's own currency; no conversion | Converts totals into the trip's budget currency before comparing |
+| Schema validation | `jsonschema` against the raw schema file | DTO binding + `UnmappedMemberHandling.Disallow` + semantic validator |
+
+Known weakness of this guard: fixtures carry only a boolean expectation, so a
+case that expects failure cannot distinguish *failing for the right reason* from
+failing for any reason. Asserting the specific failure code (Python) and error
+fragment (C#) per case is the recommended next strengthening.
+
+Rules that are identical in both: exact-string (ordinal) name matching, no
+case-folding, destination-scoped active-place resolution, empty/whitespace name
+rejection, accommodation-only accommodation, restaurant-per-day and
+transport-placement rules, and `reference_price × nights` accommodation costing.
+
+**Documentation drift found during this reconciliation:**
+- §8.5/§8.6 previously claimed budget feasibility was "not yet implemented"; it is
+  implemented. Only the *policy* is open.
+- Step 0 previously implied the Backend ran a JSON-Schema engine. It does not.
+- The traceability matrix marked cost correctness as partial; it is implemented.
+- `AI/docs/SCHEMA_CHANGELOG.md` listed `maxItems` and `PlaceContextDto.BudgetTier`
+  as Backend TODOs; both are wired up.
+- `harness.validate_generation`'s docstring advertised "Step 1: Structural
+  consistency (partial — day count, date alignment)" that did not exist in the
+  body. Step 1 is now implemented (see the structural rows above).
+- The Python harness silently let the last CSV row win for a duplicated active
+  place name; it now fails closed, matching the C# validator.
+
+**Schema file drift (guarded):** the generation schema is committed twice —
+`AI/02-Prompt-Engineering/json-schemas/triply-trip-plan-generation.schema.json` and
+`Backend/Triply.Api/AI-Schemas/triply-trip-plan-generation.schema.json` — and
+nothing links them. They are byte-identical as of this revision, and both sides
+now fail loudly if that stops being true:
+
+- Python: `validate_shared_fixtures.py` → "Schema file parity" check
+- C#: `Backend/Triply.Api.Tests/SchemaFileParityTests.cs`
+
+A change to only one copy would otherwise silently alter what Gemini is asked to
+produce while validation kept checking a contract the model never received.

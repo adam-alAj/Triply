@@ -299,8 +299,13 @@ public sealed class PartialRegenerationIntegrationTests
     }
 
     [Fact]
-    public async Task Generate_RejectsOverBudgetPlanAfterBoundedRetries()
+    public async Task Generate_DestinationFirstOverBudget_FlagsInsteadOfRejecting()
     {
+        // V-002 §5.3 budget policy. DESTINATION_FIRST no longer rejects an over-budget
+        // plan: the user explicitly chose the destination, so they receive the
+        // generated itinerary together with the isOverBudget signal. Only BUDGET_FIRST
+        // rejects, and only when none of its returned options fits the budget (see
+        // AiGroundingIntegrationTests for that negative path).
         var token = await RegisterAndGetTokenAsync();
         await SeedPlacesAsync(1);
         var trip = await CreateTripAsync(token, budgetAmount: 100);
@@ -310,10 +315,22 @@ public sealed class PartialRegenerationIntegrationTests
             $"/api/trips/{trip.Id}/generate",
             new { scope = "FULL" });
 
-        Assert.Equal(HttpStatusCode.UnprocessableEntity, response.StatusCode);
         var body = await response.Content.ReadAsStringAsync();
-        Assert.Contains("attemptsUsed", body, StringComparison.OrdinalIgnoreCase);
-        Assert.Contains("exceeds the requested budget", body, StringComparison.OrdinalIgnoreCase);
+
+        Assert.True(
+            response.IsSuccessStatusCode,
+            $"HTTP {(int)response.StatusCode} ({response.StatusCode})\nResponse body:\n{body}");
+
+        var payload = JsonSerializer.Deserialize<JsonElement>(body);
+        Assert.True(payload.GetProperty("isOverBudget").GetBoolean(), body);
+
+        // Flagging is not the same as dropping: the plan must still be persisted,
+        // otherwise "flag instead of fail" would quietly discard the generation.
+        using var scope = _factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+        Assert.True(
+            await db.Itineraries.AsNoTracking().AnyAsync(i => i.TripId == trip.Id),
+            "An over-budget DESTINATION_FIRST plan must still be persisted.");
     }
 
     [Fact]

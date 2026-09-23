@@ -139,6 +139,14 @@ public sealed class AiGenerationResult
     public string Status { get; set; } = default!; // SUCCEEDED | FAILED_VALIDATION | FAILED_ERROR
     public int AttemptsUsed { get; set; }
     public int? TripVersion { get; set; }
+
+    /// <summary>
+    /// DESTINATION_FIRST only (V-002 §5.3). The itinerary was generated and
+    /// persisted, but its deterministic cost exceeds the trip's budget — surfaced as
+    /// a flag instead of a failure because the user explicitly chose the destination.
+    /// Always false when the trip has no budget, and always false on failure.
+    /// </summary>
+    public bool IsOverBudget { get; set; }
     public List<string> Errors { get; set; } = new();
     public ItineraryResponse? Itinerary { get; set; }
     public CostEstimateResponse? Cost { get; set; }

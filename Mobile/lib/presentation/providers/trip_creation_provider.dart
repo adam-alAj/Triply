@@ -235,6 +235,14 @@ class TripCreationProvider extends ChangeNotifier {
     notifyListeners();
   }
 
+  bool _isOverBudget = false;
+
+  /// True when the Backend flagged the generated itinerary as exceeding the
+  /// trip budget (V-002 §5.3). Generation still succeeded — this is a signal to
+  /// surface, not an error. Only `DESTINATION_FIRST` can set it; a `BUDGET_FIRST`
+  /// plan that does not fit is rejected instead of returned.
+  bool get isOverBudget => _isOverBudget;
+
   /// Creates the trip and kicks off AI generation. Returns whether it
   /// succeeded; check [errorMessage] on failure and [createdTripId] on
   /// success.
@@ -256,9 +264,10 @@ class TripCreationProvider extends ChangeNotifier {
 
     try {
       final tripId = await _repository.createTrip(_data);
-      await _repository.startGeneration(tripId);
+      final outcome = await _repository.startGeneration(tripId);
 
       _createdTripId = tripId;
+      _isOverBudget = outcome.isOverBudget;
       _status = TripCreationStatus.success;
       notifyListeners();
       return true;
@@ -278,6 +287,7 @@ class TripCreationProvider extends ChangeNotifier {
     _suggestions = [];
     _errorMessage = null;
     _createdTripId = null;
+    _isOverBudget = false;
 
     notifyListeners();
   }

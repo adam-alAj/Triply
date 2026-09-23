@@ -134,12 +134,32 @@ Recent mobile/backend work has landed across several small, single-purpose branc
 
 **Previously flagged `main` compile issue (missing `api_auth_repository.dart`) — resolved**; the file exists and is in active use (see §4).
 
+### Over-budget signal surfaced (2026-09-23)
+
+The Backend's `isOverBudget` field on `POST /api/trips/{id}/generate` is now surfaced to users, closing the last gap from the AI/ML validation work:
+
+- `GenerationOutcome` (`lib/data/models/generation_outcome.dart`) carries the flag.
+- `TripCreationRepository.startGeneration` now returns it instead of `Future<void>`; the API implementation parses `isOverBudget`, the mock returns the unflagged default.
+- `TripCreationProvider.isOverBudget` exposes it, reset with the rest of the flow state.
+- `OverBudgetNotice` (`lib/presentation/widgets/over_budget_notice.dart`) renders it on the generation success view — an advisory notice, not an error, because the itinerary was generated and persisted successfully. It uses `AppColors.warning`, not the error treatment, and is a `liveRegion` for screen readers.
+
+Only `DESTINATION_FIRST` can be flagged: `BUDGET_FIRST` rejects a plan that does not fit instead of returning it.
+
+### Budget status + multi-option BUDGET_FIRST (2026-09-23, same day)
+
+- **Trip Overview showed nothing when over budget.** It already computed `isOnTarget` (`budgetAmount ?? totalEstimatedCost`) but the cost summary only rendered an "On Target" chip and omitted the chip entirely otherwise, so an over-budget trip looked like one with no budget data. Now extracted into `BudgetStatusChip` (`lib/presentation/widgets/budget_status_chip.dart`), which renders **both** states — warning treatment and `Icons.trending_up_rounded` for over budget, matching `OverBudgetNotice`. Recomputed from budget vs. cost, so it also shows on later visits where `isOverBudget` (a generate-response field only) is unavailable.
+- **BUDGET_FIRST users could not reach the no-destination flow.** The suggestions step's `_ContinueButton` required a destination in both modes, so generation was always scoped to a user-picked destination and the Backend could never propose multiple affordable destinations. Continue is now enabled for `BUDGET_FIRST` without a selection, with a hint explaining that the AI will suggest destinations the budget can afford. `DESTINATION_FIRST` still requires a choice. The review step already renders `data.destination ?? 'Not selected'`, and the only submit guard is `DESTINATION_FIRST`-specific, so no other step needed changing.
+
 ---
 
-## 7. CI Status (last checked 2026-09-19)
+## 7. CI Status (resolved 2026-09-23)
 
-**Backend CI (`Backend CI / build-and-test`) was failing** on the latest merges into `main` as of the last check (PR #49's merge commit, reproduced again on a later commit touching `AI/03-Validation/`). Not re-verified since — worth re-checking given how much backend code has changed since (currency conversion, exchange rates, exchange-rate migration fixes, reference-data migration).
+**Backend CI (`Backend CI / build-and-test`) was failing** on `main` (`Process completed with exit code 1`, 1 error / 11 warnings). It is now **fixed and verified locally**.
 
-- Result at last check: `Process completed with exit code 1` (1 error, 11 warnings, 1 notice).
-- Warnings were nullable-reference-type mismatches in `Backend/Triply.Api.Tests/ItineraryIntegrationTests.cs`, `UserIdentityTests.cs`, and `Modules/AI-Orchestration/ItineraryValidationService.cs`.
-- Not a merge conflict — should be re-checked against current `main` rather than assumed still broken.
+- The error was in `Backend/Triply.Api/Program.cs` and came from the PR #75 merge, which lost three lines of the rate-limiter block:
+  - the closing `});` of the `AddFixedWindowLimiter("fixed", ...)` lambda, which left the following `AddPolicy(...)` calls nested inside it, and
+  - that lambda's `opt.Window = TimeSpan.FromMinutes(1);` line, whose absence left `FixedWindowRateLimiterOptions.Window` at its default `TimeSpan.Zero`.
+- A leftover `options.AddPolicy("fixed", ...)` block also referenced an **undefined** `generalPermitLimit` (declared nowhere in the repository). It was a duplicate registration of the already-registered `"fixed"` policy name, so it was removed rather than given an invented value.
+- **The second half of that merge damage was a runtime 500, not a compile error.** With the braces fixed the build went green, but every rate-limited route — including `/api/auth/register` — threw `ArgumentException: Window must be set to a value greater than TimeSpan.Zero`, because `AddFixedWindowLimiter` does not default `Window` to a positive value. This is why the build fix alone was not enough to get the suite working.
+- Remaining warnings are pre-existing nullable-reference-type mismatches in `Backend/Triply.Api.Tests/ItineraryIntegrationTests.cs` and `UserIdentityTests.cs` only (9 warnings, no errors). `ItineraryValidationService.cs` no longer warns.
+- Backend suite: **119/119 passing** against SQL Server, stable across three consecutive runs. See `Backend/Triply.Api/Modules/AI-Orchestration/progress.md` for how the suite is run locally.

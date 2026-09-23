@@ -248,11 +248,52 @@ public sealed class DatasetProvisioningTests : IClassFixture<SeedProvisioningTes
         }
 
         // --- Budget-first reference flow works against provisioned data ---
+        // The budget is derived from the provisioned dataset rather than hardcoded:
+        // DestinationSuggestionService estimates a destination's cost as the SUM of
+        // every active place's reference_price, and the curated dataset keeps
+        // growing. A fixed budget silently stopped covering any destination once the
+        // dataset expanded (all three now total well over 500 USD), which failed this
+        // test for a reason unrelated to the flow it exists to prove.
+        decimal cheapestCandidateCostInBudgetCurrency;
+        using (var scope = _factory.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+
+            var rates = await db.ExchangeRates
+                .AsNoTracking()
+                .ToDictionaryAsync(r => r.CurrencyId, r => r.RateToUsd);
+
+            // Mirrors the service's aggregation and its two filters: a destination is
+            // a candidate only when it is supported and has at least one place linked
+            // to a requested interest (interest 1 = NATURE in the curated data).
+            var candidates = await db.Places
+                .AsNoTracking()
+                .Where(p =>
+                    p.IsActive &&
+                    p.Destination.IsSupported &&
+                    db.PlaceInterests.Any(pi =>
+                        pi.Place.DestinationId == p.DestinationId &&
+                        pi.InterestCategoryId == 1))
+                .GroupBy(p => new { p.DestinationId, p.CurrencyId })
+                .Select(g => new { g.Key.CurrencyId, Total = g.Sum(p => p.ReferencePrice) })
+                .ToListAsync();
+
+            Assert.True(
+                candidates.Count > 0,
+                "Provisioned curated data must offer at least one supported destination " +
+                "linked to interest 1, or the suggestion flow has nothing to suggest.");
+
+            // Budget currency is USD (id 1), whose rate is 1.00, so a native total
+            // converts into the budget currency as Total * RateToUsd.
+            cheapestCandidateCostInBudgetCurrency =
+                candidates.Min(c => c.Total * rates[c.CurrencyId]);
+        }
+
         var suggestionsResponse = await _client.PostAsJsonAsync(
             "/api/destinations/suggestions",
             new
             {
-                budgetAmount = 500,
+                budgetAmount = cheapestCandidateCostInBudgetCurrency,
                 budgetCurrencyId = 1,
                 interestCategoryIds = new[] { 1 }
             });

@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_text_styles.dart';
+import '../../../data/models/trip_creation_data.dart';
 import '../../providers/trip_creation_provider.dart';
 import '../../widgets/empty_state.dart';
 import '../../widgets/error_state.dart';
@@ -462,19 +463,41 @@ class _ContinueButton extends StatelessWidget {
   Widget build(BuildContext context) {
     final provider = context.watch<TripCreationProvider>();
 
-    final enabled = provider.data.destination != null;
+    // BUDGET_FIRST may proceed WITHOUT a destination: proposing destinations the
+    // budget can actually afford is the point of the mode, so the Backend offers
+    // every supported destination and keeps the options that fit (V-002 §5.3).
+    // DESTINATION_FIRST still requires an explicit choice.
+    final isBudgetFirst =
+        provider.data.planningMode == PlanningMode.budgetFirst;
+    final hasDestination = provider.data.destination != null;
+    final canContinue = hasDestination || isBudgetFirst;
 
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 20),
-      child: PrimaryButton(
-        label: 'Continue',
-        icon: Icons.arrow_forward,
-        onPressed: enabled
-            ? () async {
-          await provider.next();
-        }
-            : () {},
-        fullWidth: true,
+      child: Column(
+        children: [
+          PrimaryButton(
+            label: 'Continue',
+            icon: Icons.arrow_forward,
+            onPressed: canContinue
+                ? () async {
+                    await provider.next();
+                  }
+                : () {},
+            fullWidth: true,
+          ),
+          if (isBudgetFirst && !hasDestination) ...[
+            const SizedBox(height: 8),
+            Text(
+              'No destination picked yet, so the AI will suggest ones your '
+              'budget can afford.',
+              textAlign: TextAlign.center,
+              style: AppTextStyles.labelSm.copyWith(
+                color: AppColors.secondary,
+              ),
+            ),
+          ],
+        ],
       ),
     );
   }

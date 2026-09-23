@@ -29,4 +29,12 @@
     <CopyToOutputDirectory>Always</CopyToOutputDirectory>
   </None>
 </ItemGroup>
+
+<ItemGroup>
+  <!-- Shared V-001/V-002 parity fixtures, consumed by both this C# test and
+       AI/03-Validation/validate_shared_fixtures.py. -->
+  <None Include="..\..\AI\03-Validation\fixtures\v001-v002-parity-fixtures.json" Link="fixtures\v001-v002-parity-fixtures.json">
+    <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+  </None>
+</ItemGroup>
 </Project>

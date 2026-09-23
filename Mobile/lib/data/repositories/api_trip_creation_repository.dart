@@ -1,5 +1,6 @@
 import '../../core/network/api_client.dart';
 import '../../core/network/destination_assets_cache.dart';
+import '../models/generation_outcome.dart';
 import '../models/trip_creation_data.dart';
 import 'trip_creation_repository.dart';
 
@@ -101,14 +102,20 @@ class ApiTripCreationRepository implements TripCreationRepository {
   }
 
   @override
-  Future<void> startGeneration(String tripId) async {
+  Future<GenerationOutcome> startGeneration(String tripId) async {
     // AI generation runs up to 3 bounded-retry attempts server-side (each
     // its own Gemini call), easily exceeding the client's default 15s
     // timeout even on a successful run.
-    await _apiClient.post<Map<String, dynamic>>(
+    final response = await _apiClient.post<Map<String, dynamic>?>(
       '/api/trips/$tripId/generate',
       receiveTimeout: const Duration(seconds: 120),
     );
+
+    if (response == null) return GenerationOutcome.unknown;
+
+    // Only the over-budget signal lives here; the itinerary itself is loaded
+    // from GET /api/trips/{id} when Trip Overview opens.
+    return GenerationOutcome.fromJson(response);
   }
 
   String _dateOnly(DateTime date) {
