@@ -184,6 +184,11 @@ class TripOverviewProvider extends ChangeNotifier {
     ApiClient apiClient,
     Map<String, dynamic> body,
   ) async {
+    final trip = _trip;
+    if (trip == null) return false;
+
+    body = {...body, 'expectedVersion': trip.version};
+
     _isRegenerating = true;
     _errorMessage = null;
     notifyListeners();
@@ -192,6 +197,9 @@ class TripOverviewProvider extends ChangeNotifier {
       await apiClient.post<Map<String, dynamic>>(
         '/api/trips/$_tripId/generate',
         data: body,
+        // Same bounded-retry AI call as full generation — needs the same
+        // longer-than-default timeout (see ApiTripCreationRepository).
+        receiveTimeout: const Duration(seconds: 120),
       );
       await _load();
       _isRegenerating = false;

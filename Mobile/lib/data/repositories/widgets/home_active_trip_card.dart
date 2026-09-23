@@ -38,10 +38,17 @@ class HomeActiveTripCard extends StatelessWidget {
             children: [
               AspectRatio(
                 aspectRatio: 1.9,
-                child: Image.asset(
-                  trip.imageAsset,
-                  fit: BoxFit.cover,
-                ),
+                child: trip.imageUrl != null
+                    ? Image.network(
+                        trip.imageUrl!,
+                        fit: BoxFit.cover,
+                        errorBuilder: (_, __, ___) =>
+                            Image.asset(trip.imageAsset, fit: BoxFit.cover),
+                      )
+                    : Image.asset(
+                        trip.imageAsset,
+                        fit: BoxFit.cover,
+                      ),
               ),
 
               Positioned.fill(

@@ -1,4 +1,5 @@
 import '../../core/network/api_client.dart';
+import '../../core/network/destination_assets_cache.dart';
 import '../models/trip_summary.dart';
 import 'my_trips_repository.dart';
 
@@ -17,5 +18,10 @@ class ApiMyTripsRepository implements MyTripsRepository {
         .cast<Map<String, dynamic>>()
         .map(TripSummary.fromJson)
         .toList();
+  }
+
+  @override
+  Future<Map<String, String>> getDestinationImages() {
+    return DestinationAssetsCache.instance.getImages(_apiClient);
   }
 }

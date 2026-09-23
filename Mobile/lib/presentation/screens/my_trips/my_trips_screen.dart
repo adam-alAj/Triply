@@ -162,6 +162,9 @@ class _Body extends StatelessWidget {
             child: _TripCard(
               trip: trip,
               image: images[index % images.length],
+              destinationImageUrl: trip.destinationName == null
+                  ? null
+                  : provider.imageUrlFor(trip.destinationName!),
             ),
           );
         },
@@ -354,10 +357,19 @@ class _FilterTab extends StatelessWidget {
 }
 
 class _TripCard extends StatelessWidget {
-  const _TripCard({required this.trip, required this.image});
+  const _TripCard({
+    required this.trip,
+    required this.image,
+    this.destinationImageUrl,
+  });
 
   final TripSummary trip;
   final String image;
+
+  /// Fallback real photo for the trip's destination, used when the trip
+  /// itself has no `coverImageUrl` (e.g. it predates AI generation writing
+  /// one, or generation hasn't run yet).
+  final String? destinationImageUrl;
 
   ({Color bg, Color fg, String label}) get _statusBadge {
     switch (trip.status) {
@@ -403,9 +415,9 @@ class _TripCard extends StatelessWidget {
               child: Stack(
                 fit: StackFit.expand,
                 children: [
-                  if (trip.coverImageUrl != null)
+                  if (trip.coverImageUrl != null || destinationImageUrl != null)
                     Image.network(
-                      trip.coverImageUrl!,
+                      trip.coverImageUrl ?? destinationImageUrl!,
                       fit: BoxFit.cover,
                       errorBuilder: (_, __, ___) => Image.asset(image, fit: BoxFit.cover),
                     )

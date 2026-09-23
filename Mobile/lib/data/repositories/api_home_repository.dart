@@ -1,4 +1,5 @@
 import '../../core/network/api_client.dart';
+import '../../core/network/destination_assets_cache.dart';
 import '../models/home_region.dart';
 import '../models/home_trip.dart';
 import 'home_repository.dart';
@@ -25,18 +26,31 @@ class ApiHomeRepository implements HomeRepository {
 
   @override
   Future<List<HomeRegion>> getFeaturedRegions() async {
-    final response = await _apiClient.get<List<dynamic>>('/api/destinations');
-    final destinations = response.cast<Map<String, dynamic>>();
+    final destinations =
+        await DestinationAssetsCache.instance.getDestinations(_apiClient);
+    final images = await _fetchDestinationImages();
 
     return destinations.take(2).map((destination) {
+      final name = destination['name'] as String;
       final country = destination['countryName'] as String;
       return HomeRegion(
-        name: destination['name'] as String,
+        name: name,
         country: country,
         description: destination['description'] as String? ?? '',
         imageAsset: _regionImages[country] ?? 'assets/images/home_japan.jpg',
+        imageUrl: images[name],
       );
     }).toList();
+  }
+
+  /// Best-effort — a failed fetch just means every card falls back to its
+  /// local asset image instead of blocking Home entirely.
+  Future<Map<String, String>> _fetchDestinationImages() async {
+    try {
+      return await DestinationAssetsCache.instance.getImages(_apiClient);
+    } catch (_) {
+      return {};
+    }
   }
 
   @override
@@ -56,11 +70,15 @@ class ApiHomeRepository implements HomeRepository {
     final tripId = active['id'] as String;
     final detail =
         await _apiClient.get<Map<String, dynamic>>('/api/trips/$tripId');
+    final images = await _fetchDestinationImages();
 
-    return [_toHomeTrip(detail)];
+    return [_toHomeTrip(detail, images)];
   }
 
-  HomeTrip _toHomeTrip(Map<String, dynamic> trip) {
+  HomeTrip _toHomeTrip(
+    Map<String, dynamic> trip,
+    Map<String, String> destinationImages,
+  ) {
     final destinationName = trip['destinationName'] as String? ?? 'Your Trip';
     final startDate = _parseDate(trip['startDate']);
     final endDate = _parseDate(trip['endDate']);
@@ -92,6 +110,8 @@ class ApiHomeRepository implements HomeRepository {
       dayLabel: 'Day $dayNumber of $totalDays',
       totalDays: totalDays,
       imageAsset: _tripImages[destinationName.hashCode.abs() % _tripImages.length],
+      imageUrl:
+          trip['coverImageUrl'] as String? ?? destinationImages[destinationName],
     );
   }
 

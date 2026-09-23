@@ -1,7 +1,7 @@
-import 'dart:io' show Platform;
-
 import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
+
+import 'api_config.dart';
 
 /// Thin wrapper around [Dio] that owns every piece of HTTP configuration in
 /// the app: base URL, timeouts, headers, interceptors and error translation.
@@ -9,9 +9,9 @@ import 'package:flutter/foundation.dart';
 /// This is the only class allowed to touch Dio directly. Repositories depend
 /// on this class; the presentation layer never does.
 class ApiClient {
-  ApiClient({Dio? dio, String? baseUrl}) : _dio = dio ?? Dio() {
+  ApiClient({Dio? dio, required String baseUrl}) : _dio = dio ?? Dio() {
     _dio.options = _dio.options.copyWith(
-      baseUrl: baseUrl ?? resolveDefaultBaseUrl(),
+      baseUrl: baseUrl,
       connectTimeout: const Duration(seconds: 15),
       receiveTimeout: const Duration(seconds: 15),
       sendTimeout: const Duration(seconds: 15),
@@ -32,16 +32,16 @@ class ApiClient {
     }
   }
 
-  /// Local-dev backend URL, resolved per platform:
-  /// - Android emulator cannot reach the host machine via `localhost`, so it
-  ///   needs the special loopback alias `10.0.2.2`.
-  /// - iOS simulator / desktop reach the host directly via `localhost`.
-  /// A physical device on the same network, or a deployed backend, needs an
-  /// explicit `baseUrl` passed to the constructor instead.
-  static String resolveDefaultBaseUrl() {
-    if (kIsWeb) return 'http://localhost:8080';
-    if (Platform.isAndroid) return 'http://10.0.2.2:8080';
-    return 'http://localhost:8080';
+  /// Resolves the base URL — see [ApiConfig] for the full emulator/real-
+  /// device/simulator/override resolution logic — and constructs the
+  /// client with it. The composition root (`main()`) awaits this once at
+  /// startup instead of every caller needing to know the resolution is
+  /// asynchronous.
+  static Future<ApiClient> create({Dio? dio, String? baseUrl}) async {
+    return ApiClient(
+      dio: dio,
+      baseUrl: baseUrl ?? await ApiConfig.resolve(),
+    );
   }
 
   final Dio _dio;
@@ -54,8 +54,21 @@ class ApiClient {
     return _send<T>(() => _dio.get<T>(path, queryParameters: queryParameters));
   }
 
-  Future<T> post<T>(String path, {Object? data}) {
-    return _send<T>(() => _dio.post<T>(path, data: data));
+  /// [receiveTimeout] overrides the default 15s for calls known to run
+  /// long server-side (AI generation can take multiple bounded-retry
+  /// attempts at up to `Gemini:TimeoutSeconds` each) — the default stays
+  /// tight for every other call so a genuinely hung request still fails
+  /// fast.
+  Future<T> post<T>(String path, {Object? data, Duration? receiveTimeout}) {
+    return _send<T>(
+      () => _dio.post<T>(
+        path,
+        data: data,
+        options: receiveTimeout == null
+            ? null
+            : Options(receiveTimeout: receiveTimeout),
+      ),
+    );
   }
 
   Future<T> put<T>(String path, {Object? data}) {

@@ -239,6 +239,7 @@ class _HomeViewState extends State<_HomeView>
                                   child: HomeRegionCard(
                                     name: region.name,
                                     imageAsset: region.imageAsset,
+                                    imageUrl: region.imageUrl,
                                     badge: region.country,
                                     description: region.description,
                                   ),
@@ -379,12 +380,19 @@ class _GreetingSection extends StatelessWidget {
             color: AppColors.surfaceContainer,
             borderRadius: BorderRadius.circular(999),
           ),
-          child: Text(
-            '✈ AI TRAVEL COMPANION',
-            style: AppTextStyles.labelSm.copyWith(
-              color: AppColors.secondary,
-              fontWeight: FontWeight.w700,
-            ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Icon(Icons.flight_outlined, size: 12, color: AppColors.secondary),
+              const SizedBox(width: 5),
+              Text(
+                'AI TRAVEL COMPANION',
+                style: AppTextStyles.labelSm.copyWith(
+                  color: AppColors.secondary,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ],
           ),
         ),
         const SizedBox(height: 8),
@@ -443,12 +451,19 @@ class _PlanTripSection extends StatelessWidget {
               color: Colors.white,
               borderRadius: BorderRadius.circular(999),
             ),
-            child: Text(
-              '● Intelligent Multi-stop Ready',
-              style: AppTextStyles.labelSm.copyWith(
-                color: AppColors.secondary,
-                fontWeight: FontWeight.w600,
-              ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Icon(Icons.circle, size: 8, color: AppColors.secondary),
+                const SizedBox(width: 5),
+                Text(
+                  'Intelligent Multi-stop Ready',
+                  style: AppTextStyles.labelSm.copyWith(
+                    color: AppColors.secondary,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ],
             ),
           ),
           const SizedBox(height: 9),

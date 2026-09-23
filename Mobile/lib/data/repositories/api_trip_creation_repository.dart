@@ -1,4 +1,5 @@
 import '../../core/network/api_client.dart';
+import '../../core/network/destination_assets_cache.dart';
 import '../models/trip_creation_data.dart';
 import 'trip_creation_repository.dart';
 
@@ -12,9 +13,10 @@ class ApiTripCreationRepository implements TripCreationRepository {
 
   @override
   Future<List<Map<String, dynamic>>> getDestinations() async {
-    final response = await _apiClient.get<List<dynamic>>('/api/destinations');
+    final destinations =
+        await DestinationAssetsCache.instance.getDestinations(_apiClient);
 
-    return response.cast<Map<String, dynamic>>().map((destination) {
+    return destinations.map((destination) {
       return <String, dynamic>{
         'id': destination['id'].toString(),
         'destinationId': destination['id'] as int,
@@ -23,6 +25,11 @@ class ApiTripCreationRepository implements TripCreationRepository {
         'description': destination['description'] as String? ?? '',
       };
     }).toList();
+  }
+
+  @override
+  Future<Map<String, String>> getDestinationImages() {
+    return DestinationAssetsCache.instance.getImages(_apiClient);
   }
 
   @override
@@ -46,6 +53,8 @@ class ApiTripCreationRepository implements TripCreationRepository {
         (response['suggestions'] as List<dynamic>? ?? const [])
             .cast<Map<String, dynamic>>();
 
+    final images = await DestinationAssetsCache.instance.getImages(_apiClient);
+
     return suggestions.map((suggestion) {
       final destinationId = suggestion['destinationId'] as int;
       final name = suggestion['destinationName'] as String;
@@ -58,8 +67,9 @@ class ApiTripCreationRepository implements TripCreationRepository {
         'destinationId': destinationId,
         'name': name,
         'country': country,
-        // The backend doesn't serve destination imagery yet; the suggestion
-        // card already falls back to a placeholder icon on a missing asset.
+        'imageUrl': images[name],
+        // Falls back to a placeholder icon (see _SuggestionCard's
+        // errorBuilder) when there's no real cover photo for this name.
         'image': 'assets/images/trip_creation/placeholder.jpg',
         'description': 'AI-curated pick in $country',
         'estimatedCost': '$currency $cost avg.',
@@ -92,8 +102,12 @@ class ApiTripCreationRepository implements TripCreationRepository {
 
   @override
   Future<void> startGeneration(String tripId) async {
+    // AI generation runs up to 3 bounded-retry attempts server-side (each
+    // its own Gemini call), easily exceeding the client's default 15s
+    // timeout even on a successful run.
     await _apiClient.post<Map<String, dynamic>>(
       '/api/trips/$tripId/generate',
+      receiveTimeout: const Duration(seconds: 120),
     );
   }
 

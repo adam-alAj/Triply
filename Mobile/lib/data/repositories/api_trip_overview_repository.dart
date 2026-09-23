@@ -1,4 +1,7 @@
+import 'package:flutter/material.dart' show Icons;
+
 import '../../core/network/api_client.dart';
+import '../../core/network/destination_assets_cache.dart';
 import '../models/trip_overview_data.dart';
 import 'trip_overview_repository.dart';
 
@@ -18,11 +21,13 @@ class ApiTripOverviewRepository implements TripOverviewRepository {
     final destinationName = trip['destinationName'] as String? ?? 'Your Trip';
     final title = trip['title'] as String? ?? destinationName;
     final coverImageUrl = trip['coverImageUrl'] as String?;
+    final countryName = await _fetchCountryName(destinationName);
     final startDate = _parseDate(trip['startDate']);
     final endDate = _parseDate(trip['endDate']);
     final travelerCount = trip['travelerCount'] as int? ?? 1;
     final budgetAmount = (trip['budgetAmount'] as num?)?.toDouble();
     final status = trip['status'] as String? ?? 'DRAFT';
+    final version = trip['version'] as int? ?? 1;
 
     final totalDays = (startDate != null && endDate != null)
         ? endDate.difference(startDate).inDays + 1
@@ -33,6 +38,7 @@ class ApiTripOverviewRepository implements TripOverviewRepository {
 
     final days = _mapDays(itinerary);
     final costCategories = _mapCostCategories(costEstimate);
+    final stayHighlight = await _buildStayHighlight(days, destinationName);
 
     final totalEstimatedCostUsd =
         (costEstimate?['totalEstimatedCost'] as num?)?.toDouble() ??
@@ -48,13 +54,14 @@ class ApiTripOverviewRepository implements TripOverviewRepository {
     return TripOverviewData(
       id: trip['id'] as String,
       tripTitle: title,
-      // PENDING BACKEND: no country/region breakdown beyond the
-      // destination's own name — see progress.md's Place Detail gap.
-      regionLabel: destinationName,
+      regionLabel: countryName == null
+          ? destinationName
+          : '$destinationName • $countryName',
       dateRangeLabel: _formatDateRange(startDate, endDate),
       totalDays: totalDays,
       travelerCount: travelerCount,
       status: status,
+      version: version,
       totalEstimatedCostUsd: totalEstimatedCostUsd,
       avgPerDayPerTravelerUsd: avgPerDayPerTravelerUsd,
       isOnTarget: totalEstimatedCostUsd <= targetCapUsd,
@@ -65,7 +72,70 @@ class ApiTripOverviewRepository implements TripOverviewRepository {
       days: days,
       costCategories: costCategories,
       coverImageUrl: coverImageUrl,
+      stayHighlight: stayHighlight,
     );
+  }
+
+  /// There's no dedicated "accommodation" field on the trip response — the
+  /// AI/prompt convention (see AiOrchestrationService's Gemini schema)
+  /// flags the accommodation item by prefixing its `Notes` with
+  /// "Accommodation:" (e.g. "Accommodation: 2 nights"), the same
+  /// convention the backend itself checks for elsewhere (ItinerariesController
+  /// blocks editing that item as a regular activity). Scans for it instead
+  /// of requiring a new backend field. Returns null if the trip has no
+  /// itinerary yet, or no item matches.
+  Future<StayHighlightData?> _buildStayHighlight(
+    List<ItineraryDayData> days,
+    String destinationName,
+  ) async {
+    for (final day in days) {
+      for (final item in day.items) {
+        final notes = item.notes;
+        if (notes == null || !notes.toLowerCase().startsWith('accommodation:')) {
+          continue;
+        }
+
+        final nightsLabel = notes.substring('accommodation:'.length).trim();
+        String? imageUrl;
+        try {
+          final images = await DestinationAssetsCache.instance.getImages(_apiClient);
+          imageUrl = images[destinationName];
+        } catch (_) {
+          // Best-effort — falls back to the local asset below.
+        }
+
+        return StayHighlightData(
+          imageAsset: 'assets/images/trip_creation/kyoto_tokyo.jpg',
+          imageUrl: imageUrl,
+          title: item.placeName,
+          subtitle: nightsLabel.isEmpty
+              ? item.estimatedCostLabel
+              : '$nightsLabel • ${item.estimatedCostLabel}',
+        );
+      }
+    }
+
+    return null;
+  }
+
+  /// `GET /api/trips/{id}` only returns the destination's name, not its
+  /// country — cross-referenced against `GET /api/destinations` (a short,
+  /// cheap list) for a "Amman • Jordan" style region label. Best-effort:
+  /// falls back to just the destination name on any failure.
+  Future<String?> _fetchCountryName(String destinationName) async {
+    try {
+      final destinations =
+          await DestinationAssetsCache.instance.getDestinations(_apiClient);
+
+      final match = destinations.cast<Map<String, dynamic>?>().firstWhere(
+            (d) => d!['name'] == destinationName,
+            orElse: () => null,
+          );
+
+      return match?['countryName'] as String?;
+    } catch (_) {
+      return null;
+    }
   }
 
   List<ItineraryDayData> _mapDays(Map<String, dynamic>? itinerary) {
@@ -83,10 +153,13 @@ class ApiTripOverviewRepository implements TripOverviewRepository {
         dateLabel: _formatDate(_parseDate(day['date'])),
         items: items.map((item) {
           final cost = (item['estimatedCost'] as num?)?.toDouble() ?? 0;
+          final timeSlot = item['timeSlot'] as String? ?? 'MORNING';
+          final placeId = (item['placeId'] as num?)?.toInt() ?? 0;
+
           return ItineraryItemData(
             id: item['id'] as String? ?? '',
-            placeId: (item['placeId'] as num?)?.toInt() ?? 0,
-            timeSlot: item['timeSlot'] as String? ?? 'MORNING',
+            placeId: placeId,
+            timeSlot: timeSlot,
             orderIndex: item['orderIndex'] as int? ?? 0,
             placeName: item['placeName'] as String? ?? 'Activity',
             // PENDING BACKEND: no place description — see progress.md.
@@ -94,6 +167,27 @@ class ApiTripOverviewRepository implements TripOverviewRepository {
             estimatedCostLabel: 'Est. \$${cost.round()}',
             isAiGenerated: item['isAiGenerated'] as bool? ?? true,
             notes: item['notes'] as String?,
+            // PENDING BACKEND: the Place Detail Sheet's hero image, crowd
+            // cadence and verification badges have no source fields on
+            // ItineraryItemResponse yet (flagged to the backend track).
+            // Filled with clearly-labeled placeholder data below instead
+            // of hiding the design — swap for real fields once they land.
+            heroImageUrl: 'https://picsum.photos/seed/place$placeId/800/400',
+            startTimeMinutes: _placeholderStartMinutes(timeSlot),
+            durationMinutes: 90,
+            priceContextLabel: 'Estimate — pricing verification pending',
+            heroBadges: const [
+              HeroBadgeData(icon: Icons.info_outline, label: 'Preview Data'),
+            ],
+            crowdCadence: const CrowdCadenceData(
+              level: CrowdCadenceLevel.moderate,
+              moodLabel: 'DEMO',
+              currentTimeLabel: 'Sample data — live feed pending',
+              currentCapacityPercent: 50,
+              peakTimeLabel: 'Backend integration pending',
+              peakCapacityPercent: 80,
+            ),
+            isPlaceholderEnrichment: true,
           );
         }).toList(),
       );
@@ -124,6 +218,16 @@ class ApiTripOverviewRepository implements TripOverviewRepository {
       );
     }).toList();
   }
+
+  /// Rough start time per time-slot bucket — the backend only sends
+  /// MORNING/AFTERNOON/EVENING, not a real clock time, so this is a
+  /// placeholder until `startTime` exists on `ItineraryItemResponse`.
+  int _placeholderStartMinutes(String timeSlot) => switch (timeSlot) {
+        'MORNING' => 9 * 60,
+        'AFTERNOON' => 13 * 60,
+        'EVENING' => 19 * 60,
+        _ => 9 * 60,
+      };
 
   DateTime? _parseDate(dynamic value) {
     if (value is! String || value.isEmpty) return null;

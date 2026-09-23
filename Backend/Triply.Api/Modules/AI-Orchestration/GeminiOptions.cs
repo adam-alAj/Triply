@@ -12,19 +12,22 @@ public class GeminiOptions
 
     // Flash-family model per the Recommended Technology Stack (free tier). Confirm exact model
     // name with the AI track once Latency Testing (Gemini Flash vs Flash-Lite) concludes.
-public string Model { get; set; } = "gemini-flash-lite-latest";
+public string Model { get; set; } = "gemini-3.6-flash";
  public string BaseUrl { get; set; } =
         "https://generativelanguage.googleapis.com/v1beta/models";
 
     // Bounded regeneration retries — SRS FR-AI-002 / Architecture §9 "alt Invalid" branch.
-    // Total attempts = MaxRetries + 1 (the original attempt).
-    public int MaxRetries { get; set; } = 2;
+    // Total attempts = MaxRetries + 1 (the original attempt). Raised from 2:
+    // in practice this key's free-tier calls hit transient 503/429s often
+    // enough that 3 total attempts (with no backoff, historically) regularly
+    // failed together — see AiOrchestrationService's exponential backoff
+    // between attempts.
+    public int MaxRetries { get; set; } = 4;
 
     public int TimeoutSeconds { get; set; } = 30;
 
-    // SRS §17 D1 — proposed ±15%, pending team sign-off. Used only if the AI-agreed
-    // output schema ever echoes back a price to sanity-check against Place.reference_price;
-    // the persisted cost is always recomputed deterministically from Place.reference_price
-    // regardless (Database Design §15), so this never controls what gets stored.
-    public decimal CostTolerancePercent { get; set; } = 15m;
+    // NOTE: the former CostTolerancePercent (SRS §17 D1, ±15%) was removed as dead
+    // configuration — AI JSON Schema Contract v2.0.0 dropped the AI-echoed cost
+    // summary, so nothing ever consumed it. Cost is always recomputed
+    // deterministically from Place.reference_price (Database Design §15).
 }

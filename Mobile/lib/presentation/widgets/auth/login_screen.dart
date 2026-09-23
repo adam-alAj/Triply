@@ -148,9 +148,13 @@ class _LoginScreenState extends State<LoginScreen> {
                           color: AppColors.surfaceContainer,
                           borderRadius: BorderRadius.circular(20),
                         ),
-                        child: Text(
-                          '🔒 TLS 256-BIT',
-                          style: AppTextStyles.labelSm,
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            const Icon(Icons.lock_outline, size: 12, color: AppColors.secondary),
+                            const SizedBox(width: 4),
+                            Text('TLS 256-BIT', style: AppTextStyles.labelSm),
+                          ],
                         ),
                       ),
                     ],
@@ -168,11 +172,22 @@ class _LoginScreenState extends State<LoginScreen> {
                     color: AppColors.primaryContainerLight,
                     borderRadius: BorderRadius.circular(20),
                   ),
-                  child: Text(
-                    '✈ Wanderlust Awaits',
-                    style: AppTextStyles.labelSm.copyWith(
-                      color: AppColors.onPrimaryContainerLight,
-                    ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(
+                        Icons.flight_outlined,
+                        size: 13,
+                        color: AppColors.onPrimaryContainerLight,
+                      ),
+                      const SizedBox(width: 4),
+                      Text(
+                        'Wanderlust Awaits',
+                        style: AppTextStyles.labelSm.copyWith(
+                          color: AppColors.onPrimaryContainerLight,
+                        ),
+                      ),
+                    ],
                   ),
                 ),
 
@@ -349,12 +364,18 @@ class _LoginScreenState extends State<LoginScreen> {
                             '/register',
                           );
                         },
-                        child: Text(
-                          'Create account↗',
-                          style: AppTextStyles.bodyMd.copyWith(
-                            color: AppColors.primary,
-                            fontWeight: FontWeight.w600,
-                          ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Text(
+                              'Create account',
+                              style: AppTextStyles.bodyMd.copyWith(
+                                color: AppColors.primary,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                            const Icon(Icons.north_east, size: 14, color: AppColors.primary),
+                          ],
                         ),
                       ),
                     ],

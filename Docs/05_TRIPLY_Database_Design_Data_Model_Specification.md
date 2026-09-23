@@ -2,11 +2,18 @@
 
 *Derived strictly from the approved SRS, System Architecture, and Team & Responsibilities documents. No entity below exists without a traceable requirement or architectural need.*
 
+> **Reconciled with the implemented schema.** This document now matches
+> `Backend/Triply.Api` (`ApplicationDbContext`, entity classes and the EF Core
+> migration history). Where the implemented schema and this specification once
+> diverged, the code is the source of truth and the text below was brought in
+> line with it; such passages are called out explicitly ("implemented",
+> "designed, not created").
+
 ---
 
 ## 1. Executive Summary
 
-Triply's data model is a **relational schema on SQL Server**, accessed via EF Core — matching the Backend track's demonstrated, capstone-tested stack (per Team & Responsibilities). The model is deliberately lean: **17 tables**, no premature versioning, no speculative audit infrastructure, and no entities invented from "typical travel app" patterns. Every table traces to a specific FR/NFR in the SRS.
+Triply's data model is a **relational schema on SQL Server**, accessed via EF Core — matching the Backend track's demonstrated, capstone-tested stack (per Team & Responsibilities). The model is deliberately lean: **17 physical application tables** (plus ASP.NET Core Identity's framework-owned `AspNet*` tables), no premature versioning, no speculative audit infrastructure, and no entities invented from "typical travel app" patterns. Every original table traces to a specific FR/NFR in the SRS; three tables added by later implementation (`PlaceInterests`, `UserPreferences`, `ExchangeRates`) are documented below with their provenance, and two designed Post-MVP tables (`Conversation`, `ConversationMessage`) are **not yet created**.
 
 Three design decisions shape everything below:
 1. **AI-generated content is structurally forced to reference only real internal data** — every `ItineraryItem` has a mandatory, non-nullable foreign key to `Place`. This makes the project's non-negotiable 0%-invented-places rule (FR-AI-002) a database-level guarantee, not just an application-level check.
@@ -26,22 +33,29 @@ Three design decisions shape everything below:
 ```mermaid
 graph TD
     U[User] --> T[Trip]
+    U --> UP[UserPreferences]
+    UP --> PCUR[Currency]
     T --> TI[TripInterest]
     TI --> IC[InterestCategory]
     T --> D[Destination]
     D --> C[Country]
+    C --> ER[ExchangeRate]
     T --> IT[Itinerary]
     IT --> IDAY[ItineraryDay]
     IDAY --> IITEM[ItineraryItem]
     IITEM --> P[Place]
     P --> D
     P --> PC[PlaceCategory]
+    P --> PI[PlaceInterest]
+    PI --> IC
     T --> CE[CostEstimate]
     CE --> CC[CostCategory]
     T --> AIG[AIGeneration]
     T --> CONV[Conversation]
     CONV --> CMSG[ConversationMessage]
 ```
+
+*(Implemented solid lines plus the designed-but-not-created `Conversation` branch — see §4.)*
 
 ## 4. Entity Inventory
 
@@ -62,8 +76,13 @@ graph TD
 | 13 | ItineraryItem | Persistent — core | MVP |
 | 14 | CostEstimate | Persistent — core | MVP |
 | 15 | AIGeneration | Persistent — AI-related | MVP |
-| 16 | Conversation | Persistent — supporting | Post-MVP (FR-TRIP-005) |
-| 17 | ConversationMessage | Persistent — supporting | Post-MVP (FR-TRIP-005) |
+| 16 | Conversation | Persistent — supporting | Post-MVP (FR-TRIP-005) — *designed, not created* |
+| 17 | ConversationMessage | Persistent — supporting | Post-MVP (FR-TRIP-005) — *designed, not created* |
+| 18 | PlaceInterest | Junction | MVP |
+| 19 | UserPreferences | Persistent — supporting | MVP |
+| 20 | ExchangeRate | Reference | MVP |
+
+**Implemented-schema reconciliation:** items 1–15 and 18–20 exist in the database today — 17 physical application tables, matching the "17 tables" claim in §1. Items 16–17 exist only as designs until FR-TRIP-005 is built. The `User` entity is implemented through ASP.NET Core Identity as `AspNetUsers` plus the framework-owned `AspNet*` support tables (§6.1). Items 18–20 were added by later migrations (`AddPlaceInterest`, `AddUserPreferencesAndTripMetadata`, `AddExchangeRates`) and are specified in §6.18–§6.20.
 
 Entities explicitly **not created**, with reasons:
 - **UserProfile** — no requirement for saved default preferences separate from a trip's own preferences; would be speculative.
@@ -92,8 +111,11 @@ Entities explicitly **not created**, with reasons:
 | ItineraryItem | Represents one activity/meal/transport/accommodation entry in a day | FR-AI-001, FR-TRIP-003 | Backend | Core |
 | CostEstimate | Persists the category-level cost breakdown | FR-COST-001 | Backend | Core |
 | AIGeneration | Records each generation attempt, its validation outcome, and status — makes FR-AI-002 auditable | FR-AI-001, FR-AI-002 | Backend (integration) + AI (rules) | Core |
-| Conversation | Anchors multi-turn refinement to a trip, if/when built | FR-TRIP-005 (Should) | Backend | Supporting |
-| ConversationMessage | Individual turns within a conversation | FR-TRIP-005 (Should) | Backend | Supporting |
+| Conversation | Anchors multi-turn refinement to a trip, if/when built | FR-TRIP-005 (Should) | Backend | Supporting — *designed, not created* |
+| ConversationMessage | Individual turns within a conversation | FR-TRIP-005 (Should) | Backend | Supporting — *designed, not created* |
+| PlaceInterest | Interest tags on curated places, used by interest-aware destination suggestions | FR-TRIP-002 (budget/preferences matching), FR-DATA-001 | AI track (dataset) | Junction |
+| UserPreferences | Server-side profile-level preferences (distance unit, pacing, preferred currency) persisted across devices/sessions | Backend implementation detail supporting preference capture in FR-TRIP-001/002 — no distinct SRS FR (added by migration `AddUserPreferencesAndTripMetadata`) | Backend | Supporting |
+| ExchangeRate | USD-relative rate per currency so budget and cost figures convert consistently | FR-COST-001 + FR-TRIP-002 (currency conversion across cost/suggestion flows) | Backend | Reference |
 
 ## 6. Detailed Entity Specifications
 
@@ -108,6 +130,17 @@ Entities explicitly **not created**, with reasons:
 | display_name | VARCHAR(100) | NULL | — | User-editable |
 | created_at | TIMESTAMP | NOT NULL | now() | system-generated |
 | deleted_at | TIMESTAMP | NULL | — | soft-delete marker (see §15) |
+
+> **Implemented as:** ASP.NET Core Identity's `AspNetUsers` table (entity
+> `ApplicationUser : IdentityUser<Guid>`), plus framework-owned `AspNetRoles`,
+> `AspNetUserRoles`, `AspNetUserClaims`, `AspNetRoleClaims`, `AspNetUserLogins`
+> and `AspNetUserTokens`. Column mapping: `email` → `Email` (nvarchar(256),
+> uniqueness enforced by the unique filtered index `EmailIndex` on
+> `NormalizedEmail`), `password_hash` → `PasswordHash` (Identity PBKDF2, not a
+> plain VARCHAR), `display_name` → `DisplayName` (nvarchar(100)),
+> `created_at`/`deleted_at` → `CreatedAt`/`DeletedAt`. Identity additionally
+> stores `UserName`, `Normalized*` columns, security/concurrency stamps and
+> lockout/2FA columns — framework-owned, not owned by this specification.
 
 ### 6.2 Country (reference)
 | Attribute | Type | Null | Notes |
@@ -182,6 +215,8 @@ Entities explicitly **not created**, with reasons:
 | traveler_count | INT | NOT NULL | 1 | CHECK > 0 |
 | budget_amount | DECIMAL(10,2) | NULL | — | required for budget-first mode |
 | budget_currency_id | BIGINT | NULL | — | FK → Currency |
+| title | VARCHAR(200) | NULL | — | user-editable trip title (added by migration `AddUserPreferencesAndTripMetadata`) |
+| cover_image_url | VARCHAR(1000) | NULL | — | optional trip cover image (same migration) |
 | total_estimated_cost | DECIMAL(10,2) | NULL | — | **denormalized cache** of sum(CostEstimate.amount), see §15 |
 | version | INT | NOT NULL | 1 | optimistic concurrency counter, increments on regeneration/edit |
 | created_at | TIMESTAMP | NOT NULL | now() | |
@@ -201,7 +236,7 @@ Entities explicitly **not created**, with reasons:
 | id | GUID | NOT NULL | PK |
 | trip_id | GUID | NOT NULL | FK → Trip, UNIQUE (1:1) |
 | generated_at | TIMESTAMP | NOT NULL | when the current version was produced |
-| ai_generation_id | GUID | NULL | FK → AIGeneration that produced the current content |
+| ai_generation_id | GUID | NULL | — | Marker of the AIGeneration that produced the current content. **Implemented as a plain nullable column: no FK constraint is configured today** (AIGeneration rows cascade with the trip regardless); listed as an FK-by-design here so Post-MVP work can add it deliberately |
 
 ### 6.12 ItineraryDay
 | Attribute | Type | Null | Notes |
@@ -267,44 +302,88 @@ Entities explicitly **not created**, with reasons:
 | related_ai_generation_id | GUID | NULL | FK → AIGeneration, if the message triggered a regeneration |
 | created_at | TIMESTAMP | NOT NULL | now() |
 
+### 6.18 PlaceInterest *(junction — implemented)*
+| Attribute | Type | Null | Notes |
+|---|---|---|---|
+| place_id | BIGINT | NOT NULL | part of composite PK, FK → Place, ON DELETE CASCADE |
+| interest_category_id | BIGINT | NOT NULL | part of composite PK, FK → InterestCategory, ON DELETE RESTRICT; secondary index |
+
+Resolves the Place ↔ InterestCategory many-to-many used by interest-aware destination suggestions (FR-TRIP-002).
+
+### 6.19 UserPreferences *(implemented)*
+| Attribute | Type | Null | Default | Notes |
+|---|---|---|---|---|
+| user_id | GUID | NOT NULL | — | PK **and** FK → User (`AspNetUsers`) — shared-PK 1:1, ON DELETE CASCADE |
+| preferred_currency_id | BIGINT | NULL | — | FK → Currency, ON DELETE RESTRICT; indexed |
+| distance_unit | VARCHAR(10) | NOT NULL | `KM` | `KM` \| `MILES` (app-enforced values; no DB CHECK) |
+| pacing | VARCHAR(20) | NOT NULL | `BALANCED` | `RELAXED` \| `BALANCED` \| `FAST` (app-enforced values; no DB CHECK) |
+
+One row per user, created on demand. An empty table is valid for a fresh environment — it is user-scoped data and is **never seeded** (§26).
+
+### 6.20 ExchangeRate *(implemented)*
+| Attribute | Type | Null | Notes |
+|---|---|---|---|
+| currency_id | BIGINT | NOT NULL | PK **and** FK → Currency — 1:1, ON DELETE CASCADE |
+| rate_to_usd | DECIMAL(18,6) | NOT NULL | how many USD one unit of the currency is worth |
+| updated_at | TIMESTAMP | NOT NULL | last update |
+
+Placeholder rows (USD 1.00, JOD 1.41, EUR 1.08) are insert-if-missing provisioned with the rest of the reference data (§26). Rates are **manually maintained** — there is deliberately no scheduled refresh job (three fixed currencies; see the header comment in `Entities/ExchangeRate.cs`).
+
 ## 7. Primary Key Strategy
 
 | Rule | Applies to | Rationale |
 |---|---|---|
-| GUID | User, Trip, Itinerary, ItineraryDay, ItineraryItem, AIGeneration, Conversation, ConversationMessage | These are exposed through the API and referenced directly by mobile/web clients; sequential IDs would let one user enumerate other users' trip IDs (ID-enumeration risk) — a real concern given the ownership-based authorization model in the Architecture doc |
+| GUID | User, Trip, Itinerary, ItineraryDay, ItineraryItem, AIGeneration, Conversation, ConversationMessage, UserPreferences | These are exposed through the API and referenced directly by mobile/web clients; sequential IDs would let one user enumerate other users' trip IDs (ID-enumeration risk) — a real concern given the ownership-based authorization model in the Architecture doc. (`UserPreferences` shares its GUID PK with its User row — the 1:1 cardinality is structural.) |
 | BIGINT IDENTITY | Country, Destination, PlaceCategory, Place, CostCategory, Currency, InterestCategory, CostEstimate | Internal/reference data, never guessed by a client to access another user's resource; sequential integers keep joins and indexing cheaper, matching a team with no evidenced need for distributed-ID generation |
-| Composite PK | TripInterest | Pure junction table; the pair itself is the natural, sufficient identity |
+| Composite PK | TripInterest, PlaceInterest | Pure junction tables; the pair itself is the natural, sufficient identity |
+| FK-as-PK | ExchangeRate (`currency_id`), UserPreferences (`user_id`) | 1:1 extensions of an existing row — sharing the parent's key makes the 1:1 cardinality structural instead of application-enforced |
 
 No natural/business keys (email, place name, destination name) are used as primary keys — all are enforced instead via UNIQUE constraints.
 
 ## 8. Relationship Model
 
-| Entity A | Relationship | Entity B | Cardinality | Optional? | FK | On Delete |
+| Entity A | Relationship | Entity B | Cardinality | Optional? | FK | On Delete (implemented) |
 |---|---|---|---|---|---|---|
-| User | owns | Trip | 1:N | Trip requires a User | Trip.user_id | RESTRICT (see §15) |
-| Country | contains | Destination | 1:N | Destination requires a Country | Destination.country_id | RESTRICT |
+| User | owns | Trip | 1:N | Trip requires a User | Trip.user_id | CASCADE |
+| User | has | UserPreferences | 1:1 | preferences row created on demand | UserPreferences.user_id | CASCADE (shared PK) |
+| Country | contains | Destination | 1:N | Destination requires a Country | Destination.country_id | CASCADE |
 | Destination | contains | Place | 1:N | Place requires a Destination | Place.destination_id | RESTRICT |
-| PlaceCategory | classifies | Place | 1:N | Place requires a category | Place.place_category_id | RESTRICT |
-| CostCategory | classifies | Place | 1:N | Place requires a cost bucket | Place.cost_category_id | RESTRICT |
-| Currency | denominates | Place | 1:N | required | Place.currency_id | RESTRICT |
+| PlaceCategory | classifies | Place | 1:N | Place requires a category | Place.place_category_id | CASCADE |
+| CostCategory | classifies | Place | 1:N | Place requires a cost bucket | Place.cost_category_id | CASCADE |
+| Currency | denominates | Place | 1:N | required | Place.currency_id | CASCADE |
+| Currency | has | ExchangeRate | 1:1 | rate row provisioned with reference data | ExchangeRate.currency_id | CASCADE |
+| Currency | preferred via | UserPreferences | N:0..1 | optional | UserPreferences.preferred_currency_id | RESTRICT |
 | Trip | requests | Destination | N:1 | optional (budget-first, pre-selection) | Trip.destination_id | SET NULL |
+| Trip | budgets in | Currency | N:0..1 | optional | Trip.budget_currency_id | NO ACTION (EF client-set-null default) |
 | Trip | has | TripInterest | 1:N | at least one expected by business rule (app-level, not DB-enforced) | TripInterest.trip_id | CASCADE |
 | InterestCategory | tagged via | TripInterest | 1:N | — | TripInterest.interest_category_id | RESTRICT |
 | Trip | has | Itinerary | 1:1 | optional until generation succeeds | Itinerary.trip_id | CASCADE |
 | Itinerary | has | ItineraryDay | 1:N | required once itinerary exists | ItineraryDay.itinerary_id | CASCADE |
 | ItineraryDay | has | ItineraryItem | 1:N | required | ItineraryItem.itinerary_day_id | CASCADE |
 | Place | grounds | ItineraryItem | 1:N | **mandatory, not nullable** | ItineraryItem.place_id | RESTRICT — a Place referenced by an itinerary can never be hard-deleted, only deactivated via `is_active` |
+| Place | tagged via | PlaceInterest | 1:N | junction child | PlaceInterest.place_id | CASCADE |
+| InterestCategory | tagged via | PlaceInterest | 1:N | — | PlaceInterest.interest_category_id | RESTRICT |
 | Trip | has | CostEstimate | 1:N | required once cost is computed | CostEstimate.trip_id | CASCADE |
-| CostCategory | buckets | CostEstimate | 1:N | — | CostEstimate.cost_category_id | RESTRICT |
+| CostCategory | buckets | CostEstimate | 1:N | — | CostEstimate.cost_category_id | CASCADE |
+| Currency | denominates | CostEstimate | 1:N | — | CostEstimate.currency_id | CASCADE |
 | Trip | has | AIGeneration | 1:N | required (at least one attempt) | AIGeneration.trip_id | CASCADE |
-| Trip | has | Conversation | 1:1 | optional, post-MVP | Conversation.trip_id | CASCADE |
-| Conversation | has | ConversationMessage | 1:N | — | ConversationMessage.conversation_id | CASCADE |
+| Trip | has | Conversation | 1:1 | *designed* — Post-MVP, table not created | Conversation.trip_id | CASCADE (planned) |
+| Conversation | has | ConversationMessage | 1:N | *designed* — Post-MVP, table not created | ConversationMessage.conversation_id | CASCADE (planned) |
 
-**Delete-behavior rationale (why not CASCADE everywhere):** `Place` is never cascade-deleted or hard-deleted while referenced by any `ItineraryItem` — doing so would silently corrupt a user's saved, already-cost-estimated plan. Reference/master data (`Country`, `Destination`, category tables) uses RESTRICT so a curation mistake can't silently orphan live trips. Everything that is purely "child content of a Trip" (Itinerary, CostEstimate, AIGeneration, Conversation) cascades with the Trip, since none of it has meaning without its parent.
+*Behavior names are EF Core semantics as configured in `ApplicationDbContext`; SQL Server implements RESTRICT as NO ACTION.*
+
+**Delete-behavior rationale (as implemented in `ApplicationDbContext`):** two guarantees are unchanged. First, a `Place` referenced by any `ItineraryItem` can never be deleted (`ItineraryItem.place_id` RESTRICT) — live itineraries and the 0%-invented-places rule (FR-AI-002) cannot be silently corrupted. Second, everything that is purely "child content of a Trip" (Itinerary, CostEstimate, AIGeneration, and the designed Conversation tables) cascades with the Trip, since none of it has meaning without its parent. Reference rows are curated, not deleted; trips and users are soft-deleted at the application level (`deleted_at`, §6.1/§6.9, with an EF Core global query filter on `Trip`). Where a hard delete does happen, required (non-nullable) reference FKs — Country→Destination, PlaceCategory/CostCategory/Currency→Place, CostCategory/Currency→CostEstimate, User→Trip, Currency→ExchangeRate, User→UserPreferences — follow EF Core's cascade default as configured, and the cascade chain still terminates at the protected `ItineraryItem.place_id` RESTRICT, so a referenced place (and therefore its itinerary entries) can never disappear indirectly.
 
 ## 9. Many-to-Many Relationships
 
-Only one true M:N exists: **Trip ↔ InterestCategory**, resolved via the `TripInterest` junction (§6.10). No other candidate M:N relationship is justified by the SRS — e.g., Place↔Destination is 1:N (a place belongs to exactly one destination), not M:N.
+Two true M:N relationships exist, both resolved by junction tables with composite primary keys:
+
+| M:N | Junction | Purpose |
+|---|---|---|
+| Trip ↔ InterestCategory | `TripInterest` (§6.10) | trip-level interest preferences (FR-TRIP-001/002) |
+| Place ↔ InterestCategory | `PlaceInterest` (§6.18 — implemented via migration `AddPlaceInterest`) | interest tags on curated places, used by interest-aware destination suggestions (FR-TRIP-002) |
+
+No other candidate M:N relationship is justified by the SRS — e.g. Place↔Destination is 1:N (a place belongs to exactly one destination), not M:N.
 
 ## 10. Trip Domain Model
 
@@ -316,7 +395,7 @@ Only one true M:N exists: **Trip ↔ InterestCategory**, resolved via the `TripI
 
 Itinerary content is **structured, not a JSON blob** — `ItineraryDay` and `ItineraryItem` are real rows because the application must filter, sum costs, reorder, and let users edit individual entries (FR-TRIP-003, FR-COST-001). A JSON blob would make partial regeneration and cost aggregation require string-level surgery instead of a normal UPDATE.
 
-JSON is used only in `AIGeneration.raw_output` — flexible, provider-specific data that the application doesn't need to query column-by-column, and that exists purely to support debugging/regeneration, not end-user features.
+JSON is used only in `AIGeneration.input_snapshot` and `AIGeneration.raw_output` — flexible, provider-specific data that the application doesn't need to query column-by-column, and that exists purely to support debugging/regeneration, not end-user features (`raw_output` additionally obeys the retention window in §16).
 
 ## 12. AI Data Model
 
@@ -357,11 +436,11 @@ No other repeating groups, partial dependencies, or transitive dependencies were
 | Rule | Applied to |
 |---|---|
 | NOT NULL | All FKs described as mandatory in §8 (e.g., `ItineraryItem.place_id`) |
-| UNIQUE | `User.email`, `Country.iso_code`/`name`, `Currency.iso_code`, category `code` columns, `(Itinerary_id, day_number)`, `(trip_id, cost_category_id)`, `(trip_id)` on Itinerary/Conversation |
+| UNIQUE | `Country.iso_code`/`name`, `Currency.iso_code`, category `code` columns, `Destinations (country_id, name)`, `Places (destination_id, name)`, `(Itinerary_id, day_number)`, `(trip_id, cost_category_id)`, `(trip_id)` on Itinerary (Conversation by design), `TripInterests`/`PlaceInterests` composite PKs, `UserPreferences.user_id`, `ExchangeRates.currency_id`; email uniqueness via the unique `EmailIndex` on `AspNetUsers.NormalizedEmail` |
 | CHECK | Enum-like `status`/`planning_mode`/`time_slot`/`role` columns; `traveler_count > 0`; `amount >= 0`; `day_number > 0` |
 | FK / Referential integrity | As specified in §8, with RESTRICT/CASCADE/SET NULL chosen per relationship, not defaulted |
-| Soft delete | `User.deleted_at`, `Trip.deleted_at` — a user deleting their account or a trip does not silently cascade-destroy `AIGeneration`/`CostEstimate` history needed for potential dispute resolution or analytics; rows are marked deleted and excluded from normal queries instead |
-| Raw AI payload retention | `AIGeneration.raw_output` should be purged (nulled out) after a defined retention window (proposed: 30 days) — kept only long enough to debug a specific generation, not indefinitely (Phase 10 constraint) |
+| Soft delete | `User.deleted_at`, `Trip.deleted_at` — a user deleting their account or a trip does not silently cascade-destroy `AIGeneration`/`CostEstimate` history needed for potential dispute resolution or analytics; rows are marked deleted and excluded from normal queries instead (**implemented safeguard:** EF Core global query filter `Trip.DeletedAt == null` in `ApplicationDbContext`) |
+| Raw AI payload retention | `AIGeneration.raw_output` is purged (nulled out) after a 30-day retention window — **implemented** by `AiRawOutputRetentionService` (a background pass shortly after startup, then every 12 h; configuration `DataRetention:RawOutputDays`, default 30, `<= 0` disables). Attempt rows, statuses, validation errors, snapshots and timestamps are preserved; the payload is kept only long enough to debug a specific generation, not indefinitely (Phase 10 constraint) |
 
 **On User deletion:** Trips are soft-deleted (status stays intact for potential legal/audit needs), not hard-cascaded — hard-cascading would silently destroy `CostEstimate`/`AIGeneration` records that may be needed for dispute resolution. A hard-delete/purge job (privacy "right to be forgotten") is a **DECISION REQUIRED** — see Open Questions §29.
 
@@ -390,8 +469,16 @@ No field-level encryption is proposed beyond what ASP.NET Core Identity already 
 | IX_Place_DestinationId | Place | destination_id | List candidate places for AI grounding | `WHERE destination_id = @id AND is_active` | Standard FK index |
 | IX_CostEstimate_TripId | CostEstimate | trip_id | Load cost breakdown for a trip | trip detail view | Minor |
 | IX_AIGeneration_TripId | AIGeneration | trip_id | Load generation history for a trip (debugging, retry count) | support/debug tooling | Minor |
-| IX_ConversationMessage_ConversationId | ConversationMessage | conversation_id | Load message thread | conversation view (Post-MVP) | Minor |
+| *(designed)* IX_ConversationMessage_ConversationId | ConversationMessage — Post-MVP, table not created | conversation_id | Load message thread | conversation view | Minor |
 | Composite unique (destination_id search) | Destination | country_id, name | Prevent duplicate destination entries per country | dataset curation | None |
+| **Composite unique (duplicate place-name guard)** | Place | destination_id, name | One row per place name within a destination — the DB backstop behind generation-time duplicate detection (`varchar(200)` name column) | dataset curation, AI validation | Unfiltered unique |
+| Composite PK + FK index | PlaceInterest | (place_id, interest_category_id), index interest_category_id | Junction identity + category-side lookups | suggestions | Added with migration `AddPlaceInterest` |
+| Composite PK + FK index | TripInterest | (trip_id, interest_category_id), index interest_category_id | Junction identity + category-side lookups | trip preferences | — |
+| PK + FK index | UserPreferences | user_id, index preferred_currency_id | One row per user; currency join | profile/settings reads | Shared-PK 1:1 (§6.19) |
+| PK | ExchangeRate | currency_id | One rate per currency | cost/currency conversion | 1:1 with Currency (§6.20) |
+| FK indexes | Trip | destination_id, budget_currency_id | Trip joins to destination/budget currency | trip detail/list | — |
+| FK indexes | CostEstimate | cost_category_id, currency_id (plus the unique trip_id, cost_category_id above) | Aggregation joins | cost breakdown | Uniqueness = one row per category per trip |
+| Unique filtered (framework) | AspNetUsers | NormalizedEmail (`EmailIndex`), NormalizedName (`UserNameIndex`) | Identity auth lookups; unique email guarantee | auth | Framework-owned |
 
 No indexes are proposed on low-selectivity boolean flags (`is_active`, `is_ai_generated`) alone — they'd rarely be queried without a more selective column alongside them.
 
@@ -434,7 +521,12 @@ No state machine is introduced for `Place`, `Destination`, or reference tables b
 Full column-level definitions are in §6. Table list with primary/foreign keys, using `snake_case`:
 
 ```
-users(id PK, email UQ, password_hash, display_name, created_at, deleted_at)
+asp_net_users("AspNetUsers": id PK GUID, email->Email UQ (unique EmailIndex on
+                NormalizedEmail), password_hash->PasswordHash (Identity),
+                display_name->DisplayName, created_at, deleted_at,
+                + ASP.NET Core Identity columns; AspNetRoles/AspNetUserRoles/
+                AspNetUserClaims/AspNetRoleClaims/AspNetUserLogins/AspNetUserTokens
+                are framework-owned)
 countries(id PK, name UQ, iso_code UQ)
 destinations(id PK, country_id FK->countries, name, description, latitude, longitude, is_supported)
 place_categories(id PK, code UQ, label)
@@ -444,23 +536,28 @@ interest_categories(id PK, code UQ, label)
 places(id PK, destination_id FK->destinations, place_category_id FK->place_categories,
        name, description, reference_price, currency_id FK->currencies,
        cost_category_id FK->cost_categories, price_updated_at, is_active)
-trips(id PK, user_id FK->users, destination_id FK->destinations NULL,
+trips(id PK, user_id FK->asp_net_users, destination_id FK->destinations NULL,
       planning_mode, status, start_date, end_date, traveler_count,
       budget_amount, budget_currency_id FK->currencies, total_estimated_cost,
-      version, created_at, updated_at, deleted_at)
+      title, cover_image_url, version, created_at, updated_at, deleted_at)
 trip_interests(trip_id FK->trips, interest_category_id FK->interest_categories, PK(trip_id, interest_category_id))
-itineraries(id PK, trip_id FK->trips UQ, generated_at, ai_generation_id FK->ai_generations NULL)
+itineraries(id PK, trip_id FK->trips UQ, generated_at, ai_generation_id NULL -- column only, no FK constraint today)
 itinerary_days(id PK, itinerary_id FK->itineraries, day_number, date, UQ(itinerary_id, day_number))
 itinerary_items(id PK, itinerary_day_id FK->itinerary_days, place_id FK->places NOT NULL,
                  time_slot, order_index, estimated_cost, notes, is_ai_generated, modified_at)
 cost_estimates(id PK, trip_id FK->trips, cost_category_id FK->cost_categories,
                 amount, currency_id FK->currencies, computed_at, UQ(trip_id, cost_category_id))
+place_interests(place_id FK->places, interest_category_id FK->interest_categories,
+                 PK(place_id, interest_category_id))
+user_preferences(user_id PK/FK->asp_net_users, preferred_currency_id FK->currencies NULL,
+                  distance_unit, pacing)
+exchange_rates(currency_id PK/FK->currencies, rate_to_usd DECIMAL(18,6), updated_at)
 ai_generations(id PK, trip_id FK->trips, attempt_number, model_provider,
-                input_snapshot JSON, raw_output JSON NULL, status,
-                validation_errors, requested_at, completed_at)
-conversations(id PK, trip_id FK->trips UQ, created_at)                         -- Post-MVP
+                input_snapshot JSON-text (nvarchar(max)), raw_output JSON-text (nvarchar(max)) NULL,
+                status, validation_errors, requested_at, completed_at)
+conversations(id PK, trip_id FK->trips UQ, created_at)          -- Post-MVP (designed, NOT created)
 conversation_messages(id PK, conversation_id FK->conversations, role, content,
-                       related_ai_generation_id FK->ai_generations NULL, created_at)  -- Post-MVP
+                       related_ai_generation_id NULL, created_at)  -- Post-MVP (designed, NOT created)
 ```
 
 ## 22. Entity Relationship Diagram
@@ -468,14 +565,19 @@ conversation_messages(id PK, conversation_id FK->conversations, role, content,
 ```mermaid
 erDiagram
     USER ||--o{ TRIP : owns
+    USER ||--o| USER_PREFERENCES : has
     COUNTRY ||--o{ DESTINATION : contains
     DESTINATION ||--o{ PLACE : contains
     PLACE_CATEGORY ||--o{ PLACE : classifies
     COST_CATEGORY ||--o{ PLACE : "cost bucket"
     CURRENCY ||--o{ PLACE : denominates
+    CURRENCY ||--o| EXCHANGE_RATE : has
+    CURRENCY ||--o| USER_PREFERENCES : "preferred in"
     DESTINATION ||--o{ TRIP : "requested (nullable)"
     TRIP ||--o{ TRIP_INTEREST : has
     INTEREST_CATEGORY ||--o{ TRIP_INTEREST : tags
+    PLACE ||--o{ PLACE_INTEREST : tags
+    INTEREST_CATEGORY ||--o{ PLACE_INTEREST : tags
     TRIP ||--o| ITINERARY : has
     ITINERARY ||--o{ ITINERARY_DAY : has
     ITINERARY_DAY ||--o{ ITINERARY_ITEM : has
@@ -547,6 +649,11 @@ erDiagram
     }
 ```
 
+> **Reconciliation:** `USER` is implemented as ASP.NET Core Identity's `AspNetUsers` (§6.1);
+> `PLACE_INTEREST`, `USER_PREFERENCES` and `EXCHANGE_RATE` (relationship lines above) are
+> implemented (§6.18–§6.20). `CONVERSATION`/`CONVERSATION_MESSAGE` are designed for Post-MVP
+> and **not yet created**. Attribute blocks list key columns only — §6 and §21 are authoritative.
+
 ## 23. Major Query Patterns
 
 | # | Query | Supported by |
@@ -562,15 +669,15 @@ erDiagram
 ## 24. Backend Implementation Considerations
 
 - **Entities exposed via API:** User (subset), Trip, Itinerary, ItineraryDay, ItineraryItem, CostEstimate, Destination (read-only), InterestCategory/CostCategory/Currency (read-only reference lookups).
-- **Entities kept internal:** AIGeneration.raw_output/input_snapshot (debugging only, never returned to clients directly — only the validated, user-facing itinerary is).
+- **Entities kept internal:** AIGeneration.raw_output/input_snapshot (debugging only, never returned to clients directly — only the validated, user-facing itinerary is); `raw_output` is purged after the 30-day retention window (§16).
 - **Transaction boundaries:** Creating a Trip + its TripInterest rows is one transaction. Writing a validated AI generation's resulting Itinerary/Days/Items + updating Trip.status + inserting CostEstimate rows is one transaction (all-or-nothing — a partially written itinerary must never be visible).
-- **ORM considerations:** Standard EF Core code-first migrations; GUID PKs map cleanly to EF Core's default conventions; JSON columns (`AIGeneration.input_snapshot`/`raw_output`) use EF Core's built-in JSON column support (matches SQL Server's native JSON handling, no extra library needed).
+- **ORM considerations:** Standard EF Core code-first migrations; GUID PKs map cleanly to EF Core's default conventions; `AIGeneration.input_snapshot`/`raw_output` are stored as `nvarchar(max)` columns containing JSON text (serialized/parsed by the application — not SQL Server JSON-typed columns).
 - **Validation responsibility split:** FluentValidation (backend) enforces request-shape rules (dates, traveler count); the AI-Orchestration module (backend integration + AI-track logic) enforces the place-existence check before any `ItineraryItem` row is written — the DB's NOT NULL FK is the last-line guarantee, not the primary enforcement mechanism.
 
 ## 25. Migration Strategy
 
 - **Initial migration:** create all reference tables first (Country, Currency, InterestCategory, CostCategory, PlaceCategory), then Destination/Place, then the transactional tables (User, Trip, …).
-- **Environments:** local development (LocalDB, matching the Backend track's evidenced setup), a shared test database for integration tests (WebApplicationFactory-based, per demonstrated tooling), and production (hosting choice pending — see Architecture §15 open decision).
+- **Environments:** local development (SQL Server via `Backend/docker-compose.yml`, with automatic `Database.Migrate()` plus curated reference-data provisioning at Development startup — §26), integration tests (WebApplicationFactory-based; CI runs the suite against a SQL Server service container), Staging (Render web service + external SQL through `ConnectionStrings__Default`, see `render.yaml`), and production (hosting choice pending — see Architecture §15 open decision).
 - **Versioning:** standard EF Core migration files, one per schema change, committed to source control alongside the code that depends on them.
 - **Rollback:** each migration should have a corresponding `Down()`; no destructive migration (dropping a column with data) should ship without a reviewed backup step, consistent with the team's PR-review-gated workflow.
 
@@ -578,15 +685,18 @@ erDiagram
 
 | Reference data | Seeded? | Notes |
 |---|---|---|
-| Countries | Yes | Small, static list scoped to supported destinations |
-| Currencies | Yes | Small, static list |
-| InterestCategory | Yes | Fixed 8-value list from the project vision |
-| CostCategory | Yes | Fixed 5-value list from FR-COST-001 |
-| PlaceCategory | Yes | Fixed small list (attraction/restaurant/activity/accommodation/transport) |
-| Destination / Place | **No — curated by the AI track, not auto-seeded** | This is live, ongoing content work (FR-DATA-001), not static configuration |
+| Countries | Yes — automatically (Development) | Loaded from `AI/01-Dataset/curated-data/Country.csv`, insert-if-missing |
+| Currencies | Yes — automatically (Development) | `Currency.csv` |
+| InterestCategory / CostCategory / PlaceCategory | Yes — automatically (Development) | `InterestCategory.csv`, `CostCategory.csv`, `PlaceCategory.csv` (the original `HasData` static seeds were removed by later migrations — `RemoveBackendStaticSeed`) |
+| Destination / Place | Yes — automatically (Development) | From the curated CSVs — the single source of truth (FR-DATA-001 content stays AI-track-owned; the backend only *loads* it) |
+| PlaceInterest | Yes — automatically (Development) | `PlaceInterest_seed_draft.csv` |
+| ExchangeRate | Yes — automatically (Development) | Placeholder rows (USD/JOD/EUR), insert-if-missing; **manually maintained** afterwards |
 | Trip statuses | Not a table — CHECK constraint values, nothing to seed | |
+| User data (User, Trip, UserPreferences, itinerary/cost/AI rows) | **Never seeded** | Created only by user/application actions |
 
-Reference data is clearly separated from user data (Trip, User, Conversation — never seeded) and from external data (none currently persisted).
+**How seeding runs (implemented):** `Program.cs` executes `Database.Migrate()` and then `Data/SeedData.EnsureCuratedDatasetAsync` — **Development environment only** — importing the curated CSVs additively and idempotently (natural-key insert-if-missing; never updates or deletes existing rows). Provisioning fails fast (clear startup error) when the dataset directory/files are missing or a required reference table would stay empty, so a fresh environment can never start silently unprovisioned. `Testing` uses its own fixtures; Staging/Production are never seeded by the application. The Python scripts in `AI/01-Dataset/seed/` remain as manual/offline tooling and are not part of the standard setup.
+
+Reference data is clearly separated from user data (Trip, User, UserPreferences — never seeded) and from external data (none currently persisted).
 
 ## 27. Requirements-to-Database Traceability Matrix
 
@@ -601,6 +711,9 @@ Reference data is clearly separated from user data (Trip, User, Conversation —
 | FR-TRIP-003 | ItineraryItem, Trip.version | is_ai_generated, modified_at, version | Trip module | Lynn Sharbati |
 | FR-TRIP-004 | Trip.status | status = SAVED | Trip module | Lynn Sharbati |
 | FR-DATA-001 | Destination, Place, PlaceCategory | name, reference_price | Dataset | AI track |
+| FR-TRIP-002 | PlaceInterest, ExchangeRate | interest tags, rate_to_usd | Suggestions + currency conversion | AI dataset + Backend |
+| FR-COST-001 | ExchangeRate | rate_to_usd | Cost currency conversion | Backend |
+| *(implementation-added — no distinct SRS FR; see §5)* | UserPreferences | distance_unit, pacing, preferred_currency_id | Profile/settings persistence | Backend |
 | FR-TRIP-005 (Should) | Conversation, ConversationMessage | role, content | Post-MVP | Lynn Sharbati |
 | NFR-PRIV-001 | Trip.user_id (ownership FK) | user_id | Auth/Trip module | Lynn Sharbati |
 | NFR-SEC-001/002 | User.password_hash | — | Auth module | Lynn Sharbati |
@@ -609,21 +722,21 @@ Reference data is clearly separated from user data (Trip, User, Conversation —
 
 | Risk | Impact | Probability | Mitigation |
 |---|---|---|---|
-| AI output storage complexity (large/variable JSON payloads) | Medium — storage growth, query complexity | Medium | Retention window on `raw_output` (§16); never queried column-by-column, only inspected ad hoc |
+| AI output storage complexity (large/variable JSON payloads) | Medium — storage growth, query complexity | Medium | Retention window on `raw_output` (§16) — **implemented** (30-day purge); never queried column-by-column, only inspected ad hoc |
 | Under-curated `Place` dataset limits AI grounding | High — directly threatens the 0%-invented-places goal | Medium | Dataset curation is an explicit, owned Phase-3 deliverable (AI track), not an afterthought |
 | Stale `Place.reference_price` (no live pricing feed) | Medium — cost estimates drift from reality over time | Medium | `price_updated_at` tracked; periodic manual review process (process decision, not schema) |
 | Cost-data inconsistency (cached `Trip.total_estimated_cost` drifting from `CostEstimate` rows) | Medium | Low-Medium | Recompute-and-overwrite on every CostEstimate write, inside the same transaction |
 | Referential integrity gaps if migrations are applied out of order | Medium | Low | Reference tables migrated/seeded first (§25) |
 | Team unfamiliarity with GUID-heavy schemas at scale | Low-Medium | Low | Mixed GUID/BIGINT strategy limits GUIDs to genuinely API-facing entities only (§7) |
 | No formal audit trail | Low for MVP, could grow | Low | Flagged explicitly (§4, excluded entities); add `AuditLog` if compliance needs emerge |
-| Soft-delete queries forgetting `deleted_at IS NULL` filters | Medium — could leak "deleted" data | Medium | Standardize via EF Core global query filters (implementation-level safeguard) |
+| Soft-delete queries forgetting `deleted_at IS NULL` filters | Medium — could leak "deleted" data | Medium | **Mitigated:** EF Core global query filter on `Trip.DeletedAt` implemented in `ApplicationDbContext` (§6.9/§16); identity-level hard deletion remains open question DB-D1 |
 
 ## 29. Open Questions / Decisions Required
 
 | # | Question | Why it matters |
 |---|---|---|
 | DB-D1 | Should deleted Trips/Users be hard-purged after a retention period (privacy "right to be forgotten")? | Currently soft-delete only; a real purge job/policy is undefined |
-| DB-D2 | Exact retention window for `AIGeneration.raw_output` | Proposed 30 days pending team/product sign-off |
+| DB-D2 | Exact retention window for `AIGeneration.raw_output` | **Resolved: 30 days** — implemented via `DataRetention:RawOutputDays` (§16); change the configuration value to adjust |
 | DB-D3 | Does the team want full itinerary version history (not just current-state editing)? | Would require a new `ItineraryVersion`/history table if yes — deliberately not built now |
 | DB-D4 | Confirm final MVP list of supported destinations/countries for seeding | Drives the AI track's Phase-3 dataset workload (mirrors SRS D5) |
 | DB-D5 | Confirm cost tolerance band value (±15% proposed in SRS D1) | Affects how `CostEstimate` accuracy is validated/tested, not the schema itself |

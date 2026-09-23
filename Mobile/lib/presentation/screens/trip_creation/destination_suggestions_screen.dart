@@ -195,6 +195,7 @@ class _SuggestionCard extends StatelessWidget {
     final country = suggestion['country'] as String;
     final description = suggestion['description'] as String;
     final image = suggestion['image'] as String;
+    final imageUrl = suggestion['imageUrl'] as String?;
     final estimatedCost = suggestion['estimatedCost'] as String;
 
     final selected = provider.data.destination == name;
@@ -239,20 +240,27 @@ class _SuggestionCard extends StatelessWidget {
                 child: Stack(
                   fit: StackFit.expand,
                   children: [
-                    Image.asset(
-                      image,
-                      fit: BoxFit.cover,
-                      errorBuilder: (_, __, ___) {
-                        return Container(
-                          color: AppColors.surfaceContainer,
-                          child: const Icon(
-                            Icons.image_not_supported_outlined,
-                            size: 40,
-                            color: AppColors.secondary,
+                    imageUrl != null
+                        ? Image.network(
+                            imageUrl,
+                            fit: BoxFit.cover,
+                            errorBuilder: (_, __, ___) =>
+                                Image.asset(image, fit: BoxFit.cover),
+                          )
+                        : Image.asset(
+                            image,
+                            fit: BoxFit.cover,
+                            errorBuilder: (_, __, ___) {
+                              return Container(
+                                color: AppColors.surfaceContainer,
+                                child: const Icon(
+                                  Icons.image_not_supported_outlined,
+                                  size: 40,
+                                  color: AppColors.secondary,
+                                ),
+                              );
+                            },
                           ),
-                        );
-                      },
-                    ),
 
                     Positioned(
                       top: 12,

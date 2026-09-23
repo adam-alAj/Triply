@@ -3,6 +3,7 @@ using System.Net;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using Triply.Api.Modules.Auth.Dtos;
+using Triply.Api.Modules.Trip.Dtos;
 using Xunit;
 
 namespace Triply.Api.Tests;
@@ -29,6 +30,53 @@ public class AuthorizationBoundaryTests : IClassFixture<CustomWebApplicationFact
         return body!.Token;
     }
 
+    /// <summary>
+    /// Creates a trip through the real, validated endpoint. The former test-only
+    /// POST /api/trips/test-create endpoint was removed (Gap 2) and nothing may
+    /// depend on it anymore.
+    /// </summary>
+    private async Task<Guid> CreateTripAsync()
+    {
+        var response = await _client.PostAsJsonAsync(
+            "/api/trips",
+            new
+            {
+                planningMode = "DESTINATION_FIRST",
+                destinationId = 1,
+                startDate = "2026-10-01",
+                endDate = "2026-10-03",
+                travelerCount = 1
+            });
+
+        var body = await response.Content.ReadAsStringAsync();
+        Assert.True(
+            response.StatusCode == HttpStatusCode.Created,
+            $"HTTP {(int)response.StatusCode}\n{body}");
+
+        var trip = await response.Content.ReadFromJsonAsync<TripResponse>();
+        Assert.NotNull(trip);
+        return trip!.Id;
+    }
+
+    [Fact]
+    public async Task PostTestCreate_IsRemoved_ReturnsNotFound()
+    {
+        var token = await RegisterAndGetTokenAsync();
+        _client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
+
+        var response = await _client.PostAsync("/api/trips/test-create", null);
+
+        // The test-only endpoint must not exist in any build anymore: no POST
+        // handler is routable on this path. Routing answers 404, or 405 because
+        // the guid-constrained sibling routes (GET/PATCH/PUT api/trips/{id:guid})
+        // claim the path for method selection — both prove the action is gone
+        // (verified against the actual Release binary). If the endpoint still
+        // existed, this POST would return 200/401 instead.
+        Assert.True(
+            response.StatusCode is HttpStatusCode.NotFound or HttpStatusCode.MethodNotAllowed,
+            $"Expected test-create to be unexposed, got {(int)response.StatusCode}.");
+    }
+
     [Fact]
     public async Task GetTrip_WithoutToken_Returns401()
     {
@@ -42,9 +90,7 @@ public class AuthorizationBoundaryTests : IClassFixture<CustomWebApplicationFact
         var token = await RegisterAndGetTokenAsync();
         _client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
 
-        var createResponse = await _client.PostAsync("/api/trips/test-create", null);
-        var created = await createResponse.Content.ReadFromJsonAsync<Dictionary<string, Guid>>();
-        var tripId = created!["id"];
+        var tripId = await CreateTripAsync();
 
         var getResponse = await _client.GetAsync($"/api/trips/{tripId}");
         Assert.Equal(HttpStatusCode.OK, getResponse.StatusCode);
@@ -56,9 +102,7 @@ public class AuthorizationBoundaryTests : IClassFixture<CustomWebApplicationFact
         var tokenA = await RegisterAndGetTokenAsync();
         _client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", tokenA);
 
-        var createResponse = await _client.PostAsync("/api/trips/test-create", null);
-        var created = await createResponse.Content.ReadFromJsonAsync<Dictionary<string, Guid>>();
-        var tripId = created!["id"];
+        var tripId = await CreateTripAsync();
 
         var tokenB = await RegisterAndGetTokenAsync();
         _client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", tokenB);
