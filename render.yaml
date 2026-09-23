@@ -25,7 +25,7 @@ services:
       # Environment). "sync: false" just tells Render to prompt instead
       # of storing a value here in git. ---
       - key: ConnectionStrings__Default
-        sync: false   # e.g. your Azure SQL free-tier connection string
+        sync: false   # SQL Server-compatible connection string (Azure SQL or another SQL Server host)
       - key: Gemini__ApiKey
         sync: false
       - key: Cors__AllowedOrigins__0

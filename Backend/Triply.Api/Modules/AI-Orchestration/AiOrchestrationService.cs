@@ -261,6 +261,7 @@ public class AiOrchestrationService : IAiOrchestrationService
                 TripId = tripId,
                 AttemptNumber = attempt,
                 ModelProvider = _options.Model,
+                SchemaVersion = ItineraryGenerationSchema.SchemaVersion,
                 InputSnapshot = inputSnapshot,
                 Status = "PENDING"
             };
@@ -365,8 +366,8 @@ public class AiOrchestrationService : IAiOrchestrationService
             // Contract §5 step 4 / V-002 §5.3 budget policy:
             //   DESTINATION_FIRST — exactly one option; an over-budget plan is FLAGGED
             //                       (`isOverBudget`), never failed.
-            //   BUDGET_FIRST      — up to three candidate options; the ones that fit are
-            //                       kept and the attempt fails only when none survive.
+            //   BUDGET_FIRST      — up to three candidate options; persist the first
+            //                       grounded option within budget and fail only if none fit.
             var budgetEnforced = trip.BudgetAmount.HasValue && trip.BudgetCurrencyId.HasValue;
             var isOverBudget = false;
 
@@ -872,6 +873,7 @@ public class AiOrchestrationService : IAiOrchestrationService
                 TripId = tripId,
                 AttemptNumber = attempt,
                 ModelProvider = _options.Model,
+                SchemaVersion = ItineraryGenerationSchema.SchemaVersion,
                 InputSnapshot = inputSnapshot,
                 Status = "PENDING"
             };
@@ -1212,10 +1214,9 @@ await transaction.CommitAsync(cancellationToken);
     {
         foreach (var option in options)
         {
-            // Resolve each candidate against its own named destination. In the current
-            // BUDGET_FIRST flow the user has already selected one destination, so the
-            // candidates normally share it — resolving per option keeps the rule general
-            // and correct if the model is ever allowed to propose several.
+            // Resolve each candidate against its own named destination. BUDGET_FIRST
+            // may have no preselected destination, so persist the first grounded option
+            // that fits the budget.
             var destination = await _db.Destinations
                 .AsNoTracking()
                 .FirstOrDefaultAsync(d => d.Name == option.DestinationName, cancellationToken);

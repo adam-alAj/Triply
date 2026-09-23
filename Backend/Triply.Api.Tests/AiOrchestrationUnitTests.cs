@@ -3,8 +3,10 @@ using System.Net.Http;
 using System.Text;
 using System.Text.Json;
 using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
+using Xunit.Abstractions;
 using Moq;
 using Moq.Protected;
 using Triply.Api.Entities;
@@ -15,6 +17,13 @@ namespace Triply.Api.Tests;
 
 public class AiOrchestrationUnitTests
 {
+    private readonly ITestOutputHelper _output;
+
+    public AiOrchestrationUnitTests(ITestOutputHelper output)
+    {
+        _output = output;
+    }
+
     [Fact]
     public void PromptBuilder_DestinationFirst_ContainsGroundedNamesAndExactDates()
     {
@@ -149,6 +158,7 @@ public class AiOrchestrationUnitTests
             """{"candidates":[{"content":{"parts":[{"text":"{\"ok\":true}"}]}}]}""");
 
         using var http = new HttpClient(handler);
+        var logger = new CapturingGeminiLogger();
         var options = Options.Create(new GeminiOptions
         {
             ApiKey = "test-key",
@@ -157,7 +167,7 @@ public class AiOrchestrationUnitTests
             TimeoutSeconds = 5
         });
 
-        var client = new GeminiClient(http, options, NullLogger<GeminiClient>.Instance);
+        var client = new GeminiClient(http, options, logger);
 
         await client.GenerateJsonAsync("test prompt");
 
@@ -180,6 +190,18 @@ public class AiOrchestrationUnitTests
         Assert.DoesNotContain("key=", schemaUri.Query);
         Assert.True(handler.LastRequest.Headers.TryGetValues("x-goog-api-key", out var schemaApiKeys));
         Assert.Equal("test-key", schemaApiKeys!.Single());
+
+        var authLogs = logger.Messages
+            .Where(message => message.Contains("x-goog-api-key", StringComparison.Ordinal))
+            .ToList();
+        Assert.Equal(2, authLogs.Count);
+        foreach (var authLog in authLogs)
+        {
+            Assert.Contains("using x-goog-api-key header (key redacted)", authLog, StringComparison.Ordinal);
+            Assert.DoesNotContain("test-key", authLog, StringComparison.Ordinal);
+            Assert.DoesNotContain("?key=", authLog, StringComparison.OrdinalIgnoreCase);
+            _output.WriteLine(authLog);
+        }
     }
 
     // --- Contract §5 step 0: destination_options.maxItems is mode-specific ---
@@ -254,6 +276,25 @@ public class AiOrchestrationUnitTests
             {
                 Content = new StringContent(_responseJson, Encoding.UTF8, "application/json")
             });
+        }
+    }
+
+    private sealed class CapturingGeminiLogger : ILogger<GeminiClient>
+    {
+        public List<string> Messages { get; } = new();
+
+        public IDisposable? BeginScope<TState>(TState state) where TState : notnull => null;
+
+        public bool IsEnabled(LogLevel logLevel) => true;
+
+        public void Log<TState>(
+            LogLevel logLevel,
+            EventId eventId,
+            TState state,
+            Exception? exception,
+            Func<TState, Exception?, string> formatter)
+        {
+            Messages.Add(formatter(state, exception));
         }
     }
 }

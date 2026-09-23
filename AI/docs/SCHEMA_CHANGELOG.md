@@ -4,7 +4,7 @@
 **Contract:** `TRIPLY_AI_JSON_SCHEMA_CONTRACT_v2.md`
 **Last updated:** 2026-09-23
 
-**Status summary:** Implemented: v2.0.0 DTO/schema alignment, per-mode `maxItems`, and `PlaceContextDto.BudgetTier` lookup and prompt assignment (details below). Pending: persist the schema version on each `AIGeneration` row as required by contract §8; the current entity stores the model identifier but no schema-version value. Historical entries below describe the earlier v1-era shape and the v2.0.0 transition.
+**Status summary:** Implemented: v2.0.0 DTO/schema alignment, per-mode `maxItems`, `PlaceContextDto.BudgetTier` lookup and prompt assignment, and schema-version persistence on every new full and partial `AIGeneration` record. Migration `20260923094500_AddAiGenerationSchemaVersion` assigns `unknown` to historical rows whose version cannot be reconstructed. Historical entries below describe the earlier v1-era shape and the v2.0.0 transition.
 
 ---
 

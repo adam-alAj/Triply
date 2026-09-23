@@ -5,6 +5,7 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Extensions.Logging;
 using Triply.Api.Data;
 using Triply.Api.Entities;
 
@@ -18,6 +19,8 @@ public class CustomWebApplicationFactory : WebApplicationFactory<Program>
     private const string TestJwtKey =
         "Integration-Test-Only-Signing-Key-Not-For-Production-12345";
 
+    protected virtual bool SeedTestReferenceData => true;
+
     protected override IHost CreateHost(IHostBuilder builder)
     {
         var host = base.CreateHost(builder);
@@ -27,7 +30,8 @@ public class CustomWebApplicationFactory : WebApplicationFactory<Program>
 
         // Test-only reference data. Production Backend has no static seed;
         // tests create the minimal AI-shaped reference catalog they depend on.
-        SeedReferenceData(db);
+        if (SeedTestReferenceData)
+            SeedReferenceData(db);
 
         return host;
     }
@@ -222,6 +226,9 @@ public class CustomWebApplicationFactory : WebApplicationFactory<Program>
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
         builder.UseEnvironment("Testing");
+        // The Windows Event Log provider is not available in restricted test
+        // environments; leave the test host without external log providers.
+        builder.ConfigureLogging(logging => logging.ClearProviders());
         var connectionString =
             Environment.GetEnvironmentVariable("TRIPLY_TEST_DB_CONNECTION")
             ?? $"Server=(localdb)\\mssqllocaldb;Database={_dbName};Trusted_Connection=True;TrustServerCertificate=True;";

@@ -37,7 +37,7 @@ Triply is built as a **modular monolith**: one ASP.NET Core Web API service, org
 | Backend API — Cost module | Deterministic cost aggregation/breakdown by category | Lynn Sharbati |
 | Dataset (Places/Pricing) | Curated internal source of truth | AI track (Aya, Anas, Adam) |
 | SQL Server | Persisted data: users, trips, dataset | Lynn Sharbati |
-| Redis (optional) | Cache-aside for hot read paths, added only if performance work is triggered | Lynn Sharbati |
+| Cache (future option) | No distributed cache is currently configured; Redis may be considered if measured performance requires it | Lynn Sharbati |
 | Gemini API (external) | LLM itinerary/destination generation | External — invoked by Backend |
 
 ## 7. Context Diagram
@@ -47,7 +47,7 @@ graph TD
     U[User] --> FC[Flutter Client - Mobile & Web]
     FC -->|REST/JSON over HTTPS| BE[Backend API - ASP.NET Core]
     BE --> DB[(SQL Server)]
-    BE --> CACHE[(Redis - optional)]
+    BE -. future option .-> CACHE[(Redis cache)]
     BE -->|HTTPS| GEMINI[Gemini API - external]
     BE --> DATASET[(Internal Places/Pricing Dataset)]
 ```
@@ -81,6 +81,7 @@ sequenceDiagram
     participant B as Backend (AI Orchestration)
     participant G as Gemini API
     participant D as Dataset
+    participant DB as SQL Server
 
     C->>B: Trip request (preferences, destination or budget)
     B->>D: Fetch candidate places/pricing for context
@@ -88,9 +89,11 @@ sequenceDiagram
     G-->>B: JSON itinerary candidate
     B->>B: Validate against JSON schema
     B->>D: Verify every place exists in dataset
-    alt Valid
-        B-->>C: Itinerary + cost breakdown (labeled Estimated)
-    else Invalid / hallucinated place
+    B->>B: For BUDGET_FIRST, choose first validated option within budget
+    alt Valid with a selected option
+        B->>DB: Persist itinerary, costs, and AIGeneration schema version 2.0.0
+        B-->>C: One selected itinerary + cost breakdown (labeled Estimated)
+    else Invalid output or no BUDGET_FIRST option fits
         B->>G: Regenerate (bounded retries)
         B-->>C: Error if still invalid, never a fabricated result
     end
@@ -103,19 +106,19 @@ Client → JWT-authenticated request → Backend controller → FluentValidation
 ASP.NET Core Identity issues JWT bearer tokens. Role-based authorization for coarse access; ownership-based authorization at the resource level (a user can only access their own trips) — this exact pattern was built and tested in the Backend track's Sprint 2.
 
 ## 12. Security Boundaries
-Backend is the only component with database and Gemini API credentials. Flutter clients hold only a short-lived JWT. Rate limiting and CORS are enforced at the backend edge. Anything beyond this (secrets vaulting, WAF, pen-testing) is **not currently owned by any track** — flagged, not silently skipped.
+Backend is the only component with database and Gemini API credentials. Flutter clients hold only a short-lived JWT. Rate limiting and CORS are enforced at the backend edge. Backend owns app-layer controls; **Arab Hammad owns cybersecurity review and follow-up beyond that baseline**, including secrets-vaulting, WAF, and penetration-testing recommendations. This remit coordinates review and follow-up; it does not imply those controls are already deployed.
 
 ## 13. Data Architecture
-Relational schema (SQL Server) — Users, Trips, ItineraryDays, ItineraryItems, Destinations, Places, PricingReference, InterestCategories. Normalized per the Backend track's demonstrated 1NF–3NF practice.
+Relational schema (SQL Server) — Users, Trips, ItineraryDays, ItineraryItems, Destinations, Places (including `ReferencePrice`), InterestCategories, Currencies, ExchangeRates, and generation/audit records. The current implementation uses `Place.ReferencePrice`; it has no separate `PricingReference` table.
 
 ## 14. Error Handling & Observability
 Centralized `ProblemDetails` error responses (demonstrated backend pattern). Logging via built-in `ILogger` + EF Core query logs. No centralized logging/monitoring stack (ELK/Application Insights/Grafana) is evidenced on the team — **TBD**, add as a post-MVP investment if operational visibility becomes a problem.
 
 ## 15. Deployment Considerations
-**Unresolved (Decision Required):** no team member has evidenced cloud hosting, containerization, or CI/CD experience. The Backend track's own gap analysis explicitly flags this as "planned but not yet covered." Recommend: start with the simplest viable hosting option (a single managed app-hosting environment for the API + a managed SQL instance) and treat CI/CD as a learning objective for Phase 11, not an assumed capability.
+The repository includes a Dockerfile and a GitHub Actions workflow at `.github/workflows/ci-cd.yml`, including build/test and deployment-hook steps. Cloud operations, monitoring, and production hardening still require operational ownership and verification; the workflow's presence does not establish that every external deployment target is configured or healthy.
 
 ## 16. Scalability Considerations
-MVP scale does not require more than the modular monolith + Redis cache-aside pattern the Backend track already demonstrated (N+1 fixes, composite indexing, caching). Horizontal scaling / microservices are explicitly deferred (see ADR-00).
+MVP scale does not require more than the modular monolith. The current code has no Redis cache-aside integration; caching can be evaluated against measured load later. Horizontal scaling / microservices are explicitly deferred (see ADR-00).
 
 ## 17. Technology Selection Rationale
 Every technology choice below is justified by **demonstrated team capability**, not popularity:
@@ -124,14 +127,14 @@ Every technology choice below is justified by **demonstrated team capability**, 
 |---|---|---|
 | Backend | ASP.NET Core Web API + EF Core + SQL Server | Backend track's evidenced, capstone-tested stack |
 | Auth | ASP.NET Core Identity + JWT | Practiced and tested in Sprint 2 |
-| Caching | Redis (cache-aside) | Practiced in Sprint 3 |
+| Caching | None currently configured | Redis remains a future option if measured performance warrants it |
 | Client | Flutter (mobile + web) | Flutter track's evidenced, capstone-tested stack |
 | AI | Gemini API + prompt engineering | Project's own scoping decision; requires AI-track upskilling (flagged, not hidden) |
 | Data validation | FluentValidation | Backend track's demonstrated tool |
 | Testing | xUnit/Moq/WebApplicationFactory (backend), Flutter widget tests | Matches each track's demonstrated testing tools |
 
 ## 18. Architectural Risks
-See Document 1 §12 and Document 4 §Risk Ownership for the full register. Top architectural risks: (1) no deployment/CI-CD capability yet on any track, (2) AI track needs upskilling before Phase 6 can start, (3) Gemini API cost/rate-limit dependency, (4) no dedicated web-frontend specialist.
+See Document 1 §12 and Document 4 §Risk Ownership for the full register. Top architectural risks: (1) staging/production deployment and monitoring require ongoing operational verification, (2) Gemini API cost/rate-limit dependency, (3) no dedicated web-frontend specialist.
 
 ## 19. Architecture Assumptions
 - Gemini API remains the chosen LLM provider through MVP.
@@ -139,4 +142,4 @@ See Document 1 §12 and Document 4 §Risk Ownership for the full register. Top a
 - No requirement emerges for real-time features (chat/live tracking) that would force an event-driven architecture change.
 
 ## 20. Future Evolution Path
-If scale or team size grows: (a) split AI-orchestration into its own service once the AI track has REST/deployment experience, (b) introduce a proper web frontend if Flutter Web's limitations become blocking, (c) introduce CI/CD and a centralized logging stack as the team's DevOps capability matures.
+If scale or team size grows: (a) split AI-orchestration into its own service once the AI track has REST/deployment experience, (b) introduce a proper web frontend if Flutter Web's limitations become blocking, (c) mature the existing CI/CD workflow and add centralized logging as operational needs justify them.

@@ -146,7 +146,12 @@ public sealed class AiRawOutputRetentionBackgroundService : BackgroundService
                 using var scope = _scopeFactory.CreateScope();
                 var retention = scope.ServiceProvider
                     .GetRequiredService<IAiRawOutputRetentionService>();
-                await retention.PurgeExpiredRawOutputsAsync(cancellationToken: stoppingToken);
+                var purged = await retention.PurgeExpiredRawOutputsAsync(
+                    cancellationToken: stoppingToken);
+                _logger.LogInformation(
+                    "AI raw-output retention scheduled pass completed at {CompletedAtUtc}; " +
+                    "purged {Purged} expired generation attempt(s).",
+                    DateTime.UtcNow, purged);
             }
             catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
             {
