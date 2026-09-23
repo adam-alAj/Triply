@@ -1,4 +1,5 @@
-using System.Net.Http.Json;
+using System.Net;
+using System.Net.Http.Headers;
 using System.Text;
 using System.Text.Json;
 using Microsoft.Extensions.Options;
@@ -179,18 +180,32 @@ public class GeminiClient : IGeminiClient
                 requestBody,
                 JsonOptions);
 
-            using var request = new HttpRequestMessage(
-                HttpMethod.Post,
-                url)
-            {
-                Content = new StringContent(
-                    json,
-                    Encoding.UTF8,
-                    "application/json")
-            };
+          var jsonBytes = Encoding.UTF8.GetBytes(json);
 
-            request.Content.Headers.ContentLength =
-                Encoding.UTF8.GetByteCount(json);
+using var request = new HttpRequestMessage(
+    HttpMethod.Post,
+    url);
+
+var content = new ByteArrayContent(jsonBytes);
+
+content.Headers.ContentType =
+    new MediaTypeHeaderValue("application/json");
+
+content.Headers.ContentLength =
+    jsonBytes.Length;
+
+request.Content = content;
+
+request.Headers.TransferEncodingChunked = false;
+
+request.Version = HttpVersion.Version11;
+request.VersionPolicy = HttpVersionPolicy.RequestVersionExact;
+
+_logger.LogInformation(
+    "Gemini HTTP request: ContentLength={ContentLength}, Chunked={Chunked}, Version={Version}",
+    request.Content.Headers.ContentLength,
+    request.Headers.TransferEncodingChunked,
+    request.Version);
 
             request.Headers.TryAddWithoutValidation(
                 "x-goog-api-key",
