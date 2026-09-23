@@ -757,7 +757,7 @@ Reference data is clearly separated from user data (Trip, User, UserPreferences 
 | DB-D2 | Exact retention window for `AIGeneration.raw_output` | **Resolved: 30 days** — implemented via `DataRetention:RawOutputDays` (§16); change the configuration value to adjust |
 | DB-D3 | Does the team want full itinerary version history (not just current-state editing)? | Would require a new `ItineraryVersion`/history table if yes — deliberately not built now |
 | DB-D4 | Confirm final MVP list of supported destinations/countries for seeding | Drives the AI track's Phase-3 dataset workload (mirrors SRS D5) |
-| DB-D5 | Confirm cost tolerance band value (±15% proposed in SRS D1) | Affects how `CostEstimate` accuracy is validated/tested, not the schema itself |
+| DB-D5 | Cost tolerance band (formerly proposed as ±15% in SRS D1) | **Not applicable / superseded for AI output by Contract v2.0.0:** costs are computed from `Place.reference_price`; reference-price freshness remains tracked separately under §28. |
 
 ## 30. Final Database Design Validation
 

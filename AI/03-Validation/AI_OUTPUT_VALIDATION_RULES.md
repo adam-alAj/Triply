@@ -43,7 +43,7 @@ These rules do **not** validate:
 | Document | Section | What it defines |
 |----------|---------|-----------------|
 | SRS | FR-AI-002 | Core requirement: 0% invented places, validation before display |
-| SRS | D1 | Proposed ±15% cost tolerance (open decision — see §5.2 below) |
+| SRS | D1 | **Closed: not applicable / superseded by AI Contract v2.0.0.** No AI cost field exists to compare; backend-computed costs and budget feasibility are validated separately. |
 | Database Design | §6.5 (`Place`) | Place entity structure, `reference_price` semantics |
 | Database Design | §6.13 (`ItineraryItem`) | `place_id` NOT NULL FK — DB-level enforcement |
 | Database Design | §15 | `estimated_cost` copied from `Place.reference_price`, never from model |

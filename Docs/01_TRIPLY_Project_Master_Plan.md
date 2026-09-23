@@ -38,7 +38,7 @@ Triply helps individuals and families plan domestic or international trips by tu
 | 6 | View / edit / regenerate (partial) itinerary |
 | 7 | Save trip / return to saved trip |
 | 8 | Internal destinations/places/pricing dataset (curated, versioned) |
-| 9 | AI-output validation: 0% invented places, cost within an agreed tolerance band |
+| 9 | AI-output validation: 0% invented places; deterministic backend cost and budget-feasibility checks |
 | 10 | Mobile app (Flutter) and Web (Flutter Web — see ADR-02 in Architecture doc) |
 
 ### SHOULD HAVE — Post-MVP
@@ -83,7 +83,7 @@ Agile, 2-week sprints — this matches the sprint cadence both the Backend and A
 | 4 — Mobile Foundation | Project structure, design system, auth screens, navigation | Flutter (Dana) | Auth flow navigable end-to-end on mobile |
 | 5 — Core Trip Planning | Destination-first & budget-first flows, backend endpoints, Flutter screens | Backend + Flutter | End-to-end trip request works with mocked AI response |
 | 6 — AI Integration | Backend calls Gemini (real REST integration, backend-owned); AI track's prompt + validation logic wired in | Backend (integration) + AI (logic) | Real Gemini-generated itinerary passes validation checks |
-| 7 — Cost Estimation | Category-level cost breakdown logic, tolerance-band validation | Backend + AI | Cost breakdown returned and validated against dataset |
+| 7 — Cost Estimation | Backend-computed category breakdown and deterministic budget-feasibility checks | Backend | Cost breakdown returned from curated reference prices |
 | 8 — Cross-Platform Integration | Web build via Flutter Web, full mobile+web parity check | Flutter (Dana) | Core flows verified on both mobile and web |
 | 9 — Security & Hardening | Rate limiting, input validation, CORS, security headers (all backend-demonstrated skills); external security review of anything beyond that | Backend | Baseline hardening checklist passed |
 | 10 — Testing & QA | xUnit/Moq backend tests, Flutter widget tests, AI validation test suite | All tracks | Agreed test coverage thresholds met |
@@ -97,7 +97,7 @@ SRS · System Architecture · API contract / OpenAPI spec · Internal places/pri
 Flutter work on AI-driven screens depends on the AI JSON contract (Phase 3/6). Cost estimation depends on the dataset (Phase 3) and cost logic (Phase 7). Deployment (Phase 11) depends on hardening (Phase 9) and cannot start before an infrastructure decision is made (**DECISION REQUIRED** — no one has cloud-hosting experience; see Risk R-02).
 
 ## 10. Testing Strategy
-Backend: xUnit + Moq unit tests, WebApplicationFactory integration tests (demonstrated skill). Flutter: widget tests (basic level demonstrated) plus manual QA per feature checkpoint. AI: systematic validation harness (0% invented-place rate, cost within tolerance) — reuses the AI track's evaluation-discipline training directly.
+Backend: xUnit + Moq unit tests, WebApplicationFactory integration tests (demonstrated skill). Flutter: widget tests (basic level demonstrated) plus manual QA per feature checkpoint. AI: systematic validation harness for schema compliance and 0% unsupported/invented places. Cost calculation and budget feasibility are checked deterministically by Backend; D1's AI cost-tolerance check is superseded by AI Contract v2.0.0.
 
 ## 11. Security Strategy
 Apply only what is demonstrated in code: ASP.NET Core Identity + JWT, role/ownership-based authorization, FluentValidation, rate limiting, CORS, security headers. Anything beyond application-layer controls (penetration testing, secrets-management infrastructure, compliance review) must be reviewed and coordinated by Arab Hammad before being treated as covered.
@@ -111,7 +111,7 @@ A feature is done when: it matches its SRS requirement and acceptance criteria, 
 ## 14. Success Criteria (MVP)
 1. A user can go from preferences to a saved, cost-broken-down itinerary on both mobile and web.
 2. 0% of places/activities in a generated itinerary are outside the internal dataset (non-negotiable).
-3. Cost estimates fall within an agreed tolerance band of category-level reference prices (band value: **DECISION REQUIRED**, propose ±15% pending team sign-off).
+3. Cost estimates are computed by Backend from curated `Place.reference_price` values; budget feasibility uses those backend-computed totals. The former AI cost-tolerance target (D1, proposed ±15%) is **not applicable / superseded** by AI Contract v2.0.0, which removes model-generated cost fields.
 4. The system runs without requiring capabilities no track member has demonstrated (e.g., no microservices, no custom ML model, no multi-cloud deployment).
 
 ---

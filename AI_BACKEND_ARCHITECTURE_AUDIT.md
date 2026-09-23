@@ -8,6 +8,8 @@
 
 ## 1. Executive Summary
 
+> **Resolution addendum (2026-09-23):** This report is a point-in-time audit; findings below reflect 2026-09-21 and are superseded where noted here. PR #66 / `20260921001200_RemoveBackendStaticSeed` removed static EF reference seeding, curated CSVs are the reference-data source, the old manual `seed-dataset.sql` is retired, and `ItineraryValidationService` filters on `IsSupported`. Per-mode `maxItems` is implemented. AI Contract v2.0.0 supersedes D1 cost tolerance; `CostTolerancePercent` is absent as an option/property. `09_DESIGN.md` is the authoritative visual design system. Cybersecurity owner Arab Hammad is confirmed. The backend targets .NET 9 (`net9.0`). AI schema-version persistence remains an implementation gap; see the current AI contract and changelog.
+
 | Question | Answer |
 |---|---|
 | Is the documented architecture real? | **Yes.** The modular monolith (ADR-00), Backend-owned Gemini call (ADR-01), and the v2.0.0 schema contract are all genuinely implemented — not aspirational. |

@@ -82,3 +82,4 @@
 3. **ربط `seed-dataset.sql` بعملية الإقلاع التلقائية** — عشان ما يتكرر نفس العطل مع أي مطوّر/بيئة جديدة.
 
 بعد ما تنحل هاي الثلاثة، فيه إعادة اختبار كاملة لازم تصير لبنود 2.1, 2.2, 4.5, 5.2 (يلي معلقة على نجاح التوليد).
+> **Current update (2026-09-23):** This file is the 2026-09-19 QA log. The manual `Backend/Triply.Api/Data/seed-dataset.sql` mentioned below is retired; Development now provisions from the curated CSV dataset, and the Jerusalem-era script is not an active seed path. Treat earlier notes about running or automating that SQL file as historical.
