@@ -6,7 +6,7 @@
 
 ## SECTION 1 — MOBILE PRODUCT STRUCTURE
 
-Triply mobile is a small, focused app built around one loop: **PLAN → GENERATE → VIEW → CUSTOMIZE → SAVE**. After login, the user lands on a 4-destination bottom navigation (Home, My Trips, Create Trip, Profile). Trip creation is a short linear wizard (mode → inputs → review → generating), and the generated trip lives on one screen with two tabs: **Itinerary** and **Costs**. Customization in MVP is *structured* (edit item, reorder, regenerate a day) — the conversational AI assistant is explicitly Post-MVP (FR-TRIP-005 is a "Should", not MVP). There are no notifications, no maps, no social features, and no admin screens in scope. Total: **16 screens** (10 of them P0), plus 4 modals/bottom sheets that are deliberately *not* screens.
+Triply mobile is a small, focused app built around one loop: **PLAN → GENERATE → VIEW → CUSTOMIZE → SAVE**. After login, the user lands on a 4-destination bottom navigation (Home, My Trips, Create Trip, Profile). Trip creation is a short linear wizard (mode → inputs → review → generating), and the generated trip lives on one screen with two tabs: **Itinerary** and **Costs**. Customization in MVP is *structured* (edit item, reorder, regenerate a day) — the conversational AI assistant is explicitly Post-MVP (FR-TRIP-005 is a "Should", not MVP). There are no notifications, no maps, no social features, and no admin screens in scope. The inventory contains **17 specified screen entries** (15 implemented, including Splash and Onboarding; 2 planned P2 screens; 13 P0, 1 P1, 3 P2). The AI chat is one additional P3/future screen. Four modals/bottom sheets are deliberately *not* screens.
 
 ---
 
@@ -239,7 +239,7 @@ Offline: SRS assumes connectivity (Assumption §16) — a single "no connection"
 
 **Profile:** none in MVP (logout can live in Profile stub or Home overflow — REQUIRES PRODUCT DECISION; minimal impact)
 
-→ **11 P0 screens**, sufficient for the full PLAN → GENERATE → VIEW → CUSTOMIZE → SAVE loop and every Must-have FR.
+→ **13 P0 screens**, sufficient for the full PLAN → GENERATE → VIEW → CUSTOMIZE → SAVE loop and every Must-have FR.
 
 ---
 
@@ -260,10 +260,10 @@ Offline: SRS assumes connectivity (Assumption §16) — a single "no connection"
 
 ## SECTION 11 — SCREEN COUNT
 
-- **Total screens: 16** (P0: 11 · P1: 2 — Profile, +1 reserved for polish · P2: 2 — Welcome/Onboarding, Password Recovery · P3/Future: 1 — AI chat)
+- **Specified screens: 17** (P0: 13 · P1: 1 — Profile · P2: 3 — Welcome, Onboarding, Password Recovery). AI chat adds 1 P3/future screen.
 - **Plus 4 non-screen components** (place sheet, edit modal, regenerate sheet, archive dialog)
 
-**Sanity check: reasonable.** A travel app with one core loop should land in the 12–20 range; anything larger would mean components had been promoted to pages. The MVP set of 11 P0 screens is small enough for one Flutter developer (Dana) to build across Phases 4–8, per her evidence window.
+**Sanity check: reasonable.** A travel app with one core loop should land in the 12–20 range; anything larger would mean components had been promoted to pages. The MVP set of 13 P0 screens is small enough for one Flutter developer (Dana) to build across Phases 4–8, per her evidence window.
 
 ---
 

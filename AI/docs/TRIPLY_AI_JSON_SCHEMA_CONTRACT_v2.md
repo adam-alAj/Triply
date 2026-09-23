@@ -165,7 +165,7 @@ This schema is a **draft** until both boxes above are checked. The v1.0.0 sign-o
 
 - Schema changes that add an optional field, a new enum value, or loosen a constraint → **minor** version bump (e.g. `2.0.0` → `2.1.0`).
 - Schema changes that remove/rename a field, tighten a constraint, or change a type → **major** version bump and require re-sign-off from both leads. **This is how `1.0.0` became `2.0.0`** — five fields removed, root shape restructured (§1a).
-- `AIGeneration.model_provider`/prompt templates must always declare which schema version they target; Backend rejects a response whose shape doesn't match what it's configured to validate against, rather than attempting best-effort parsing of an unknown version.
+- **Required provenance (implementation pending):** each generation record must persist the schema version used, alongside the model identifier, and the prompt templates must declare their target version. The current `AIGeneration` entity stores the model identifier in `model_provider` but has no schema-version field; therefore schema-version persistence is **not implemented** and this contract requirement is not yet satisfied. The Backend change must add and populate a persisted schema-version value before claiming provenance is tracked. Runtime validation currently uses the configured schema; do not describe it as rejecting based on a version recorded on a generation row.
 - All versions are committed to source control alongside the prompt templates that target them (matches the PR-review-gated workflow in Master Plan §6).
 
 ---
@@ -181,6 +181,7 @@ This schema is a **draft** until both boxes above are checked. The v1.0.0 sign-o
 | Re-introducing `place_category` on `ItineraryItem` for name-collision safety                | **Open.** Removed in v2.0.0 (§1a, #3) on the assumption `Place.name` is effectively unique within a destination (Database Design Major Query Pattern #5 assumes this for lookup). If two active places in the same destination ever share a name across categories, this field should come back as a minor-version addition.                                    |
 | Partial regeneration request/response shape (single day or single item, FR-TRIP-003)        | Out of scope for this draft — this schema covers a full trip-plan generation; a "regenerate one day" variant should reuse `ItineraryDay`/`ItineraryItem` definitions from §4.4/§4.5 but is a distinct top-level contract.                                                                                                                                       |
 | Conversational refinement schema (FR-TRIP-005)                                              | Post-MVP — not drafted.                                                                                                                                                                                                                                                                                                                                         |
+| Persist schema-version provenance on each `AIGeneration`                                    | **Implementation pending.** `AIGeneration` currently persists the model identifier only; add and populate a schema-version field before treating §8 provenance as implemented. |
 
 ---
 

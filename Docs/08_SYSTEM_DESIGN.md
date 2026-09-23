@@ -4,7 +4,7 @@
 **Product:** Triply --- AI-Powered Travel Planner\
 **Platform:** Mobile-first Flutter application\
 **Design Tool:** Stitch AI\
-**Design Status:** Foundation / Source of Truth for UI Design\
+**Design Status:** Superseded for visual design by `09_DESIGN.md`; retained as UX principles and interaction reference\
 **Audience:** UI/UX, Graphic Design, Flutter, Frontend, AI/ML, Backend
 teams
 
@@ -29,6 +29,11 @@ as literal visual direction by `09_DESIGN.md`; they remain valid as *intent*
 08-vs-09 design conflict: **09 is authoritative for visuals, 08 for
 principles and interaction.**
 
+The screen inventory and implemented flow are maintained in `07_UI_PAGES.md`.
+Its combined Budget & Destination Selection step supersedes the separate
+Budget Input and Destination Selection screens described in this earlier
+design draft.
+
 ------------------------------------------------------------------------
 
 ## 1. Purpose
@@ -50,7 +55,10 @@ The approved mobile specification defines Triply around one core loop:
 
 The design must make this loop feel effortless.
 
-The approved mobile specification contains 10 P0 MVP screens:
+This earlier screen list is retained as design history; its separate budget
+and destination steps are superseded by the merged flow documented in
+`07_UI_PAGES.md`. Use that document for the current screen inventory and
+P0 count. This draft listed:
 
 -   Login
 -   Register
