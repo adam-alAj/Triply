@@ -13,12 +13,15 @@ using Microsoft.Extensions.Logging;
 using Triply.Api.Data;
 using Triply.Api.Modules.AIOrchestration;
 using Triply.Api.Modules.Auth.Dtos;
+using Triply.Api.Modules.Currency;
 using Triply.Api.Modules.Trip.Dtos;
 
 namespace Triply.Api.Tests;
 
 public sealed class SeedProvisioningTestFactory : CustomWebApplicationFactory
 {
+    protected override bool SeedTestReferenceData => false;
+
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
         base.ConfigureWebHost(builder);
@@ -84,6 +87,41 @@ public sealed class DatasetProvisioningTests : IClassFixture<SeedProvisioningTes
         return await SeedData.EnsureCuratedDatasetAsync(db, configuration, environment, logger);
     }
 
+    [Fact]
+    public async Task CuratedCurrencyRates_ConvertJodAmountToUsdThroughService()
+    {
+        await using var factory = new SeedProvisioningTestFactory();
+        using var client = factory.CreateClient();
+        using (var seedScope = factory.Services.CreateScope())
+        {
+            var seedDb = seedScope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+            var configuration = seedScope.ServiceProvider.GetRequiredService<IConfiguration>();
+            var environment = seedScope.ServiceProvider.GetRequiredService<IHostEnvironment>();
+            var logger = seedScope.ServiceProvider.GetRequiredService<ILoggerFactory>()
+                .CreateLogger("SeedDataTest");
+            await SeedData.EnsureCuratedDatasetAsync(seedDb, configuration, environment, logger);
+        }
+
+        using var scope = factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+        var currencyIds = await db.Currencies.AsNoTracking()
+            .ToDictionaryAsync(currency => currency.IsoCode, currency => currency.Id);
+        var rates = await db.ExchangeRates.AsNoTracking()
+            .ToDictionaryAsync(rate => rate.CurrencyId, rate => rate.RateToUsd);
+
+        Assert.Equal(1.00m, rates[currencyIds["USD"]]);
+        Assert.Equal(1.41m, rates[currencyIds["JOD"]]);
+        Assert.Equal(1.08m, rates[currencyIds["EUR"]]);
+
+        var conversion = scope.ServiceProvider.GetRequiredService<ICurrencyConversionService>();
+        var converted = await conversion.ConvertAsync(
+            596m,
+            currencyIds["JOD"],
+            currencyIds["USD"]);
+
+        Assert.Equal(840.36m, converted);
+    }
+
     private sealed record DbCounts(
         int Countries,
         int Currencies,
@@ -109,28 +147,13 @@ public sealed class DatasetProvisioningTests : IClassFixture<SeedProvisioningTes
     [Fact]
     public async Task FreshDatabase_ProvisioningTwice_LoadsCuratedDataWithoutDuplicates_AndGenerationWorks()
     {
-        // --- User data exists BEFORE provisioning (must survive it) ---
-        var token = await RegisterAndGetTokenAsync();
-
-        long parisId;
+        // The isolated factory skips the ordinary test reference-data seed.
+        // Migrations create schema only, so assert the catalog starts empty.
         using (var scope = _factory.Services.CreateScope())
         {
             var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
-            parisId = await db.Destinations.Where(d => d.Name == "Paris").Select(d => d.Id).FirstAsync();
+            Assert.Equal(new DbCounts(0, 0, 0, 0, 0, 0, 0, 0, 0), await CountAsync(db));
         }
-
-        UseToken(token);
-        var createResponse = await _client.PostAsJsonAsync("/api/trips", new
-        {
-            planningMode = "DESTINATION_FIRST",
-            destinationId = parisId,
-            startDate = "2026-10-01",
-            endDate = "2026-10-03",
-            travelerCount = 2
-        });
-        Assert.Equal(System.Net.HttpStatusCode.Created, createResponse.StatusCode);
-        var preSeedTrip = await createResponse.Content.ReadFromJsonAsync<TripResponse>();
-        Assert.NotNull(preSeedTrip);
 
         // --- First provisioning run imports the real curated dataset ---
         var first = await RunProvisioningAsync();
@@ -140,14 +163,12 @@ public sealed class DatasetProvisioningTests : IClassFixture<SeedProvisioningTes
         Assert.True(first.AnyRowsInserted, "First run should insert the curated reference rows.");
         Assert.True(first.PlacesAdded > 0, "First run should insert curated places.");
 
-        // The test fixture already seeded the same three countries/currencies/
-        // categories/destinations — provisioning must NOT duplicate them.
-        Assert.Equal(0, first.CountriesAdded);
-        Assert.Equal(0, first.CurrenciesAdded);
-        Assert.Equal(0, first.PlaceCategoriesAdded);
-        Assert.Equal(0, first.CostCategoriesAdded);
-        Assert.Equal(0, first.InterestCategoriesAdded);
-        Assert.Equal(0, first.DestinationsAdded);
+        Assert.True(first.CountriesAdded > 0);
+        Assert.True(first.CurrenciesAdded > 0);
+        Assert.True(first.PlaceCategoriesAdded > 0);
+        Assert.True(first.CostCategoriesAdded > 0);
+        Assert.True(first.InterestCategoriesAdded > 0);
+        Assert.True(first.DestinationsAdded > 0);
 
         // Expected row counts come from the CSVs themselves (self-consistent).
         var placeCsvPath = Path.Combine(first.DataDirectory, "Place.csv");
@@ -179,6 +200,29 @@ public sealed class DatasetProvisioningTests : IClassFixture<SeedProvisioningTes
         }
 
         Assert.True(counts1.PlaceInterests >= expectedLinks);
+
+        // User and trip creation plus generation now run against the dataset
+        // that was bootstrapped from CSVs above.
+        var token = await RegisterAndGetTokenAsync();
+        long parisId;
+        using (var scope = _factory.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+            parisId = await db.Destinations.Where(d => d.Name == "Paris").Select(d => d.Id).FirstAsync();
+        }
+
+        UseToken(token);
+        var createResponse = await _client.PostAsJsonAsync("/api/trips", new
+        {
+            planningMode = "DESTINATION_FIRST",
+            destinationId = parisId,
+            startDate = "2026-10-01",
+            endDate = "2026-10-03",
+            travelerCount = 2
+        });
+        Assert.Equal(System.Net.HttpStatusCode.Created, createResponse.StatusCode);
+        var preSeedTrip = await createResponse.Content.ReadFromJsonAsync<TripResponse>();
+        Assert.NotNull(preSeedTrip);
 
         // --- Second run: fully idempotent, zero inserts, counts unchanged ---
         var second = await RunProvisioningAsync();
@@ -227,6 +271,16 @@ public sealed class DatasetProvisioningTests : IClassFixture<SeedProvisioningTes
 
         var generated = JsonSerializer.Deserialize<JsonElement>(generateBody);
         Assert.Equal(3, generated.GetProperty("tripVersion").GetInt32());
+        var itinerary = generated.GetProperty("itinerary");
+        Assert.NotEqual(Guid.Empty, itinerary.GetProperty("id").GetGuid());
+        Assert.Equal(preSeedTrip.Id, itinerary.GetProperty("tripId").GetGuid());
+        var days = itinerary.GetProperty("days");
+        Assert.Equal(3, days.GetArrayLength());
+        Assert.All(days.EnumerateArray(), day =>
+        {
+            Assert.True(day.GetProperty("dayNumber").GetInt32() > 0);
+            Assert.NotEmpty(day.GetProperty("items").EnumerateArray());
+        });
 
         using (var scope = _factory.Services.CreateScope())
         {

@@ -6,10 +6,8 @@ import '../../../core/theme/app_text_styles.dart';
 enum RegenerateScope { item, day }
 
 /// Regenerate Sheet (UI Pages §6). Offers "this item" / "this day" per the
-/// task's acceptance criteria. Actually running AI regeneration is a
-/// separate, later task ("Implement Partial Regeneration End-to-End") — this
-/// sheet only collects the user's choice; the caller decides what to do
-/// with it (today, that's a "coming soon" message).
+/// task's acceptance criteria. This sheet only collects the user's choice;
+/// the caller runs the regeneration via `TripOverviewProvider`.
 Future<RegenerateScope?> showRegenerateSheet(BuildContext context) {
   return showModalBottomSheet<RegenerateScope>(
     context: context,

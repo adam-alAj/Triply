@@ -169,7 +169,7 @@ invalid_place_count > 0
 
 A single unresolvable name causes the destination option to fail:
 - `DESTINATION_FIRST`: the entire generation attempt fails → `AIGeneration.status = FAILED_VALIDATION`
-- `BUDGET_FIRST`: the failed option is dropped; if zero options survive, the attempt fails
+- `BUDGET_FIRST`: all returned options must pass structural and grounding validation; any validation error rejects the attempt. Budget feasibility is evaluated after this validation.
 
 ### 4.9 Matching Method
 
@@ -267,11 +267,13 @@ IF EXPECTED_TOTAL > Trip.budget_amount:
 
 ```
 IF EXPECTED_TOTAL > Trip.budget_amount:
-    DROP this destination option from the response
+    SKIP this option and consider the next validated option in model-returned order
 
-IF number of surviving options == 0:
+IF no option fits the budget:
     FAIL entire attempt with ALL_OPTIONS_OVER_BUDGET
     AIGeneration.status = FAILED_VALIDATION
+ELSE:
+    Persist and return the first option within budget
 ```
 
 ### 5.4 Pricing Semantics
@@ -320,7 +322,7 @@ From the `Place.csv` dataset and Database Design §6.5:
 
 | Code | Meaning | Trigger | Action |
 |------|---------|---------|--------|
-| `ALL_OPTIONS_OVER_BUDGET` | No destination option fits within budget (BUDGET_FIRST only) | All options dropped after budget check | Reject entire attempt |
+| `ALL_OPTIONS_OVER_BUDGET` | No destination option fits within budget (BUDGET_FIRST only) | No validated option fits after deterministic costing | Reject entire attempt |
 | `PRICE_DATA_MISSING` | Resolved Place has NULL reference_price | Data integrity issue | Reject destination option |
 | `INVALID_COST` | Computed total is negative or otherwise invalid | Arithmetic error | Reject destination option |
 
@@ -341,7 +343,7 @@ Step 3: Category Rules (part of V-001)
     ↓ (PASS)
 Step 4: Budget Feasibility — V-002
     ↓ (PASS)
-Step 5: Persist (only for user-selected option)
+Step 5: Persist the sole DESTINATION_FIRST option or the first fitting BUDGET_FIRST option
 ```
 
 ### Step 0 — JSON Schema Validation
@@ -392,11 +394,11 @@ Catches: missing fields, wrong types, invalid enums, unexpected fields, structur
 
 - Compute total from `Place.reference_price` (deterministic, no model input)
 - `DESTINATION_FIRST`: flag over-budget, don't auto-fail
-- `BUDGET_FIRST`: drop over-budget options; fail if zero survive
+- `BUDGET_FIRST`: check validated options in model-returned order; select and persist the first within budget; fail if none fit
 
 ### Step 5 — Persist
 
-- Only for the user-selected option
+- Only for the backend-selected option (first grounded option within budget for `BUDGET_FIRST`)
 - `estimated_cost` = `Place.reference_price` (copied, never from model)
 - `CostEstimate` rows computed deterministically
 
@@ -450,7 +452,7 @@ The validation layer returns a deterministic, machine-readable result:
 | Structural failure | `false` | Step 1 fails (day count, date alignment, duplicates) |
 | Invented-place failure | `false` | Step 2 fails (any place_name unresolvable) |
 | Category failure | `false` | Step 3 fails (wrong category, missing restaurant/transport) |
-| Budget failure (BUDGET_FIRST) | depends | Step 4: if zero options survive → `false`; if some survive → `true` with dropped options |
+| Budget outcome (BUDGET_FIRST) | depends | Step 4: if no validated option fits → `false`; otherwise persist and return the first fitting option |
 | Budget flag (DESTINATION_FIRST) | `true` | Step 4: over-budget flagged but not failed |
 
 ---
@@ -519,11 +521,10 @@ The Backend `ItineraryValidationService.cs` + `AiOrchestrationService.cs` implem
 Open issue #1 was decided on 2026-09-23 in favour of **these rules**, and the
 Backend now implements §5.3 literally:
 
-- `BUDGET_FIRST` — the model's up-to-three options are each costed
-  deterministically; the ones within budget are kept and the attempt fails only
-  when **none** survive (`ALL_OPTIONS_OVER_BUDGET`). The first surviving option is
-  persisted, and the trip's destination is released on failure so the user can
-  pick another suggestion.
+- `BUDGET_FIRST` — all returned options are structurally validated and grounded,
+  then costed deterministically in model-returned order. The backend persists and
+  returns the first within-budget option; the attempt fails only when **none** fit
+  (`ALL_OPTIONS_OVER_BUDGET`). On failure, the trip's destination is released.
 - `DESTINATION_FIRST` — a single option is generated and persisted even when it
   exceeds the budget. The over-budget condition is returned as an additive
   `isOverBudget` flag on the generate response rather than as a failure, because
@@ -535,9 +536,8 @@ Two constraints surfaced while implementing this and are **not** resolved here:
    **Resolved (2026-09-23) by a product decision.** `BUDGET_FIRST` may now generate
    with **no destination selected yet**, which is what makes the 1–3 option rule
    real: the prompt offers every supported destination, the model may return up to
-   three distinct candidate options, the ones within budget are kept, and the
-   winning option's destination is persisted onto the trip so the user can keep or
-   change it through the `SelectDestination` endpoint. When a destination *is*
+   three distinct candidate options, and the first fitting option's destination is
+   persisted onto the trip. When a destination *is*
    already set, the prompt stays scoped to it and the previous behaviour is
    unchanged.
 2. ~~**`BUDGET_FIRST` cannot be exercised with synthetic test places.**~~
@@ -651,8 +651,8 @@ Two constraints surfaced while implementing this and are **not** resolved here:
 
 **Validation:**
 - V-001: All places resolved ✅
-- V-002: All 3 options dropped (over budget)
-- Surviving options: 0
+- V-002: No option fits the budget after deterministic costing
+- Fitting options: 0
 
 **Result: FAIL** with code `ALL_OPTIONS_OVER_BUDGET`
 
@@ -676,11 +676,11 @@ From the prototype experiments (10/10 pass rate):
 
 | # | Issue | Status | Impact |
 |---|-------|--------|--------|
-| 1 | Budget-first minimum surviving options (how many of 3 must fit?) | **Resolved (2026-09-23): ≥ 1.** `BUDGET_FIRST` keeps every option that fits and fails only when none survive; `DESTINATION_FIRST` flags an over-budget plan instead of failing. `BUDGET_FIRST` may now generate without a pre-selected destination, so multiple candidate options are reachable (§8.6) | No longer blocks V-002 |
-| 2 | Cross-currency budget comparison (Trip budget in USD, destination in JOD) | Open | Affects V-002 when currencies don't match |
+| 1 | Budget-first minimum fitting options (how many of 3 must fit?) | **Resolved (2026-09-23): ≥ 1.** `BUDGET_FIRST` selects the first validated option that fits and fails only when none fit; `DESTINATION_FIRST` flags an over-budget plan instead of failing. `BUDGET_FIRST` may generate without a pre-selected destination, so multiple candidate options are reachable (§8.6) | No longer blocks V-002 |
+| 2 | Cross-currency budget comparison (Trip budget in USD, destination in JOD) | **Implemented** — backend converts generated place costs into the trip budget currency through `ICurrencyConversionService` before applying V-002; Python harness parity scope remains validator-only and does not perform conversion | Backend integration coverage required for currency-rate behavior |
 | 3 | Cost tolerance D1 (±15%) | **Resolved: N/A in v2.0.0** — no AI-reported cost exists | No impact on validation |
 | 4 | `Place.name` uniqueness within destination (pending DB constraint) | **Mitigated** — both the C# validator and the Python harness now group by name and fail closed instead of throwing/ambiguously resolving (see §13) | Could cause ambiguous resolution if violated |
-| 5 | Accommodation slot placement in `days[]` for persistence | Open (contract §9, minor) | Backend implementation detail |
+| 5 | Accommodation slot placement in `days[]` for persistence | **Resolved** — backend stores the trip-level accommodation on day 1, `MORNING`, `order_index = 0`; it is not a model `days[]` entry | No longer blocks persistence |
 
 ---
 
@@ -716,7 +716,7 @@ Documented rule differences:
 | Structural rules | ✅ Day count, contiguous 1-indexed `day_number`, date alignment, non-empty days/items, valid `time_slot`, `order_index` ≥ 1, duplicate `(time_slot, order_index)` | Same rules |
 | Structural inputs | Day count and date alignment use `trip_start_date`/`trip_end_date` from the fixture file; when omitted only itinerary-internal checks run | Derives them from the trip's `StartDate`/`EndDate` |
 | Duplicate destination options | `destination_options` must have distinct `destination_name` values | Same |
-| Budget scope | Every option; `BUDGET_FIRST` fails only if **zero** options survive; `DESTINATION_FIRST` flags only | ✅ Same policy (rules-as-written, §8.6): `BUDGET_FIRST` costs every option and fails only when none survive; `DESTINATION_FIRST` returns `isOverBudget` instead of failing |
+| Budget scope | Validate all returned options; select first fitting option; fail only if none fit; `DESTINATION_FIRST` flags only | ✅ Same policy (rules-as-written, §8.6): `BUDGET_FIRST` costs in returned order and selects first fit; `DESTINATION_FIRST` returns `isOverBudget` instead of failing |
 | Failure reason | Fixtures may declare expected `codes`; the runner asserts containment | Fixtures may declare expected `fragments`; the runner asserts containment against the validator's error text |
 | Currency | Uses each resolved place's own currency; no conversion | Converts totals into the trip's budget currency before comparing |
 | Schema validation | `jsonschema` against the raw schema file | DTO binding + `UnmappedMemberHandling.Disallow` + semantic validator |

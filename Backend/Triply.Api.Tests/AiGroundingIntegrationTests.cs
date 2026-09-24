@@ -456,6 +456,7 @@ public sealed class AiGroundingIntegrationTests : IClassFixture<AiGroundingTestF
         Assert.True(await db.Itineraries.AsNoTracking().AnyAsync(i => i.TripId == tripId));
         var generation = await db.AIGenerations.AsNoTracking().FirstAsync(g => g.TripId == tripId);
         Assert.Equal("SUCCEEDED", generation.Status);
+        Assert.Equal(ItineraryGenerationSchema.SchemaVersion, generation.SchemaVersion);
 
         var trip = await db.Trips.AsNoTracking().SingleAsync(t => t.Id == tripId);
         Assert.Equal(TripLifecycle.Generated, trip.Status);

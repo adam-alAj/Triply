@@ -282,11 +282,12 @@ Entities explicitly **not created**, with reasons:
 | input_snapshot | JSON | NOT NULL | preferences/budget/destination sent to the model — **not** the raw prompt text |
 | raw_output | JSON | NULL | model's structured response; **retention-limited, see §16** |
 | status | VARCHAR(20) | NOT NULL | CHECK IN (`PENDING`,`SUCCEEDED`,`FAILED_VALIDATION`,`FAILED_ERROR`) |
+| schema_version | NVARCHAR(32) | NOT NULL | Generation schema used; new records use `2.0.0`, pre-migration rows use `unknown` |
 | validation_errors | TEXT | NULL | populated only when status is a failure |
 | requested_at | TIMESTAMP | NOT NULL | now() |
 | completed_at | TIMESTAMP | NULL | |
 
-**Provenance gap:** this implemented table does not currently persist the AI schema version used for an attempt. The AI contract requires that value; add and populate a schema-version column before describing schema provenance as implemented (see AI JSON Schema Contract §8).
+`SchemaVersion` records the schema contract version used for each generation attempt. The migration adds a non-null column with `unknown` for existing rows because their historical version cannot be reconstructed; new full and partial generation attempts persist `2.0.0`.
 
 ### 6.16 Conversation *(Post-MVP)*
 | Attribute | Type | Null | Notes |
@@ -522,7 +523,7 @@ No state machine is introduced for `Place`, `Destination`, or reference tables b
 
 **Recommended:** SQL Server (via EF Core).
 
-**Why:** This is not a default choice — it is the Backend track's actual, capstone-tested stack (EF Core + SQL Server, migrations, indexing, Redis cache-aside all demonstrated). Using anything else would mean asking the only backend developer on the team to learn a new database engine from scratch mid-project.
+**Why:** This is the Backend track's implemented stack (EF Core + SQL Server, migrations, and indexing). No distributed cache is currently configured; Redis remains a future option if measured performance requires it. Using another database engine would add migration work without a current requirement SQL Server cannot satisfy.
 
 **Alternatives considered:**
 | Alternative | Why not selected |
@@ -571,6 +572,7 @@ user_preferences(user_id PK/FK->asp_net_users, preferred_currency_id FK->currenc
                   distance_unit, pacing)
 exchange_rates(currency_id PK/FK->currencies, rate_to_usd DECIMAL(18,6), updated_at)
 ai_generations(id PK, trip_id FK->trips, attempt_number, model_provider,
+                schema_version NVARCHAR(32) NOT NULL DEFAULT 'unknown',
                 input_snapshot JSON-text (nvarchar(max)), raw_output JSON-text (nvarchar(max)) NULL,
                 status, validation_errors, requested_at, completed_at)
 conversations(id PK, trip_id FK->trips UQ, created_at)          -- Post-MVP (designed, NOT created)

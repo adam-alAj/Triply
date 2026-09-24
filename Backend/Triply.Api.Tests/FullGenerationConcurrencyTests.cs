@@ -234,6 +234,60 @@ public sealed class FullGenerationConcurrencyTests : IClassFixture<AiTestWebAppl
     }
 
     [Fact]
+    public async Task Generate_DifferentUsersAndTripsConcurrently_BothSucceedIndependently()
+    {
+        var tokenA = await RegisterAndGetTokenAsync();
+        var tokenB = await RegisterAndGetTokenAsync();
+        await SeedGroundedPlacesAsync(await GetParisDestinationIdAsync());
+
+        var (tripA, versionA) = await CreateDestinationFirstTripAsync(tokenA);
+        var (tripB, versionB) = await CreateDestinationFirstTripAsync(tokenB);
+        Assert.NotEqual(tripA, tripB);
+        Assert.Equal(1, versionA);
+        Assert.Equal(1, versionB);
+
+        using var clientA = _factory.CreateClient();
+        using var clientB = _factory.CreateClient();
+        clientA.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", tokenA);
+        clientB.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", tokenB);
+
+        var responseTasks = new[]
+        {
+            clientA.PostAsJsonAsync($"/api/trips/{tripA}/generate", new { scope = "FULL" }),
+            clientB.PostAsJsonAsync($"/api/trips/{tripB}/generate", new { scope = "FULL" })
+        };
+        var responses = await Task.WhenAll(responseTasks);
+
+        foreach (var response in responses)
+        {
+            var body = await response.Content.ReadAsStringAsync();
+            Assert.True(
+                response.StatusCode == HttpStatusCode.OK,
+                $"Expected both independent generations to succeed, got HTTP {(int)response.StatusCode}: {body}");
+        }
+
+        using var scope = _factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+        var trips = await db.Trips.AsNoTracking()
+            .Where(trip => trip.Id == tripA || trip.Id == tripB)
+            .ToListAsync();
+        Assert.Equal(2, trips.Count);
+        Assert.All(trips, trip =>
+        {
+            Assert.Equal(TripLifecycle.Generated, trip.Status);
+            Assert.Equal(3, trip.Version);
+        });
+
+        var successfulGenerations = await db.AIGenerations.AsNoTracking()
+            .Where(generation => generation.TripId == tripA || generation.TripId == tripB)
+            .ToListAsync();
+        Assert.Equal(2, successfulGenerations.Count);
+        Assert.All(successfulGenerations, generation => Assert.Equal("SUCCEEDED", generation.Status));
+        Assert.Equal(2, await db.Itineraries.AsNoTracking()
+            .CountAsync(itinerary => itinerary.TripId == tripA || itinerary.TripId == tripB));
+    }
+
+    [Fact]
     public async Task Generate_WithStaleExpectedVersion_ReturnsConflict_WithoutClaiming()
     {
         var token = await RegisterAndGetTokenAsync();
