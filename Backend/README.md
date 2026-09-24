@@ -2,10 +2,12 @@
 
 Triply is an AI-assisted trip-planning platform (mobile + web) that turns a user's destination or budget input into a personalized, day-by-day itinerary with a category-level cost breakdown.
 
-This document tells the backend story **in the order it was actually built** — foundation → security → domain logic → lifecycle → concurrency → testing/CI → AI handoff. It is written to be walked through top-to-bottom in a mentor review.
+This document tells the backend story **in the order it was actually built** — foundation → security → domain logic → lifecycle → concurrency → AI integration → hardening → deployment. It is written to be walked through top-to-bottom in a mentor review.
 
-For exact request/response payloads, see[API Contract](docs/API%20Contract.md).
-For API design rules (naming, DTOs, error format, versioning), see[API Conventions](docs/API_CONVENTIONS_.md).
+For exact request/response payloads, see [API Contract](docs/API%20Contract.md).
+For API design rules (naming, DTOs, error format, versioning), see [API Conventions](docs/API_CONVENTIONS_.md).
+
+> **Status: the backend is live.** Every stage below is implemented, not planned — including the Gemini integration, which was the last open item in the previous version of this document. The service is deployed to Render and monitored by UptimeRobot (§15–16).
 
 ---
 
@@ -37,45 +39,58 @@ The backend is designed so that AI-generated content is **never accepted blindly
 
 ## 2. Design Principle Behind Every Decision
 
-Every technical choice below — the modular monolith, the single Flutter codebase, who calls Gemini, which database, which testing tools — was made to match **demonstrated team capability**, not popularity. The same rule applies inside the backend itself: no feature was built beyond what the approved SRS/Architecture/Database Design documents require. If something wasn't in the approved schema (e.g. a direct Interest→Place relationship), it was **not invented** — see §7.
+Every technical choice below — the modular monolith, the single Flutter codebase, who calls Gemini, which database, which testing tools — was made to match **demonstrated team capability**, not popularity. The same rule applies inside the backend itself: no feature was built beyond what the approved SRS/Architecture/Database Design documents require. If something wasn't in the approved schema, it was **not invented**.
 
 ---
 
 ## 3. Technology Stack & Module Structure
 
-- ASP.NET Core 9 / C# / .NET 9
+- ASP.NET Core 9 / C# / .NET 9 (SDK pinned via `global.json`, `9.0.316`)
 - Entity Framework Core + SQL Server
-- ASP.NET Core Identity + JWT Bearer Authentication
+- ASP.NET Core Identity + JWT Bearer Authentication + refresh tokens
 - FluentValidation
+- Gemini API (`generativelanguage.googleapis.com`) — the only external service the backend calls
 - Swagger / OpenAPI
-- Docker / Docker Compose
-- Redis (local infrastructure)
+- Docker / Docker Compose (local dev) · Docker on Render (staging)
 - xUnit / Moq / `WebApplicationFactory` integration tests
 - GitHub Actions CI
+
+> Redis was evaluated in earlier planning docs but was never wired in — the 30-day AI-output retention job runs as a plain `BackgroundService` (see §11) and nothing else in the backend currently needs a cache. If a future performance pass reintroduces Redis, this line should be updated together with it.
 
 ```text
 Triply.Api/
 ├── Common/
-│   ├── Authorization/
-│   └── Middleware/
-├── Data/
-├── Entities/
+│   ├── Authorization/        # ownership ("TripOwner") policy
+│   └── Middleware/           # centralized exception handling
+├── Data/                     # DbContext, dev/test dataset seeding
+├── Entities/                 # EF Core entities
+├── Migrations/                # 12 migrations, InitialCreate → AddAiGenerationSchemaVersion
+├── AI-Schemas/                # versioned Gemini responseJsonSchema (v2.0.0)
 └── Modules/
-    ├── Auth/
-    ├── Trip/
-    ├── Destination/
-    ├── Cost/
-    └── Itinerary/
+    ├── Auth/                 # register, login, refresh, logout, email confirm, password reset
+    ├── User/                 # profile, preferences, stats (Flutter "Profile" screen)
+    ├── Trip/                 # CRUD, lifecycle, ownership, optimistic concurrency
+    ├── Destination/          # supported-destination list + budget-first suggestions
+    ├── Place/                # single place lookup
+    ├── Currency/             # currency list + conversion
+    ├── InterestCategory/     # interest reference list
+    ├── Cost/                 # deterministic cost aggregation
+    ├── Itinerary/            # day/item persistence, direct item edits
+    └── AI-Orchestration/     # Gemini call, prompt building, schema + dataset validation
 ```
 
 | Module | Responsibility |
 |---|---|
-| Auth | Registration, login, JWT |
-| Trip | Creation, retrieval, updates, lifecycle, ownership |
-| Destination | Budget-first destination suggestions |
-| Cost | Deterministic cost aggregation |
-| Itinerary | Day/item persistence and validation |
-| *(next)* AI integration | Gemini orchestration and AI-output validation |
+| Auth | Registration, login, JWT + refresh tokens, logout/revocation, email confirmation, password reset |
+| User | Own profile (get/update), trip-planning preferences (currency, distance unit, pacing), lifetime stats |
+| Trip | Creation, retrieval, listing, updates, destination selection, lifecycle, ownership, concurrency |
+| Destination | Supported-destination reference list + budget-first destination suggestions |
+| Place | Single curated place lookup (used by clients rendering itinerary items) |
+| Currency | Reference currency list + conversion helper used by Cost/AI modules |
+| InterestCategory | Reference interest list (nature, history, food, …) used by Trip creation |
+| Cost | Deterministic cost aggregation per trip, grouped by category |
+| Itinerary | Day/item persistence, atomic full-write, direct per-item edits |
+| AI-Orchestration | Owns the live Gemini call, prompt construction, JSON-schema + dataset validation, full and partial regeneration |
 
 ---
 
@@ -84,20 +99,26 @@ Triply.Api/
 Before writing any feature, the project foundation was set up so it could actually run and be tested end to end:
 
 - ASP.NET Core project setup, SQL Server + EF Core, migrations
-- Docker Compose (API + SQL Server + Redis)
+- Docker Compose (API + SQL Server)
 - Environment configuration via `.env` / `.env.example` — **no secrets in source control**
-- Swagger, health endpoint, centralized exception-handling middleware
+- Swagger, health endpoint (`GET /health`), centralized exception-handling middleware
 - API conventions agreed up front: `/api` base path, DTOs (never raw EF entities), `camelCase` JSON, `ProblemDetails` error format, UTC timestamps, `yyyy-MM-dd` dates
 
-This foundation is the single source of truth for how Flutter and the backend communicate — see[`API_CONVENTIONS.md`](./API_CONVENTIONS%20.md).
+This foundation is the single source of truth for how Flutter and the backend communicate — see [`API_CONVENTIONS.md`](./API_CONVENTIONS%20.md).
 
 ---
 
 ## 5. Stage 2 — Authentication & Security
 
 ```text
-POST /api/auth/register   → returns a JWT immediately
+POST /api/auth/register           → returns a JWT + refresh token immediately
 POST /api/auth/login
+POST /api/auth/refresh            → exchange a refresh token for a new JWT
+POST /api/auth/logout             → revokes the refresh token
+GET  /api/auth/confirm-email
+POST /api/auth/resend-confirmation
+POST /api/auth/forgot-password
+POST /api/auth/reset-password
 ```
 
 **Tested cases:**
@@ -111,8 +132,9 @@ POST /api/auth/login
 | Duplicate email on register | `400` |
 | Invalid registration data | `400` |
 | Excessive login attempts | `429` (5 failed attempts / minute) |
+| Forgot-password / resend-confirmation for a non-existent account | `200` with a generic "if that account exists…" message (never reveals whether the account exists) |
 
-JWT config: **60-minute lifetime**, issuer `Triply`, audience `TriplyClients`.
+JWT config: **60-minute access-token lifetime**, issuer `Triply`, audience `TriplyClients`. Refresh tokens are persisted (`RefreshToken` entity) so a session can be renewed without re-entering credentials, and can be individually revoked on logout.
 
 **Evidence:**
 | Register success | Login success | Wrong password (401) |
@@ -123,12 +145,25 @@ JWT config: **60-minute lifetime**, issuer `Triply`, audience `TriplyClients`.
 |---|---|---|
 | ![Rate limit](docs/image-3.png) | ![Duplicate](docs/image-4.png) | ![Invalid email](docs/image-5.png) |
 
+### Security hardening (post-MVP pass)
+
+Three follow-up security tasks were applied on top of the original auth/trip work:
+
+- **Security Task 1** — refresh tokens + revocation, email confirmation, and password reset, all built on `ASP.NET Core Identity`'s token providers. Email delivery goes through an `IEmailSender` abstraction; `LoggingEmailSender` (logs instead of sending) is the current implementation, so a real provider can be swapped in without touching controller code.
+- **Security Task 2** — request-size limit (`Kestrel` max body `1 MB`, comfortably above every real payload) and a bound on client-supplied `InterestCategoryIds` lists, closing an unbounded-array-input gap on trip create/update.
+- **Security Task 3** — rate limiting is partitioned **per authenticated user (falling back to remote IP)**, not one shared global counter, so one abusive client can't throttle everyone else. AI generation gets its own, much tighter budget (10 generations/hour/user) because it's the one action that costs real money and time.
+
+Security headers (`X-Content-Type-Options: nosniff`, `X-Frame-Options: DENY`, `Referrer-Policy: no-referrer`) are applied to every response.
+
+---
+
 ## 6. Stage 3 — Trip Management
 
 Once a user is authenticated, the Trip domain was built:
 
 - Authenticated trip creation, retrieval, and listing of a user's own trips
-- Request validation: planning mode, traveler count, dates, budget, destination, interests
+- Request validation: planning mode, traveler count, dates, budget, destination, interests (bounded list — Security Task 2)
+- Destination selection/change on an existing trip (`PATCH /api/trips/{id}/destination`)
 - Transaction handling on writes
 - **Ownership protection** — a user can never see or modify another user's trip; unauthorized access returns `404`, not `403`, so trip existence isn't leaked
 
@@ -136,16 +171,23 @@ Once a user is authenticated, the Trip domain was built:
 | Create trip | Get trip (authenticated) | Other user's trip blocked | Trip update |
 |---|---|---|---|
 | ![Trip POST](docs/image-9.png) | ![Trip GET](docs/image-7.png) | ![Blocked](docs/image-8.png) | ![Update](docs/image-10.png) |
+
 ---
 
-## 7. Stage 4 — Budget-First Destination Suggestions
+## 7. Stage 4 — Reference Data & Budget-First Destination Suggestions
 
 ```text
+GET  /api/destinations/assets
+GET  /api/destinations
 POST /api/destinations/suggestions
+GET  /api/currencies
+GET  /api/interest-categories
+GET  /api/places/{id}
 ```
 
-Given a budget, currency, and interest categories, the service aggregates **active `Place` reference prices per destination** (from the real internal dataset) and returns destinations whose estimated aggregate cost fits the budget, sorted ascending by cost.
+Given a budget, currency, and interest categories, `POST /api/destinations/suggestions` aggregates **active `Place` reference prices per destination** (from the real internal dataset) and returns destinations whose estimated aggregate cost fits the budget, sorted ascending by cost.
 
+The other endpoints above are read-only reference lookups (supported destinations, currencies, interest categories, a single place by id) that Flutter uses to populate trip-creation screens and render itinerary items without duplicating dataset values on the client.
 
 Full request/response shape: see [`API Contract.md`](./API%20Contract.md).
 
@@ -173,11 +215,12 @@ A single currency is required before aggregation. Every figure returned is expli
 
 ---
 
-## 9. Stage 6 — Itinerary Read/Write Scaffolding
+## 9. Stage 6 — Itinerary Read/Write & Direct Edits
 
 ```text
-GET  /api/trips/{tripId}/itinerary
-POST /api/trips/{tripId}/itinerary
+GET   /api/trips/{tripId}/itinerary
+POST  /api/trips/{tripId}/itinerary
+PATCH /api/trips/{tripId}/itinerary/items/{itemId}
 ```
 
 ```text
@@ -186,32 +229,81 @@ Itinerary
       └── Items (place, timeSlot, orderIndex, estimatedCost, notes, isAiGenerated)
 ```
 
-Validation: unique/positive day numbers, valid time slots, non-negative cost and order index, place must exist, be active, and (when the trip has a destination) belong to that destination. The write is an **atomic replacement** of the current itinerary.
+Validation: unique/positive day numbers, valid time slots, non-negative cost and order index, place must exist, be active, and (when the trip has a destination) belong to that destination, and no duplicate active place name inside one destination (fails closed rather than silently picking one — see §11). The full write is an **atomic replacement** of the current itinerary; the `PATCH items/{itemId}` endpoint lets a user directly edit one item, which flips only that item's `isAiGenerated` to `false`.
 
 ---
 
 ## 10. Stage 7 — Trip Save, Retrieve & Lifecycle
 
 ```text
-DRAFT → GENERATING → GENERATED → MODIFIED → SAVED → ARCHIVED
+DRAFT → GENERATING → GENERATED → MODIFIED ⇄ (further edits) → SAVED → ARCHIVED
                  ↘ (validation failure) → DRAFT (retry)
 ```
 
 ```text
-POST /api/trips/{id}/generate
+POST /api/trips/{id}/generate       → FULL | DAY | ITEM (see §11)
 POST /api/trips/{id}/save
 POST /api/trips/{id}/archive
 POST /api/trips/{id}/restore
-GET  /api/trips/{id}       → trip + itinerary + cost estimate, in one response
+GET  /api/trips/{id}                → trip + itinerary + cost estimate, in one response
 ```
 
 > **Important point:** there is no generic "set status" endpoint that lets a client jump to any status directly. Status only changes as the *result* of a specific business action (generate, save, archive, restore) — this prevents clients from putting a trip into an invalid state.
 
 ---
 
-## 11. Stage 8 — Optimistic Concurrency *(most recent work)*
+## 11. Stage 8 — AI Integration (Gemini)
 
-`Trip.Version` is an EF Core concurrency token. Every update carries an `expectedVersion`:
+This was the open item in the previous version of this document; it is now fully implemented and tested.
+
+```text
+Flutter
+   ↓
+POST /api/trips/{tripId}/generate  { scope: FULL | DAY | ITEM }
+   ↓
+Backend loads candidate places/pricing for the trip's destination(s) from the internal dataset
+   ↓
+Prompt built per mode (DESTINATION_FIRST vs BUDGET_FIRST — different candidate scope)
+   ↓
+Gemini call, constrained by a versioned responseJsonSchema (currently v2.0.0)
+   ↓
+Schema validation (unknown/extra fields rejected, not silently dropped)
+   ↓
+Dataset validation: every place must exist, be active, belong to a *supported* destination
+   ↓
+On failure → bounded retry, then a clear error — never a fabricated plan
+   ↓
+On success → itinerary persisted, cost aggregated, Trip.Version incremented, lifecycle updated
+```
+
+**Full vs. partial regeneration** (`POST /api/trips/{tripId}/generate`):
+
+- `scope: "FULL"` — generates the whole itinerary for a `DRAFT` trip.
+- `scope: "DAY"` — regenerates only the targeted day's non-accommodation items.
+- `scope: "ITEM"` — regenerates only the targeted activity.
+- `DAY`/`ITEM` require `expectedVersion`; a stale version returns `409 Conflict` without touching the current itinerary (same optimistic-concurrency guarantee as direct trip edits — see §12).
+
+**Budget policy** (decided against `AI_OUTPUT_VALIDATION_RULES.md` §5.3, implemented as written):
+
+- `BUDGET_FIRST` — the model may return up to three candidate destination options; each is costed deterministically, the ones within budget are kept, and the attempt fails only when **none** survive (`ALL_OPTIONS_OVER_BUDGET`). `BUDGET_FIRST` no longer requires a destination to be pre-selected — the winning option's destination is written onto the trip.
+- `DESTINATION_FIRST` — the plan is generated and persisted even when it comes out over budget; this is surfaced as an additive `isOverBudget` flag on the response instead of a failure, since the user already committed to that destination.
+
+**Grounding & hardening applied on top of the base integration:**
+
+- Destination grounding requires `Destination.IsSupported`, not just existence in the table.
+- Per-mode candidate limits (`ItineraryGenerationSchema.LoadForMode`): 1 destination option for `DESTINATION_FIRST`, up to 3 for `BUDGET_FIRST`.
+- A duplicate active place name inside one destination fails the attempt closed with a clear error instead of guessing which one was meant.
+- Full generation acquires the trip through a concurrency guard so two simultaneous "Generate" taps on the same `DRAFT` trip can't race each other.
+- AI-generated content is always structurally distinguishable from user data (`ItineraryItem.IsAiGenerated`), and raw Gemini responses are retention-limited — see §12.
+- Python ↔ C# parity: the AI track's validation-rules fixtures (`AI/03-Validation/fixtures/`) and this module's own tests are checked against the same 12 shared cases, so both sides agree on what "valid" means.
+
+Live Gemini verification (an actual API call, not the deterministic test double used in CI) is the one item still tracked as pending — see `Triply.Api/Modules/AI-Orchestration/progress.md` for the up-to-date status of that.
+
+---
+
+## 12. Stage 9 — Optimistic Concurrency & Data Retention
+
+`Trip.Version` is an EF Core concurrency token. Every update — direct trip edits and `DAY`/`ITEM` regeneration alike — carries an `expectedVersion`:
 
 ```json
 { "expectedVersion": 1 }
@@ -230,28 +322,43 @@ Request A: version 1 → success → version becomes 2
 Request B: still sends expectedVersion = 1 → 409 Conflict
 ```
 
-Latest commit on this feature: `3153892`.
+**AI raw-output retention:** `AIGeneration.RawOutput` (the full Gemini response, kept for debugging) is nulled out for attempts older than 30 days by a background service (`AiRawOutputRetentionBackgroundService`) — a plain `BackgroundService`, not a new scheduling dependency. The retention window is configurable (`DataRetention:RawOutputDays`).
 
 ---
 
-## 12. Testing
+## 13. Stage 10 — User Profile Module
 
-Integration tests via `WebApplicationFactory` cover: authentication, authorization/ownership, validation, destination suggestions, cost aggregation, itinerary persistence, trip lifecycle, concurrency conflicts, and rate limiting.
-
-**Latest local run before the AI handoff:**
+Added to support the Flutter "Profile" screen:
 
 ```text
-51 tests — 0 failed — 51 succeeded
+GET   /api/users/me
+PATCH /api/users/me
+GET   /api/users/me/preferences   → preferred currency, distance unit (KM/MILES), pacing (RELAXED/BALANCED/FAST)
+PUT   /api/users/me/preferences
+GET   /api/users/me/stats         → total trips, distinct saved places, distinct countries visited
 ```
+
+Preferences are created with sensible defaults on first read rather than requiring a separate "initialize" call. Stats are computed on demand from existing Trip/Itinerary data — no new aggregate tables were introduced for numbers that can be derived cheaply.
 
 ---
 
-## 13. Docker
+## 14. Testing
+
+Integration tests via `WebApplicationFactory` cover: authentication (including refresh/logout/email/password flows), authorization/ownership, validation, destination suggestions, cost aggregation, itinerary persistence, trip lifecycle, optimistic concurrency, rate limiting, full and partial AI generation (against a deterministic fake Gemini client), dataset provisioning, duplicate-place validation, and AI raw-output retention.
+
+```text
+28 test files — 121 [Fact] tests + 2 [Theory] cases in the current checkout
+```
+
+The AI-Orchestration module's own progress log (`Triply.Api/Modules/AI-Orchestration/progress.md`) recorded the last verified full run as **119/119 passing** on 2026-09-23 against the project's SQL Server test environment; the suite has grown slightly since (see count above) and should be re-run to confirm before the next milestone.
+
+---
+
+## 15. Docker & Local Development
 
 ```text
 triply-api        → 8080
 triply-sqlserver   → 1433
-redis-local        → 6379
 ```
 
 ```powershell
@@ -289,79 +396,70 @@ migrating (`Data/SeedData.cs`):
 
 ---
 
-## 14. CI/CD & Git Workflow
+## 16. Deployment & Monitoring
+
+The backend is deployed to **Render** as a Docker web service and is currently **live**:
+
+```text
+Service:    triply-api (Render, Docker, Free tier)
+Branch:     fix/gemini-content-length
+URL:        https://triply-api-za13.onrender.com
+Health:     https://triply-api-za13.onrender.com/health
+```
+
+The Free-tier instance sleeps on inactivity, which can delay the first request after idle by ~50 seconds — expected behavior on the current plan, not a bug, and worth knowing before assuming a slow first response is an outage.
+
+**UptimeRobot** watches two HTTP(s) monitors against `/health` on a 5-minute interval (per the plan in `docs/Monitoring.md`), and both currently report **Up**, 100% uptime:
+
+- `Triply Staging API`
+- `triply-api-za13.onrender.com`
+
+The acceptance checklist in `docs/Monitoring.md` (UptimeRobot Up, staging smoke test, structured JSON request logs, EF Core command telemetry) is verified against this live deployment — see that file for the full checklist and staging-logging configuration.
+
+---
+
+## 17. CI/CD & Git Workflow
 
 GitHub Actions builds the backend and runs the integration test suite (against the same SQL Server test environment) on every push — changes are verified before merge.
 
-Work happens on `backend/feat/api-conventions`, in focused feature commits reviewed via PR:
+Representative feature commits, in the order the corresponding stages above were built:
 
 ```text
-115818b  feat: implement budget-first destination suggestions
-de7c818  feat: implement deterministic cost aggregation
-6b4ff0e  feat: implement itinerary read write scaffolding
-60a122d  feat: implement trip save retrieve and status lifecycle
-3153892  feat: implement optimistic trip concurrency
+feat: implement budget-first destination suggestions
+feat: implement deterministic cost aggregation
+feat: implement itinerary read write scaffolding
+feat: implement trip save retrieve and status lifecycle
+feat: implement optimistic trip concurrency
+feat: Gemini client, prompt builder, JSON-schema response parsing
+feat: AI dataset/schema grounding + validation hardening
+feat: partial (DAY/ITEM) regeneration end-to-end
+feat: refresh tokens, email confirmation, password reset (Security Task 1)
+feat: request size limit + bounded interest lists (Security Task 2)
+feat: per-user/IP partitioned rate limiting (Security Task 3)
+feat: user profile, preferences, and stats module
+feat: staging logging + health check + UptimeRobot monitoring
+fix: Gemini model configuration (current `main`/Render deploy)
 ```
+
+Migration history (`Triply.Api/Migrations/`), for reference: `InitialCreate` → seed-by-`HasData` reference categories → user email/display-name constraints → trip schema check constraints → seeded countries/currencies/destinations → dataset schema alignment → `PlaceInterest` → user preferences & trip metadata → exchange rates → removal of the backend's static seed (PR #66, replaced by dev-time provisioning, §15) → refresh tokens → AI generation schema version.
 
 ---
 
-## 15. What's Next — AI Integration Handoff
-
-The backend is now at a **stable handoff point**. Non-AI trip functionality is implemented and tested.
+## 18. Current Status Summary
 
 ```text
-Flutter
-   ↓
-Backend trip request
-   ↓
-Candidate places / pricing (from internal dataset)
-   ↓
-Gemini
-   ↓
-Structured JSON
-   ↓
-Schema validation
-   ↓
-Internal Place/Dataset validation  ← rejects/regenerates, never fabricates
-   ↓
-Persist itinerary
-   ↓
-Cost aggregation
-   ↓
-Update trip lifecycle/version
-   ↓
-Flutter (labeled "Estimated")
+Backend foundation → Core trip APIs → AI integration (Gemini) → Security hardening
+       → Reference-data & profile modules → Testing/CI → Deployment (Render) → Monitoring (UptimeRobot)
 ```
 
-Remaining backend work once the AI contract lands:
+**Completed:** foundation, Docker, SQL Server/EF Core, migrations, API conventions, Swagger, exception handling, auth (register/login/refresh/logout/email-confirm/password-reset), rate limiting (general + login + AI-specific), ownership authorization, security headers, request-size limiting, trip management + destination selection, budget-first suggestions, currency/interest-category/place reference endpoints, deterministic cost aggregation, itinerary persistence + direct item edits, trip save/retrieve/lifecycle, optimistic concurrency, **live Gemini integration (full + partial regeneration, schema + dataset grounding, budget policy)**, AI raw-output retention, user profile/preferences/stats, dev-time dataset provisioning, integration testing, CI, **Render deployment**, **UptimeRobot monitoring**.
 
-1. Integrate the finalized Gemini contract
-2. Bounded generation/retry handling
-3. Validate AI JSON against the agreed schema
-4. Validate generated places against the internal dataset
-5. Persist AI generation results
-6. Connect generation to the existing trip lifecycle
-7. Partial itinerary regeneration
-8. Additional integration/edge-case tests
-9. Final API contract + Swagger updates
-10. Backend hardening & deployment prep
-
+**Not yet done:** a real (non-test-double) end-to-end Gemini generation run has not been independently re-verified since the latest schema/model-configuration change; see `Triply.Api/Modules/AI-Orchestration/progress.md` for the exact pending items.
 
 ---
 
-## 16. Current Status Summary
-
-```text
-Backend foundation → Core trip APIs → AI handoff → Gemini integration
-       → AI validation → Generation + regeneration → Final integration
-```
-
-**Completed:** foundation, Docker, SQL Server/EF Core, migrations, API conventions, Swagger, exception handling, auth, JWT, rate limiting, ownership authorization, trip management, budget-first suggestions, deterministic cost aggregation, itinerary persistence scaffolding, trip save/retrieve, trip lifecycle, optimistic concurrency, integration testing, CI.
-
-**Not yet started:** live Gemini integration.
-
----
-
-## 17. Related Documents
-[API Contract](docs/API%20Contract.md)— exact request/response JSON for every endpoint — exact request/response JSON for every endpoint
-[API Conventions](docs/API_CONVENTIONS_.md) — naming, DTO, error-format, and versioning rules
+## 19. Related Documents
+- [API Contract](docs/API%20Contract.md) — exact request/response JSON for every endpoint *(currently covers Auth core flows, reference data, destination suggestions, cost estimate, itinerary, and trip lifecycle in detail; the newer Auth security endpoints, User profile module, and Places lookup still need their sections added — see the note at the top of that file)*
+- [API Conventions](docs/API_CONVENTIONS_.md) — naming, DTO, error-format, and versioning rules
+- [Monitoring](docs/Monitoring.md) — staging logging configuration and the UptimeRobot acceptance checklist
+- `Triply.Api/Modules/AI-Orchestration/progress.md` — detailed, actively-maintained log of the AI integration work (grounding rules, budget policy, test-environment setup)
