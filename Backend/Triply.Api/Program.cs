@@ -230,11 +230,15 @@ builder.Services.AddScoped<ICurrencyConversionService, CurrencyConversionService
 
 builder.Services.Configure<GeminiOptions>(
     builder.Configuration.GetSection(GeminiOptions.SectionName));
-
 builder.Services.AddHttpClient<IGeminiClient, GeminiClient>(client =>
 {
     client.DefaultRequestVersion = HttpVersion.Version11;
     client.DefaultVersionPolicy = HttpVersionPolicy.RequestVersionExact;
+})
+.ConfigurePrimaryHttpMessageHandler(() => new SocketsHttpHandler
+{
+    UseProxy = false,
+    AllowAutoRedirect = false
 });
 builder.Services.AddScoped<IItineraryPromptBuilder, ItineraryPromptBuilder>();
 builder.Services.AddScoped<IItineraryValidator, ItineraryValidationService>();
