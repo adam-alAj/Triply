@@ -18,8 +18,10 @@ using Triply.Api.Modules.Cost;
 using Triply.Api.Modules.Destination;
 using Triply.Api.Modules.Trip.Validators;
 using Triply.Api.Modules.Currency;
-
+using System.Net.Sockets;
 using System.Net;
+AppContext.SetSwitch("System.Net.SocketsHttpHandler.Http2Support", false);
+
 var builder = WebApplication.CreateBuilder(args);
 
 // ---------- Monitoring / structured request logging ----------
@@ -238,7 +240,46 @@ builder.Services.AddHttpClient<IGeminiClient, GeminiClient>(client =>
 .ConfigurePrimaryHttpMessageHandler(() => new SocketsHttpHandler
 {
     UseProxy = false,
-    AllowAutoRedirect = false
+    AllowAutoRedirect = false,
+
+    // Render's container network prefers IPv6 for outbound connections.
+    // If a NAT64/IPv6 translation layer along that path mishandles the
+    // request framing, forcing a plain IPv4 TCP connection sidesteps it
+    // entirely — this doesn't touch HTTP semantics, just which IP family
+    // the socket connects over.
+    ConnectCallback = async (context, cancellationToken) =>
+    {
+        var addresses = await Dns.GetHostAddressesAsync(
+            context.DnsEndPoint.Host,
+            AddressFamily.InterNetwork, // IPv4 only
+            cancellationToken);
+
+        if (addresses.Length == 0)
+        {
+            throw new InvalidOperationException(
+                $"No IPv4 address found for {context.DnsEndPoint.Host}.");
+        }
+
+        var socket = new Socket(SocketType.Stream, ProtocolType.Tcp)
+        {
+            NoDelay = true
+        };
+
+        try
+        {
+            await socket.ConnectAsync(
+                addresses[0],
+                context.DnsEndPoint.Port,
+                cancellationToken);
+
+            return new NetworkStream(socket, ownsSocket: true);
+        }
+        catch
+        {
+            socket.Dispose();
+            throw;
+        }
+    }
 });
 builder.Services.AddScoped<IItineraryPromptBuilder, ItineraryPromptBuilder>();
 builder.Services.AddScoped<IItineraryValidator, ItineraryValidationService>();
