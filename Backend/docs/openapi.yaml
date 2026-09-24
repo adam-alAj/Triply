@@ -2,10 +2,12 @@ openapi: 3.0.3
 info:
   title: Triply API
   description: >
-    Placeholder OpenAPI spec — Sprint 0. This is a hand-written snapshot to
-    agree the contract shape before real endpoints exist. Once the backend
-    is running, regenerate this file from the live spec:
-      curl http://localhost:5000/swagger/v1/swagger.json -o docs/openapi.yaml
+    OUTDATED — this is the original Sprint 0 draft and it does not include
+    most of the current endpoints (refresh/logout, users, places, destinations,
+    generate, itinerary edits, cost-estimate...). The accurate source is Swagger.
+    To refresh this file, run the API locally and run:
+      curl http://localhost:8080/swagger/v1/swagger.json -o docs/openapi.yaml
+    Endpoint details for Flutter: docs/API Contract.md
   version: "0.1.0-placeholder"
 
 servers:

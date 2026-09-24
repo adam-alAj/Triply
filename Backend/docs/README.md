@@ -1,14 +1,12 @@
-![reg](image.png)
-![login](image-1.png)
-![wrong pass](image-2.png)
-![multiple login rate limit](image-3.png)
-![reg aleredy reg account](image-4.png)
-![login not valid email](image-5.png)
+# Backend docs
 
-![get by id after auth](image-7.png)
+| File | Read it when you want to… |
+|---|---|
+| [API Contract.md](API%20Contract.md) | See every endpoint with request/response examples (Flutter uses this) |
+| [API_CONVENTIONS.md](API_CONVENTIONS.md) | Know the naming, JSON, error, and versioning rules |
+| [Monitoring.md](Monitoring.md) | Understand logging, `/health`, and UptimeRobot |
+| [openapi.yaml](openapi.yaml) | Old draft — use Swagger instead (see the note inside) |
 
-![cant get id for other account](image-8.png)
+The `image*.png` files are screenshots used in the API Contract (register, login, rate limit, create trip, and so on).
 
-![post](image-9.png)
-
-![update](image-10.png)
+Also see the main [README](../README.md) and [progress.md](../progress.md).

@@ -1,532 +1,216 @@
-# Triply — Authentication API Contract
+# Triply API Contract
 
-**Backend base URL (local dev):** `https://localhost:8080`
+For the Flutter team. Every route starts with `/api`.
+JSON is `camelCase`, dates are `yyyy-MM-dd`, timestamps are UTC (`2026-09-24T10:15:52Z`).
+Rules and error format: [API_CONVENTIONS.md](API_CONVENTIONS.md).
 
+| Environment | Base URL |
+|---|---|
+| Live (Render) | `https://triply-api-za13.onrender.com` |
+| Local (Docker) | `http://localhost:8080` |
 
-All endpoints below are under `/api/auth`.
+Live Swagger is off. Use the local one: `http://localhost:8080/swagger`.
 
 ---
 
-## 1. Register
+## 0. Quick reference
 
-**Endpoint:** `POST /api/auth/register`
+🔒 = needs `Authorization: Bearer <token>`.
 
-### Request body
+| Area | Method + route | 🔒 |
+|---|---|:-:|
+| Auth | `POST /auth/register` · `/auth/login` · `/auth/refresh` | |
+| Auth | `POST /auth/logout` | ✅ |
+| Auth | `GET /auth/confirm-email` · `POST /auth/resend-confirmation` · `/auth/forgot-password` · `/auth/reset-password` | |
+| Profile | `GET/PATCH /users/me` · `GET/PUT /users/me/preferences` · `GET /users/me/stats` | ✅ |
+| Reference | `GET /destinations` · `/currencies` · `/interest-categories` · `/places/{id}` | ✅ |
+| Reference | `GET /destinations/assets` | |
+| Suggestions | `POST /destinations/suggestions` | ✅ |
+| Trips | `POST /trips` · `GET /trips` · `GET /trips/{id}` · `PUT /trips/{id}` · `PATCH /trips/{id}` · `PATCH /trips/{id}/destination` | ✅ |
+| Lifecycle | `POST /trips/{id}/save` · `/archive` · `/restore` | ✅ |
+| AI | `POST /trips/{id}/generate` | ✅ |
+| Itinerary | `GET/POST /trips/{id}/itinerary` · `PATCH /trips/{id}/itinerary/items/{itemId}` | ✅ |
+| Costs | `GET /trips/{id}/cost-estimate` | ✅ |
+| Health | `GET /health` | |
 
-| Field       | Type   | Required | Notes                                                                                                                              |
-| ----------- | ------ | -------- | ---------------------------------------------------------------------------------------------------------------------------------- |
-| email       | string | Yes      | Must be a valid and unused email                                                                                                   |
-| password    | string | Yes      | Minimum 8 characters, including at least one uppercase letter, one lowercase letter, one digit, and one non-alphanumeric character |
-| displayName | string | No       | Optional, maximum 100 characters                                                                                                   |
+### Status codes you must handle
 
-### Example request
+| Code | Meaning | What Flutter should do |
+|---|---|---|
+| `400` | Validation error | Show messages from `errors` next to the fields |
+| `401` | Not logged in / bad or expired token | Try `/auth/refresh` once, else go to Login |
+| `404` | Not found, **or not your trip** | Show "not found" |
+| `409` | Old `expectedVersion` or wrong trip status | Reload the trip, then retry |
+| `422` | AI plan failed validation | Show error + Retry |
+| `429` | Too many requests | Wait, then retry |
+| `502` | Gemini failed | Show error + Retry |
+
+Branch on the **status code**, not the message text.
+
+### Rate limits (per user, or per IP when not logged in)
+
+| Scope | Limit |
+|---|---|
+| Login | 5 per minute |
+| Everything else | 10 per minute |
+| AI generation | 10 per hour |
+
+---
+
+## 1. Auth
+
+Password rule: at least 8 characters, with an uppercase letter, a lowercase letter, a digit, and a symbol.
+
+### 1.1 Register — `POST /api/auth/register`
 
 ```json
-{
-  "email": "leen.test2026@example.com",
-  "password": "Test1234!",
-  "displayName": "Leen Test"
-}
+{ "email": "leen.test2026@example.com", "password": "Test1234!", "displayName": "Leen Test" }
 ```
+`displayName` is optional (max 100).
 
-### Success response — `200 OK`
-
+**`200 OK`** (same shape for login and refresh)
 ```json
 {
-  "token": "<JWT_TOKEN>",
-  "expiresAtUtc": "2026-09-14T16:16:57.1299752Z",
+  "token": "<JWT>",
+  "expiresAtUtc": "2026-09-14T16:16:57Z",
   "refreshToken": "<REFRESH_TOKEN>",
-  "refreshTokenExpiresAtUtc": "2026-10-14T16:01:57.1299752Z",
+  "refreshTokenExpiresAtUtc": "2026-10-14T16:01:57Z",
   "userId": "<USER_ID>",
   "email": "leen.test2026@example.com",
   "displayName": "Leen Test"
 }
 ```
+Register already logs the user in, so no separate login call is needed.
 
-Register already returns a valid JWT, so no separate login call is required immediately after registration.
-
-### Tested in Swagger
-
-![Register](image.png)
-
-### Error responses
-
-**`400 Bad Request` — validation error or duplicate email**
-
-Example:
-
+**`400`** invalid data or duplicate email:
 ```json
-{
-  "type": "https://tools.ietf.org/html/rfc9110#section-15.5.1",
-  "title": "One or more validation errors occurred.",
-  "status": 400,
-  "errors": {
-    "Email": [
-      "An account with this email already exists."
-    ]
-  },
-  "traceId": "<TRACE_ID>"
-}
+{ "title": "One or more validation errors occurred.", "status": 400,
+  "errors": { "Email": ["An account with this email already exists."] } }
 ```
 
-Other validation errors, such as invalid email or weak password, use the same `400` response structure with an `errors` object.
+![Register](image.png) ![Duplicate email](image-4.png)
 
-Flutter should read the relevant field from `errors` when displaying validation messages.
+### 1.2 Login — `POST /api/auth/login`
 
-### Duplicate email test
+```json
+{ "email": "leen.test2026@example.com", "password": "Test1234!" }
+```
+**`200`** same shape as register.
+**`401`** `"Invalid email or password."` — the same message for a wrong password and an unknown email.
+**`429`** after 5 attempts in a minute.
+**`403`** only if email confirmation is turned on and the email is not confirmed.
 
-![Register already registered account](image-4.png)
+![Login](image-1.png) ![Wrong password](image-2.png) ![Invalid email](image-5.png) ![Rate limit](image-3.png)
+
+### 1.3 Tokens
+
+Send on every 🔒 request: `Authorization: Bearer <token>`.
+
+- Access token: **15 minutes**. Refresh token: **30 days**. Issuer `Triply`, audience `TriplyClients`.
+- Use `expiresAtUtc` from the response; don't hardcode the times.
+
+**Refresh — `POST /api/auth/refresh`**
+```json
+{ "refreshToken": "<REFRESH_TOKEN>" }
+```
+`200` returns a new access token **and a new refresh token** (the old one stops working — save the new one). `401` if invalid, expired, or already used.
+
+**Logout — `POST /api/auth/logout`** 🔒 — same body. Always `204`.
+
+### 1.4 Email and password reset
+
+| Endpoint | Body | Result |
+|---|---|---|
+| `GET /auth/confirm-email?userId=&token=` | — | `200` or `400` |
+| `POST /auth/resend-confirmation` | `{ "email": "..." }` | Always `200` (never reveals if the account exists) |
+| `POST /auth/forgot-password` | `{ "email": "..." }` | Always `200` |
+| `POST /auth/reset-password` | `{ "userId": "...", "token": "...", "newPassword": "..." }` | `200`, or `400` for a bad token / weak password |
+
+A successful reset revokes all refresh tokens.
+⚠️ Emails are only written to the server log for now (no real email provider yet), so these flows cannot be tested end-to-end from the app.
 
 ---
 
-## 2. Login
+## 2. Profile
 
-**Endpoint:** `POST /api/auth/login`
-
-### Request body
-
-| Field    | Type   | Required |
-| -------- | ------ | -------- |
-| email    | string | Yes      |
-| password | string | Yes      |
-
-### Example request
+| Endpoint | Body | Response |
+|---|---|---|
+| `GET /users/me` | — | `{ "id", "email", "displayName" }` |
+| `PATCH /users/me` | `{ "displayName": "New name" }` | Updated profile |
+| `GET /users/me/preferences` | — | Preferences (defaults are created on first read) |
+| `PUT /users/me/preferences` | Full set, see below | Updated preferences |
+| `GET /users/me/stats` | — | `{ "totalTrips", "totalSavedPlaces", "totalCountries" }` |
 
 ```json
-{
-  "email": "leen.test2026@example.com",
-  "password": "Test1234!"
-}
+{ "preferredCurrencyId": 1, "preferredCurrency": "EUR", "distanceUnit": "KM", "pacing": "BALANCED" }
 ```
-
-### Success response — `200 OK`
-
-```json
-{
-  "token": "<JWT_TOKEN>",
-  "expiresAtUtc": "2026-09-14T16:17:57.7489158Z",
-  "refreshToken": "<REFRESH_TOKEN>",
-  "refreshTokenExpiresAtUtc": "2026-10-14T16:02:57.7489158Z",
-  "userId": "<USER_ID>",
-  "email": "leen.test2026@example.com",
-  "displayName": "Leen Test"
-}
-```
-
-The response has the same structure as Register, including `displayName`.
-
-### Tested in Swagger
-
-![Login](image-1.png)
-
-### Error responses
-
-**`401 Unauthorized` — invalid email or password**
-
-```json
-{
-  "type": "https://tools.ietf.org/html/rfc9110#section-15.5.2",
-  "title": "Invalid email or password.",
-  "status": 401,
-  "traceId": "<TRACE_ID>"
-}
-```
-
-The same generic message is returned for both an incorrect password and an email that does not exist.
-
-Flutter should show one generic authentication error instead of trying to distinguish between the two cases.
-
-### Wrong password test
-
-![Wrong password](image-2.png)
-
-### Invalid or non-existing email test
-
-![Invalid email](image-5.png)
+`distanceUnit`: `KM` or `MILES`. `pacing`: `RELAXED`, `BALANCED`, or `FAST`. (`preferredCurrency` is only in the response.)
 
 ---
 
-### `429 Too Many Requests` — rate limit exceeded
+## 3. Reference data
 
-The login endpoint allows up to **5 failed attempts per minute**. After the limit is exceeded, the API returns `429 Too Many Requests`.
+Read-only. Flutter should use these, not hard-coded lists.
 
-Flutter should handle `429` separately and show a message such as:
+**`GET /destinations`** — only supported destinations (now: Paris, Amman, New York)
+```json
+[{ "id": 1, "name": "Paris", "countryName": "France",
+   "description": "Capital of France...", "latitude": 48.8566, "longitude": 2.3522 }]
+```
+**`GET /destinations/assets`** (public) — destination image URLs: `{ "version": "1.0", "destinations": [{ "destinationName": "Paris", "url": "https://..." }] }`
 
-> Too many attempts. Please try again in a moment.
+**`GET /interest-categories`** → `[{ "id": 1, "code": "NATURE", "label": "Nature" }]`
 
-### Rate limit test
+**`GET /currencies`** → `[{ "id": 1, "isoCode": "EUR", "symbol": "€" }]`
 
-![Multiple login rate limit](image-3.png)
+**`GET /places/{id}`** (example values)
+```json
+{ "id": 20, "name": "Jordan Tower Hotel", "description": "...", "category": "ACCOMMODATION",
+  "destinationId": 2, "destinationName": "Amman", "countryName": "Jordan",
+  "referencePrice": 25.00, "currency": "USD",
+  "images": [], "openingHours": [{ "day": "Monday", "opensAt": "09:00", "closesAt": "17:00", "isClosed": false }] }
+```
 
 ---
 
-## 3. JWT Usage
+## 4. Budget-first suggestions — `POST /api/destinations/suggestions`
 
-Send the access token (`token`) with every authenticated request:
-
-```http
-Authorization: Bearer <JWT_TOKEN>
+```json
+{ "budgetAmount": 700.00, "budgetCurrencyId": 1, "interestCategoryIds": [1, 2] }
 ```
+Budget must be > 0, the currency must exist, and at least one valid interest is required.
 
-* **Access token lifetime:** 15 minutes by default (`Jwt:ExpiresMinutes`)
-* **Refresh token lifetime:** 30 days by default (`Jwt:RefreshTokenExpiresDays`)
-* **Issuer:** `Triply`
-* **Audience:** `TriplyClients`
-* `expiresAtUtc`, `refreshToken`, and `refreshTokenExpiresAtUtc` are returned by both Register and Login.
-
-Flutter should use the returned expiration values rather than hardcoding them. Refresh tokens rotate on successful refresh; the server stores only a SHA-256 hash of each refresh token.
-
-### Refresh access token
-
-**Endpoint:** `POST /api/auth/refresh` (no access-token authorization required)
-
+**`200`**
 ```json
 {
-  "refreshToken": "<REFRESH_TOKEN>"
-}
-```
-
-On success, `200 OK` returns the same `AuthResponse` shape as Register/Login with a new access token and rotated refresh token. An invalid, expired, or revoked refresh token returns `401 Unauthorized`.
-
-### Logout
-
-**Endpoint:** `POST /api/auth/logout`
-
-**Authentication:** JWT Bearer required.
-
-Request body uses the same `refreshToken` shape as the refresh endpoint. The matching token is revoked when it belongs to the authenticated user; the endpoint returns `204 No Content`, including when the token is already revoked or does not belong to that user.
-
----
-
-## 4. Summary
-
-| Endpoint | Status | Meaning                             |
-| -------- | -----: | ----------------------------------- |
-| Register |    200 | Account created and JWT returned    |
-| Register |    400 | Validation error or duplicate email |
-| Login    |    200 | Login successful and JWT returned   |
-| Login    |    401 | Invalid email or password           |
-| Login    |    429 | Too many login attempts             |
-| Refresh  |    200 | Access and refresh tokens rotated   |
-| Refresh  |    401 | Invalid or expired refresh token    |
-| Logout   |    204 | Refresh token revoked (idempotent)  |
-
-### Tested cases
-
-* Successful registration
-* Successful login
-* Wrong password → `401`
-* Invalid/non-existing email → `401`
-* Multiple login attempts → `429`
-* Registering an already registered account → `400`
-* Invalid registration data → `400`
-
-
----
-
-
----
-
-# 5. Reference Data for Flutter
-
-These authenticated read-only endpoints provide the data used by the Flutter planning flow. They return simple JSON arrays.
-
-## 5.1 Supported Destinations
-
-**Endpoint:** `GET /api/destinations`
-
-**Authentication:** JWT Bearer required.
-
-Only destinations with `isSupported = true` are returned. The curated dataset currently supports Paris (France), Amman (Jordan), and New York (United States).
-
-### Success response — `200 OK`
-
-```json
-[
-  {
-    "id": 1,
-    "name": "Paris",
-    "countryName": "France",
-    "description": "Capital of France, known for iconic landmarks, museums, and cuisine.",
-    "latitude": 48.8566,
-    "longitude": 2.3522
-  }
-]
-```
-
-## 5.2 Interest Categories
-
-**Endpoint:** `GET /api/interest-categories`
-
-**Authentication:** JWT Bearer required.
-
-### Success response — `200 OK`
-
-```json
-[
-  {
-    "id": 1,
-    "code": "NATURE",
-    "label": "Nature"
-  }
-]
-```
-
-## 5.3 Currencies
-
-**Endpoint:** `GET /api/currencies`
-
-**Authentication:** JWT Bearer required.
-
-### Success response — `200 OK`
-
-```json
-[
-  {
-    "id": 1,
-    "isoCode": "EUR",
-    "symbol": "€"
-  }
-]
-```
-
-These endpoints are intentionally read-only. Flutter should use their returned IDs when creating/updating trips or requesting destination suggestions.
-
-# 5. Budget-First Destination Suggestions
-
-**Endpoint:** `POST /api/destinations/suggestions`
-
-**Authentication:** JWT Bearer required.
-
-### Request body
-
-```json
-{
-  "budgetAmount": 700.00,
-  "budgetCurrencyId": 1,
-  "interestCategoryIds": [1, 2]
-}
-```
-
-`budgetAmount` must be greater than zero, the currency must exist, and at least one valid interest category must be supplied.
-
-### Success response — `200 OK`
-
-```json
-{
-  "suggestions": [
-    {
-      "destinationId": 1,
-      "destinationName": "Paris",
-      "countryName": "France",
-      "estimatedCost": 600.00,
-      "currency": "EUR",
-      "estimatedCostInBudgetCurrency": 600.00,
-      "budgetCurrencyId": 1,
-      "isEstimated": true,
-      "isWithinBudget": true
-    }
-  ],
+  "suggestions": [{
+    "destinationId": 1, "destinationName": "Paris", "countryName": "France",
+    "estimatedCost": 600.00, "currency": "EUR",
+    "estimatedCostInBudgetCurrency": 600.00, "budgetCurrencyId": 1,
+    "isEstimated": true, "isWithinBudget": true
+  }],
   "count": 1,
   "message": "Choose one suggested destination, then generate the trip."
 }
 ```
-
-Candidates are calculated from active internal `Place` rows in supported destinations that match at least one requested interest through `PlaceInterest`. Reference prices are aggregated in each destination's native currency and converted to the requested budget currency using the exchange-rate table. The response retains the native `estimatedCost` and `currency` and also returns `estimatedCostInBudgetCurrency` and `budgetCurrencyId`. Only destinations within budget are returned, up to three, ordered by distinct matched-interest count descending and converted estimated cost ascending.
-
-### No matching destination — `200 OK`
-
-```json
-{
-  "suggestions": [],
-  "count": 0,
-  "message": "No supported destinations match the selected interests and budget."
-}
-```
-
-Interest-aware suggestions use the internal `PlaceInterest` ground-truth mapping. Destinations with zero overlap are excluded, so a budget-first request cannot silently fall back to budget-only matching.
+- Up to 3 destinations, only those within budget, matching at least one selected interest.
+- Sorted by most matched interests, then lowest cost.
+- No match → `200` with `"suggestions": []` and a message (so show an "adjust budget" screen, not an error).
 
 ---
 
-# 6. Cost Estimate Aggregation
+## 5. Trips
 
-**Endpoint:** `GET /api/trips/{tripId}/cost-estimate`
-
-**Authentication:** JWT Bearer required. The trip must belong to the authenticated user.
-
-The endpoint deterministically aggregates `CostEstimates` for the trip by `CostCategory`, includes every configured cost category (including categories with no estimate, returned as `0.00`), computes the total as the sum of category amounts, and persists the result to `Trip.TotalEstimatedCost`.
-
-Every returned figure is explicitly marked with `isEstimated: true`.
-
-### Success response — `200 OK`
-
-```json
-{
-  "tripId": "00000000-0000-0000-0000-000000000000",
-  "categories": [
-    {
-      "costCategoryId": 1,
-      "categoryCode": "ACCOMMODATION",
-      "categoryName": "Accommodation",
-      "amount": 120.00,
-      "currency": "USD",
-      "isEstimated": true
-    },
-    {
-      "costCategoryId": 2,
-      "categoryCode": "FOOD",
-      "categoryName": "Food",
-      "amount": 80.00,
-      "currency": "USD",
-      "isEstimated": true
-    }
-  ],
-  "totalEstimatedCost": 200.00,
-  "currency": "USD",
-  "isEstimated": true
-}
-```
-
-Cost estimates for one trip must use a single currency before aggregation. A trip with no cost rows still returns all configured categories with zero amounts and uses the trip budget currency when available.
-
-# 7. Itinerary Read / Write Scaffolding
-
-**Endpoints:**
-- `GET /api/trips/{tripId}/itinerary`
-- `POST /api/trips/{tripId}/itinerary`
-
-**Authentication:** JWT Bearer required. The trip must belong to the authenticated user.
-
-The endpoint persists and returns the current itinerary with days ordered by `dayNumber` and items ordered by `timeSlot` (`MORNING`, `AFTERNOON`, `EVENING`) and then `orderIndex`.
-
-### Write request
-
-```json
-{
-  "days": [
-    {
-      "dayNumber": 1,
-      "date": "2026-10-01",
-      "items": [
-        {
-          "placeId": 1,
-          "timeSlot": "MORNING",
-          "orderIndex": 0,
-          "estimatedCost": 25.00,
-          "notes": "Start early",
-          "isAiGenerated": true
-        }
-      ]
-    }
-  ]
-}
-```
-
-Validation requires at least one day, unique positive day numbers, valid time slots, non-negative order indexes and estimated costs, and valid place IDs. Places must exist and be active; when the trip has a destination, every itinerary place must belong to that destination.
-
-The write operation replaces the existing itinerary for the trip atomically. This manual write endpoint is separate from AI generation; it validates supplied itinerary payloads and does not call an LLM.
-
-### Read response — `200 OK`
-
-```json
-{
-  "id": "00000000-0000-0000-0000-000000000000",
-  "tripId": "00000000-0000-0000-0000-000000000000",
-  "generatedAt": "2026-09-15T18:00:00Z",
-  "days": [
-    {
-      "id": "00000000-0000-0000-0000-000000000000",
-      "dayNumber": 1,
-      "date": "2026-10-01",
-      "items": [
-        {
-          "id": "00000000-0000-0000-0000-000000000000",
-          "placeId": 1,
-          "placeName": "Example Place",
-          "timeSlot": "MORNING",
-          "orderIndex": 0,
-          "estimatedCost": 25.00,
-          "notes": "Start early",
-          "isAiGenerated": true,
-          "modifiedAt": null
-        }
-      ]
-    }
-  ]
-}
-```
-
-A trip without an itinerary returns `404 Not Found`. A different user's itinerary also returns `404 Not Found` and never exposes itinerary data.
-
-
----
-
-# 8. Trip Save / Retrieve and Status Lifecycle
-
-**Endpoints:**
-- `GET /api/trips/{id}`
-- `POST /api/trips/{id}/generate`
-- `POST /api/trips/{id}/save`
-- `POST /api/trips/{id}/archive`
-- `POST /api/trips/{id}/restore`
-
-**Authentication:** JWT Bearer required. The trip must belong to the authenticated user.
-
-Trip status follows the database lifecycle:
-
-`DRAFT → GENERATING → GENERATED → MODIFIED → SAVED → ARCHIVED`
-
-A generation request moves `DRAFT` to `GENERATING`. Writing the generated itinerary moves `GENERATING` to `GENERATED`; changes to a generated or saved trip move it to `MODIFIED`. Saving a generated/modified trip moves it to `SAVED` and increments `version`. A saved trip can be archived and an archived trip can be restored to `SAVED`.
-
-### AI generation / partial regeneration
-
-`POST /api/trips/{id}/generate`
-
-The endpoint supports:
-
-- `FULL`: generates/replaces the complete itinerary. `expectedVersion` is not required.
-- `DAY`: regenerates only the requested `dayNumber`; every other day is preserved.
-- `ITEM`: regenerates only the requested activity `itemId`; every other item is preserved.
-
-For `DAY` and `ITEM`, `expectedVersion` is required and must equal the current trip `version`. A stale value returns `409 Conflict` and no itinerary content is replaced.
-
-Example partial regeneration request:
-
-```json
-{
-  "scope": "DAY",
-  "dayNumber": 2,
-  "expectedVersion": 4
-}
-```
-
-Successful partial regeneration increments `Trip.version` exactly once. Direct item edits through `PATCH /api/trips/{id}/itinerary/items/{itemId}` set only the edited item's `isAiGenerated` to `false`; untouched AI-generated items remain unchanged.
-
-Successful generation responses include `tripVersion` so the client can use the returned version for the next optimistic-concurrency write.
-
-Successful generation returns one selected `itinerary`, its deterministic `cost` estimate, `aiGenerationId`, `attemptsUsed`, the updated `tripVersion`, and `isOverBudget`. For `BUDGET_FIRST`, the backend checks grounded candidate options in the model's returned order, persists the first option within budget, and fails validation if none fit; it does not return the candidates as a choice list. The internal `AIGeneration` row stores the schema version used (`2.0.0` for current requests); that provenance value is not part of the client response.
-
-### Save
-
-`POST /api/trips/{id}/save`
-
-Only `GENERATED` and `MODIFIED` trips can be saved. The response returns the complete persisted trip representation.
-
-### Retrieve
-
-`GET /api/trips/{id}` returns the trip together with its current itinerary and cost estimates, including the persisted status and version.
-
-A different user's trip returns `404 Not Found`.
-
-### Trip response
-
+### Trip object (used in most responses)
 ```json
 {
   "id": "00000000-0000-0000-0000-000000000000",
   "planningMode": "DESTINATION_FIRST",
-  "status": "SAVED",
+  "status": "DRAFT",
+  "title": null,
+  "coverImageUrl": null,
   "destinationId": 1,
-  "destinationName": "Example City",
+  "destinationName": "Paris",
   "startDate": "2026-10-01",
   "endDate": "2026-10-05",
   "travelerCount": 2,
@@ -535,6 +219,162 @@ A different user's trip returns `404 Not Found`.
   "interestCategoryIds": [1, 2],
   "itinerary": null,
   "costEstimate": null,
-  "version": 2
+  "version": 1
 }
 ```
+`itinerary` and `costEstimate` are filled in by `GET /trips/{id}`. The list (`GET /trips`) leaves them out.
+
+**Status:** `DRAFT → GENERATING → GENERATED → MODIFIED → SAVED → ARCHIVED`
+
+### 5.1 Create — `POST /api/trips` → `201`
+```json
+{
+  "planningMode": "DESTINATION_FIRST",
+  "destinationId": 1,
+  "startDate": "2026-10-01",
+  "endDate": "2026-10-05",
+  "travelerCount": 2,
+  "budgetAmount": 1500.00,
+  "budgetCurrencyId": 1,
+  "interestCategoryIds": [1, 2]
+}
+```
+- `planningMode`: `DESTINATION_FIRST` (needs `destinationId`) or `BUDGET_FIRST` (needs `budgetAmount`).
+- `travelerCount` > 0, `endDate` ≥ `startDate`, budget ≥ 0, max 50 interests.
+- Response: the trip object with status `DRAFT`.
+
+### 5.2 Read
+- `GET /trips` → array of the user's trips, newest first.
+- `GET /trips/{id}` → trip + itinerary + cost estimate. Someone else's trip → `404`.
+
+### 5.3 Change
+| Endpoint | Body | Notes |
+|---|---|---|
+| `PUT /trips/{id}` | Same fields as create (without `planningMode`) + `expectedVersion` | Full update of details |
+| `PATCH /trips/{id}` | `{ "title": "...", "coverImageUrl": "...", "expectedVersion": 3 }` | Title / cover only |
+| `PATCH /trips/{id}/destination` | `{ "destinationId": 1, "expectedVersion": 1 }` | Pick a destination after budget-first suggestions |
+
+Old `expectedVersion` → `409`. Archived or generating trips cannot be edited (`409`).
+
+### 5.4 Save / archive / restore
+- `POST /trips/{id}/save` — only `GENERATED` or `MODIFIED` trips. Returns the full trip.
+- `POST /trips/{id}/archive` — `SAVED` → `ARCHIVED`. Returns `{ "id", "status", "version" }`.
+- `POST /trips/{id}/restore` — `ARCHIVED` → `SAVED`. Returns `{ "id", "status", "version" }`.
+- Wrong current status → `409`.
+
+Evidence: ![Create](image-9.png) ![Get](image-7.png) ![Other user's trip blocked](image-8.png) ![Update](image-10.png)
+
+---
+
+## 6. AI generation — `POST /api/trips/{id}/generate`
+
+Rate limit: 10 per hour per user. Can take several seconds — show a loading screen and allow for long waits.
+
+| Scope | Body | Notes |
+|---|---|---|
+| `FULL` (default) | `{ "scope": "FULL" }` or empty body | Trip must be `DRAFT` |
+| `DAY` | `{ "scope": "DAY", "dayNumber": 2, "expectedVersion": 4 }` | Only that day changes |
+| `ITEM` | `{ "scope": "ITEM", "itemId": "<guid>", "expectedVersion": 4 }` | Only that activity changes |
+
+`DAY` and `ITEM` require `expectedVersion`. A successful partial regeneration raises the trip version by one.
+
+**`200 OK`** (real response from the live service)
+```json
+{
+  "aiGenerationId": "9c16df01-2a0f-4600-a924-d593f13f1fef",
+  "attemptsUsed": 1,
+  "tripVersion": 3,
+  "isOverBudget": false,
+  "itinerary": { "...": "see section 7" },
+  "cost": { "...": "see section 8" }
+}
+```
+Keep `tripVersion` for the next edit.
+
+**Budget rules**
+- `BUDGET_FIRST`: the AI proposes up to 3 destinations; the first one within budget is saved onto the trip. If none fits → `422`.
+- `DESTINATION_FIRST`: always saved; `isOverBudget: true` tells the user it is above budget.
+
+**Errors**
+
+| Code | When |
+|---|---|
+| `400` | Bad scope, or `expectedVersion` missing for DAY/ITEM |
+| `404` | Trip not found or not yours |
+| `409` | Old `expectedVersion`, or trip in the wrong status |
+| `422` | Plan failed validation after retries (`message`, `attemptsUsed`, `errors`) |
+| `502` | Gemini did not answer (`message`, `attemptsUsed`, `errors`) |
+| `429` | Hourly limit reached |
+
+On `422`/`502` nothing is saved.
+
+---
+
+## 7. Itinerary
+
+**`GET /trips/{id}/itinerary`** → `200`, or `404` if there is none yet / not your trip.
+
+```json
+{
+  "id": "e24fb5eb-e877-4beb-9b29-c48bde79eb49",
+  "tripId": "8d96c1aa-f157-4cbd-8610-99bdecc64311",
+  "generatedAt": "2026-09-24T10:15:52Z",
+  "days": [{
+    "id": "1381d7e8-c76e-48bb-8b4c-fd9b19f4d507",
+    "dayNumber": 1,
+    "date": "2024-05-01",
+    "items": [{
+      "id": "975801d2-d602-4827-bbe6-d8e3a8db8d53",
+      "placeId": 20,
+      "placeName": "Jordan Tower Hotel",
+      "timeSlot": "MORNING",
+      "orderIndex": 0,
+      "estimatedCost": 50.00,
+      "notes": "Accommodation: 2 nights",
+      "isAiGenerated": true,
+      "modifiedAt": null
+    }]
+  }]
+}
+```
+Days are sorted by `dayNumber`; items by `timeSlot` (`MORNING`, `AFTERNOON`, `EVENING`) then `orderIndex`.
+
+**`POST /trips/{id}/itinerary`** — write a whole itinerary by hand (does not call the AI). It **replaces** the current one.
+```json
+{ "days": [{ "dayNumber": 1, "date": "2026-10-01",
+    "items": [{ "placeId": 1, "timeSlot": "MORNING", "orderIndex": 0,
+                "estimatedCost": 25.00, "notes": "Start early", "isAiGenerated": true }] }] }
+```
+Rules: at least one day, unique positive day numbers, valid time slots, costs and indexes ≥ 0, every place must exist, be active, and belong to the trip's destination.
+
+**`PATCH /trips/{id}/itinerary/items/{itemId}`** — edit one item
+```json
+{ "placeId": 5, "timeSlot": "EVENING", "orderIndex": 1, "notes": "Book a table" }
+```
+Only that item becomes `isAiGenerated: false`; the trip becomes `MODIFIED`. Notes max 1000 chars. `409` if the trip is archived or generating.
+
+---
+
+## 8. Costs — `GET /api/trips/{id}/cost-estimate`
+
+```json
+{
+  "tripId": "00000000-0000-0000-0000-000000000000",
+  "categories": [
+    { "costCategoryId": 1, "categoryCode": "ACCOMMODATION", "categoryName": "Accommodation",
+      "amount": 120.00, "currency": "USD", "isEstimated": true },
+    { "costCategoryId": 2, "categoryCode": "FOOD", "categoryName": "Food",
+      "amount": 80.00, "currency": "USD", "isEstimated": true }
+  ],
+  "totalEstimatedCost": 200.00,
+  "currency": "USD",
+  "isEstimated": true
+}
+```
+All categories are always returned (`0.00` when empty). Total = sum of categories. Always show these as **estimated**.
+
+---
+
+## 9. Health — `GET /health`
+
+Public. Returns `{ "status": "ok" }`.
