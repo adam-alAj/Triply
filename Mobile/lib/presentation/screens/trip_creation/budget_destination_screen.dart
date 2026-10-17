@@ -36,16 +36,19 @@ class BudgetDestinationScreen extends StatelessWidget {
               ),
             ),
 
-            _ContinueButton(
-              enabled: isBudgetFirst
-                  ? provider.data.budget != null
-                  : provider.data.destination != null,
-              onPressed: () async {
-                await provider.next();
-              },
-            ),
-
-            const SizedBox(height: 16),
+            if (isBudgetFirst) ...[
+              _ContinueButton(
+                enabled: provider.data.budget != null,
+                onPressed: () async {
+                  await provider.next();
+                },
+              ),
+              const SizedBox(height: 16),
+            ] else
+              _DestinationSelectionBar(
+                selectedName: provider.data.destination,
+                onContinue: provider.next,
+              ),
           ],
         ),
       ),
@@ -104,8 +107,35 @@ class _WizardHeader extends StatelessWidget {
 // DESTINATION-FIRST
 // -----------------------------------------------------------------------------
 
-class _DestinationFirstContent extends StatelessWidget {
+/// Search + country chips filter the real `GET /api/destinations` list
+/// client-side (it's a short, curated list). A search with no match is the
+/// SRS journey-7 "destination not supported" inline notice — no new screen.
+class _DestinationFirstContent extends StatefulWidget {
   const _DestinationFirstContent();
+
+  @override
+  State<_DestinationFirstContent> createState() =>
+      _DestinationFirstContentState();
+}
+
+class _DestinationFirstContentState extends State<_DestinationFirstContent> {
+  final _searchController = TextEditingController();
+  String _query = '';
+  String? _country; // null = All
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
+
+  void _clearFilters() {
+    _searchController.clear();
+    setState(() {
+      _query = '';
+      _country = null;
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -118,23 +148,34 @@ class _DestinationFirstContent extends StatelessWidget {
         name: name,
         country: destination['country'] as String,
         description: destination['description'] as String? ?? '',
-        icon: Icons.place_outlined,
         destinationId: destination['destinationId'] as int?,
         imageUrl: provider.imageUrlFor(name),
       );
     }).toList();
 
+    final countries = {for (final d in destinations) d.country}.toList()
+      ..sort();
+
+    final query = _query.trim().toLowerCase();
+    final visible = destinations.where((d) {
+      if (_country != null && d.country != _country) return false;
+      if (query.isEmpty) return true;
+      return d.name.toLowerCase().contains(query) ||
+          d.country.toLowerCase().contains(query) ||
+          d.description.toLowerCase().contains(query);
+    }).toList();
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const _SmartCurationBadge(),
+        const _SmartCurationBadge(label: 'Curated Destinations'),
 
-        const SizedBox(height: 18),
+        const SizedBox(height: 16),
 
         Text(
           'Where do you want\nto explore?',
           style: AppTextStyles.headlineLg.copyWith(
-            fontSize: 27,
+            fontSize: 28,
             height: 1.15,
           ),
         ),
@@ -142,33 +183,42 @@ class _DestinationFirstContent extends StatelessWidget {
         const SizedBox(height: 10),
 
         Text(
-          'Choose a destination and Triply will build '
-              'a journey around what makes it meaningful to you.',
+          'Select from our curated destinations or search below.',
           style: AppTextStyles.bodyMd.copyWith(
             color: AppColors.secondary,
             height: 1.45,
           ),
         ),
 
-        const SizedBox(height: 26),
+        const SizedBox(height: 20),
 
-        Text(
-          'Popular destinations',
-          style: AppTextStyles.headlineSm,
+        _DestinationSearchField(
+          controller: _searchController,
+          onChanged: (value) => setState(() => _query = value),
+          onClear: () {
+            _searchController.clear();
+            setState(() => _query = '');
+          },
         ),
 
-        const SizedBox(height: 12),
+        if (countries.length > 1) ...[
+          const SizedBox(height: 14),
+          _CountryChips(
+            countries: countries,
+            selected: _country,
+            onSelected: (country) => setState(() => _country = country),
+          ),
+        ],
+
+        const SizedBox(height: 18),
 
         if (provider.destinationsLoading && destinations.isEmpty)
-          const Padding(
-            padding: EdgeInsets.symmetric(vertical: 12),
-            child: Column(
-              children: [
-                LoadingSkeleton(height: 96, borderRadius: 20),
-                SizedBox(height: 12),
-                LoadingSkeleton(height: 96, borderRadius: 20),
-              ],
-            ),
+          const Column(
+            children: [
+              LoadingSkeleton(height: 250, borderRadius: 24),
+              SizedBox(height: 16),
+              LoadingSkeleton(height: 250, borderRadius: 24),
+            ],
           )
         else if (provider.destinationsError != null)
           ErrorState(
@@ -184,10 +234,15 @@ class _DestinationFirstContent extends StatelessWidget {
               style: AppTextStyles.bodyMd.copyWith(color: AppColors.secondary),
             ),
           )
+        else if (visible.isEmpty)
+          _NotSupportedNotice(
+            query: _query.trim(),
+            onShowAll: _clearFilters,
+          )
         else
-          ...destinations.map(
+          ...visible.map(
             (destination) => Padding(
-              padding: const EdgeInsets.only(bottom: 12),
+              padding: const EdgeInsets.only(bottom: 16),
               child: _DestinationCard(
                 option: destination,
                 selected: selectedDestination == destination.name,
@@ -201,14 +256,6 @@ class _DestinationFirstContent extends StatelessWidget {
               ),
             ),
           ),
-
-        const SizedBox(height: 8),
-
-        _SearchDestinationCard(
-          onTap: () {
-            _showMockSearchMessage(context);
-          },
-        ),
       ],
     );
   }
@@ -302,7 +349,9 @@ class _BudgetFirstContent extends StatelessWidget {
 // -----------------------------------------------------------------------------
 
 class _SmartCurationBadge extends StatelessWidget {
-  const _SmartCurationBadge();
+  const _SmartCurationBadge({this.label = 'Smart Curation'});
+
+  final String label;
 
   @override
   Widget build(BuildContext context) {
@@ -325,7 +374,7 @@ class _SmartCurationBadge extends StatelessWidget {
           ),
           const SizedBox(width: 6),
           Text(
-            'Smart Curation',
+            label,
             style: AppTextStyles.labelSm.copyWith(
               color: AppColors.secondary,
             ),
@@ -341,7 +390,6 @@ class _DestinationOption {
     required this.name,
     required this.country,
     required this.description,
-    required this.icon,
     this.destinationId,
     this.imageUrl,
   });
@@ -349,9 +397,118 @@ class _DestinationOption {
   final String name;
   final String country;
   final String description;
-  final IconData icon;
   final int? destinationId;
   final String? imageUrl;
+}
+
+class _DestinationSearchField extends StatelessWidget {
+  const _DestinationSearchField({
+    required this.controller,
+    required this.onChanged,
+    required this.onClear,
+  });
+
+  final TextEditingController controller;
+  final ValueChanged<String> onChanged;
+  final VoidCallback onClear;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(999),
+        boxShadow: const [
+          BoxShadow(
+            blurRadius: 16,
+            offset: Offset(0, 4),
+            color: AppColors.shadowAmbient,
+          ),
+        ],
+      ),
+      child: TextField(
+        controller: controller,
+        onChanged: onChanged,
+        textInputAction: TextInputAction.search,
+        style: AppTextStyles.bodyMd.copyWith(color: AppColors.onSurface),
+        decoration: InputDecoration(
+          hintText: 'Search destinations or countries...',
+          hintStyle: AppTextStyles.bodyMd.copyWith(color: AppColors.textMuted),
+          prefixIcon: const Icon(Icons.travel_explore, color: AppColors.secondary),
+          suffixIcon: ValueListenableBuilder<TextEditingValue>(
+            valueListenable: controller,
+            builder: (_, value, _) => value.text.isEmpty
+                ? const SizedBox.shrink()
+                : IconButton(
+                    tooltip: 'Clear search',
+                    icon: const Icon(Icons.close, size: 18),
+                    color: AppColors.textMuted,
+                    onPressed: onClear,
+                  ),
+          ),
+          border: InputBorder.none,
+          contentPadding: const EdgeInsets.symmetric(vertical: 16),
+        ),
+      ),
+    );
+  }
+}
+
+class _CountryChips extends StatelessWidget {
+  const _CountryChips({
+    required this.countries,
+    required this.selected,
+    required this.onSelected,
+  });
+
+  final List<String> countries;
+  final String? selected;
+  final ValueChanged<String?> onSelected;
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      height: 40,
+      child: ListView(
+        scrollDirection: Axis.horizontal,
+        clipBehavior: Clip.none,
+        children: [
+          _chip('All', selected == null, () => onSelected(null)),
+          for (final country in countries)
+            _chip(country, selected == country, () => onSelected(country)),
+        ],
+      ),
+    );
+  }
+
+  Widget _chip(String label, bool isSelected, VoidCallback onTap) {
+    return Padding(
+      padding: const EdgeInsets.only(right: 8),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(999),
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 180),
+          padding: const EdgeInsets.symmetric(horizontal: 18),
+          alignment: Alignment.center,
+          decoration: BoxDecoration(
+            color: isSelected ? AppColors.secondary : Colors.white,
+            borderRadius: BorderRadius.circular(999),
+            border: Border.all(
+              color: isSelected ? AppColors.secondary : AppColors.borderSubtle,
+            ),
+          ),
+          child: Text(
+            label,
+            style: AppTextStyles.labelMd.copyWith(
+              color: isSelected ? Colors.white : AppColors.onSurface,
+              fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
 }
 
 class _DestinationCard extends StatelessWidget {
@@ -367,98 +524,147 @@ class _DestinationCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Material(
-      color: Colors.transparent,
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(20),
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 180),
-          padding: const EdgeInsets.all(15),
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(20),
-            border: Border.all(
-              color: selected
-                  ? AppColors.primary
-                  : AppColors.surfaceContainer,
-              width: selected ? 1.5 : 1,
+    return Semantics(
+      button: true,
+      selected: selected,
+      label: '${option.name}, ${option.country}',
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(24),
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 200),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(24),
+              border: Border.all(
+                color: selected ? AppColors.primary : Colors.transparent,
+                width: 2,
+              ),
+              boxShadow: const [
+                BoxShadow(
+                  blurRadius: 18,
+                  offset: Offset(0, 6),
+                  color: AppColors.shadowAmbient,
+                ),
+              ],
             ),
-          ),
-          child: Row(
-            children: [
-              ClipRRect(
-                borderRadius: BorderRadius.circular(14),
-                child: Container(
-                  width: 48,
-                  height: 48,
-                  color: AppColors.surfaceContainerLow,
-                  child: option.imageUrl != null
-                      ? Image.network(
-                          option.imageUrl!,
-                          fit: BoxFit.cover,
-                          errorBuilder: (_, __, ___) => Icon(
-                            option.icon,
-                            color: AppColors.primary,
-                            size: 23,
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(22),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  SizedBox(
+                    height: 180,
+                    child: Stack(
+                      fit: StackFit.expand,
+                      children: [
+                        _CardImage(imageUrl: option.imageUrl),
+                        const DecoratedBox(
+                          decoration: BoxDecoration(
+                            gradient: LinearGradient(
+                              begin: Alignment.topCenter,
+                              end: Alignment.bottomCenter,
+                              colors: [Color(0x00000000), Color(0xB3000000)],
+                              stops: [0.35, 1],
+                            ),
                           ),
-                        )
-                      : Icon(
-                          option.icon,
-                          color: AppColors.primary,
-                          size: 23,
                         ),
-                ),
-              ),
-
-              const SizedBox(width: 13),
-
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      option.name,
-                      style: AppTextStyles.labelLg.copyWith(
-                        color: AppColors.onSurface,
-                      ),
+                        const Positioned(
+                          top: 12,
+                          left: 12,
+                          child: _CuratedPill(),
+                        ),
+                        Positioned(
+                          top: 12,
+                          right: 12,
+                          child: _SelectionDot(selected: selected),
+                        ),
+                        Positioned(
+                          left: 16,
+                          right: 16,
+                          bottom: 14,
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Row(
+                                children: [
+                                  const Icon(
+                                    Icons.near_me_outlined,
+                                    size: 13,
+                                    color: Colors.white70,
+                                  ),
+                                  const SizedBox(width: 4),
+                                  Flexible(
+                                    child: Text(
+                                      option.country,
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: AppTextStyles.labelSm.copyWith(
+                                        color: Colors.white70,
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              const SizedBox(height: 2),
+                              Text(
+                                option.name,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: AppTextStyles.headlineLg.copyWith(
+                                  color: Colors.white,
+                                  fontSize: 24,
+                                  height: 1.15,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
                     ),
-                    const SizedBox(height: 3),
-                    Text(
-                      option.description,
-                      style: AppTextStyles.bodySm.copyWith(
-                        color: AppColors.secondary,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-
-              AnimatedContainer(
-                duration: const Duration(milliseconds: 180),
-                width: 22,
-                height: 22,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  color: selected
-                      ? AppColors.primary
-                      : Colors.transparent,
-                  border: Border.all(
-                    color: selected
-                        ? AppColors.primary
-                        : AppColors.secondary,
-                    width: 1.3,
                   ),
-                ),
-                child: selected
-                    ? const Icon(
-                  Icons.check,
-                  color: Colors.white,
-                  size: 14,
-                )
-                    : null,
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 12, 12, 14),
+                    child: Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            option.description.isEmpty
+                                ? 'Plan a personalized trip to ${option.name}.'
+                                : option.description,
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                            style: AppTextStyles.bodySm.copyWith(
+                              color: AppColors.onSurface,
+                              height: 1.4,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 10),
+                        AnimatedContainer(
+                          duration: const Duration(milliseconds: 200),
+                          width: 36,
+                          height: 36,
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            color: selected
+                                ? AppColors.primary
+                                : AppColors.surfaceContainer,
+                          ),
+                          child: Icon(
+                            selected ? Icons.check : Icons.arrow_forward,
+                            size: 18,
+                            color: selected ? Colors.white : AppColors.secondary,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
               ),
-            ],
+            ),
           ),
         ),
       ),
@@ -466,46 +672,261 @@ class _DestinationCard extends StatelessWidget {
   }
 }
 
-class _SearchDestinationCard extends StatelessWidget {
-  const _SearchDestinationCard({
-    required this.onTap,
-  });
+class _CardImage extends StatelessWidget {
+  const _CardImage({required this.imageUrl});
 
-  final VoidCallback onTap;
+  final String? imageUrl;
 
   @override
   Widget build(BuildContext context) {
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(18),
-      child: Container(
-        width: double.infinity,
-        padding: const EdgeInsets.all(15),
-        decoration: BoxDecoration(
-          color: AppColors.surfaceContainerLow,
-          borderRadius: BorderRadius.circular(18),
+    const fallback = DecoratedBox(
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [AppColors.secondary, AppColors.primary],
         ),
-        child: Row(
-          children: [
-            const Icon(
-              Icons.search,
+      ),
+      child: Center(
+        child: Icon(Icons.landscape_outlined, size: 48, color: Colors.white54),
+      ),
+    );
+
+    if (imageUrl == null) return fallback;
+
+    return Image.network(
+      imageUrl!,
+      fit: BoxFit.cover,
+      errorBuilder: (_, _, _) => fallback,
+      loadingBuilder: (context, child, progress) => progress == null
+          ? child
+          : const ColoredBox(color: AppColors.surfaceContainer),
+    );
+  }
+}
+
+class _CuratedPill extends StatelessWidget {
+  const _CuratedPill();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.fromLTRB(6, 5, 10, 5),
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: 0.92),
+        borderRadius: BorderRadius.circular(999),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            width: 16,
+            height: 16,
+            decoration: const BoxDecoration(
               color: AppColors.primary,
+              shape: BoxShape.circle,
             ),
-            const SizedBox(width: 10),
-            Expanded(
-              child: Text(
-                'Search for another destination',
-                style: AppTextStyles.labelMd.copyWith(
-                  color: AppColors.onSurface,
-                ),
-              ),
+            child: const Icon(Icons.star, size: 10, color: Colors.white),
+          ),
+          const SizedBox(width: 6),
+          Text(
+            'Curated by Triply',
+            style: AppTextStyles.labelSm.copyWith(
+              color: AppColors.onSurface,
+              fontWeight: FontWeight.w600,
             ),
-            const Icon(
-              Icons.chevron_right,
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _SelectionDot extends StatelessWidget {
+  const _SelectionDot({required this.selected});
+
+  final bool selected;
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 200),
+      width: 30,
+      height: 30,
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        color: selected
+            ? AppColors.primary
+            : Colors.white.withValues(alpha: 0.35),
+        border: Border.all(color: Colors.white, width: 1.5),
+      ),
+      child: selected
+          ? const Icon(Icons.check, color: Colors.white, size: 17)
+          : null,
+    );
+  }
+}
+
+/// SRS journey 7: the search matched nothing in the curated dataset.
+class _NotSupportedNotice extends StatelessWidget {
+  const _NotSupportedNotice({
+    required this.query,
+    required this.onShowAll,
+  });
+
+  final String query;
+  final VoidCallback onShowAll;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: AppColors.borderSubtle),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Icon(Icons.explore_off_outlined, color: AppColors.secondary),
+          const SizedBox(height: 10),
+          Text(
+            query.isEmpty
+                ? 'No destinations match this filter'
+                : '"$query" isn\'t supported yet',
+            style: AppTextStyles.labelLg,
+          ),
+          const SizedBox(height: 6),
+          Text(
+            'Triply only plans trips to destinations in its curated dataset, '
+            'so every place in your itinerary is real. Try one of the '
+            'supported destinations instead.',
+            style: AppTextStyles.bodySm.copyWith(
               color: AppColors.secondary,
+              height: 1.4,
             ),
-          ],
-        ),
+          ),
+          const SizedBox(height: 12),
+          TextButton.icon(
+            onPressed: onShowAll,
+            icon: const Icon(Icons.public, size: 18),
+            label: const Text('Show all destinations'),
+            style: TextButton.styleFrom(
+              foregroundColor: AppColors.primary,
+              padding: EdgeInsets.zero,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _DestinationSelectionBar extends StatelessWidget {
+  const _DestinationSelectionBar({
+    required this.selectedName,
+    required this.onContinue,
+  });
+
+  final String? selectedName;
+  final Future<void> Function() onContinue;
+
+  @override
+  Widget build(BuildContext context) {
+    final hasSelection = selectedName != null;
+
+    return Container(
+      padding: const EdgeInsets.fromLTRB(20, 14, 20, 16),
+      decoration: const BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+        boxShadow: [
+          BoxShadow(
+            blurRadius: 24,
+            offset: Offset(0, -6),
+            color: AppColors.shadowAmbient,
+          ),
+        ],
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          AnimatedSize(
+            duration: const Duration(milliseconds: 200),
+            child: hasSelection
+                ? Padding(
+                    padding: const EdgeInsets.only(bottom: 12),
+                    child: Row(
+                      children: [
+                        Container(
+                          width: 8,
+                          height: 8,
+                          decoration: const BoxDecoration(
+                            color: AppColors.success,
+                            shape: BoxShape.circle,
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Text(
+                          'DESTINATION',
+                          style: AppTextStyles.labelSm.copyWith(
+                            color: AppColors.secondary,
+                            letterSpacing: 0.6,
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Align(
+                            alignment: Alignment.centerRight,
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 12,
+                                vertical: 6,
+                              ),
+                              decoration: BoxDecoration(
+                                color: AppColors.primaryContainerLight,
+                                borderRadius: BorderRadius.circular(999),
+                              ),
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  const Icon(
+                                    Icons.place_outlined,
+                                    size: 14,
+                                    color: AppColors.primary,
+                                  ),
+                                  const SizedBox(width: 4),
+                                  Flexible(
+                                    child: Text(
+                                      'Selected: $selectedName',
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: AppTextStyles.labelSm.copyWith(
+                                        color: AppColors.onPrimaryContainerLight,
+                                        fontWeight: FontWeight.w700,
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  )
+                : const SizedBox(width: double.infinity),
+          ),
+          PrimaryButton(
+            label: hasSelection
+                ? 'Continue to Trip Details'
+                : 'Select a destination',
+            icon: Icons.arrow_forward,
+            onPressed: hasSelection ? onContinue : null,
+          ),
+        ],
       ),
     );
   }
@@ -668,18 +1089,8 @@ class _ContinueButton extends StatelessWidget {
 }
 
 // -----------------------------------------------------------------------------
-// MOCK DIALOGS
+// CUSTOM BUDGET DIALOG
 // -----------------------------------------------------------------------------
-
-void _showMockSearchMessage(BuildContext context) {
-  ScaffoldMessenger.of(context).showSnackBar(
-    const SnackBar(
-      content: Text(
-        'Destination search will be connected to the backend later.',
-      ),
-    ),
-  );
-}
 
 Future<void> _showCustomBudgetDialog(BuildContext context) async {
   final tripCreationProvider = context.read<TripCreationProvider>();
